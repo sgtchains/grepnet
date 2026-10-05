@@ -1,0 +1,634 @@
+=
+
+
+[0;34m=== BASIC PATTERN MATCHING ===[0m
+
+[1;33mTesting: Basic CIDR pattern match[0m
+[0;32m✓ PASS[0m: Basic CIDR pattern match (exit: 0)
+
+[1;33mTesting: Match IPv4 address[0m
+[0;32m✓ PASS[0m: Match IPv4 address (exit: 0)
+
+[1;33mTesting: No match returns exit code 1[0m
+[0;32m✓ PASS[0m: No match returns exit code 1 (exit: 1)
+
+[1;33mTesting: Pattern file input (-f)[0m
+[0;32m✓ PASS[0m: Pattern file input (-f) (exit: 0)
+
+[1;33mTesting: Pattern via -P flag[0m
+[0;32m✓ PASS[0m: Pattern via -P flag (exit: 0)
+
+[1;33mTesting: Multiple patterns (-P multiple times)[0m
+[0;32m✓ PASS[0m: Multiple patterns (-P multiple times) (exit: 0)
+
+[1;33mTesting: Stdin input[0m
+[0;32m✓ PASS[0m: Stdin input (exit: 0)
+
+[1;33mTesting: Empty pattern file[0m
+[0;32m✓ PASS[0m: Empty pattern file (exit: 1)
+
+
+[0;34m=== MATCH TYPE FLAGS (-e, -s, -S, -O, -u) ===[0m
+
+[1;33mTesting: Exact match (-e)[0m
+[0;32m✓ PASS[0m: Exact match (-e) (exit: 0)
+
+[1;33mTesting: Subset match (-s)[0m
+[0;32m✓ PASS[0m: Subset match (-s) (exit: 0)
+
+[1;33mTesting: Superset match (-S)[0m
+[0;32m✓ PASS[0m: Superset match (-S) (exit: 0)
+
+[1;33mTesting: Overlap match (-O)[0m
+Exit code mismatch: Expected 0, Got 1
+STDOUT:\n
+STDERR:\n
+[0;31m✗ FAIL[0m: Overlap match (-O)
+
+[1;33mTesting: Combined match types (-e -s)[0m
+[0;32m✓ PASS[0m: Combined match types (-e -s) (exit: 0)
+
+[1;33mTesting: Superset and overlap (-S -O)[0m
+[0;32m✓ PASS[0m: Superset and overlap (-S -O) (exit: 0)
+
+[1;33mTesting: Unmatched networks (-u)[0m
+[0;32m✓ PASS[0m: Unmatched networks (-u) (exit: 0)
+
+[1;33mTesting: Only equals (-e only, no others)[0m
+[0;32m✓ PASS[0m: Only equals (-e only, no others) (exit: 0)
+
+
+[0;34m=== INVERSION AND FILTERING (-v) ===[0m
+
+[1;33mTesting: Invert match (-v)[0m
+[0;32m✓ PASS[0m: Invert match (-v) (exit: 0)
+
+[1;33mTesting: Quiet mode (-q) with match[0m
+[0;32m✓ PASS[0m: Quiet mode (-q) with match (exit: 0)
+
+[1;33mTesting: Quiet mode (-q) no match[0m
+[0;32m✓ PASS[0m: Quiet mode (-q) no match (exit: 1)
+
+[1;33mTesting: Quiet mode suppresses output[0m
+[0;32m✓ PASS[0m: Quiet mode suppresses output (exit: 0)
+
+[1;33mTesting: Invert with unmatched (-v -u)[0m
+[0;32m✓ PASS[0m: Invert with unmatched (-v -u) (exit: 0)
+
+[1;33mTesting: Invert with no matches returns 0[0m
+[0;32m✓ PASS[0m: Invert with no matches returns 0 (exit: 0)
+
+
+[0;34m=== OUTPUT CONTROL (-H, -l, -L, -c) ===[0m
+
+[1;33mTesting: With filename (-H)[0m
+[0;32m✓ PASS[0m: With filename (-H) (exit: 0)
+
+[1;33mTesting: List files only (-l)[0m
+[0;32m✓ PASS[0m: List files only (-l) (exit: 0)
+
+[1;33mTesting: Files without matches (-L)[0m
+[0;32m✓ PASS[0m: Files without matches (-L) (exit: 0)
+
+[1;33mTesting: Count matches (-c)[0m
+[0;32m✓ PASS[0m: Count matches (-c) (exit: 0)
+
+[1;33mTesting: Multiple files count[0m
+[0;32m✓ PASS[0m: Multiple files count (exit: 0)
+
+[1;33mTesting: No filename prefix (single file)[0m
+[0;32m✓ PASS[0m: No filename prefix (single file) (exit: 0)
+
+[1;33mTesting: Force filename on single file (-H)[0m
+[0;32m✓ PASS[0m: Force filename on single file (-H) (exit: 0)
+
+[1;33mTesting: Suppress filename (--no-filename)[0m
+[0;32m✓ PASS[0m: Suppress filename (--no-filename) (exit: 0)
+
+
+[0;34m=== LINE PREFIXES (-n, -b, -T, -Z) ===[0m
+
+[1;33mTesting: Line numbers (-n)[0m
+[0;32m✓ PASS[0m: Line numbers (-n) (exit: 0)
+
+[1;33mTesting: Byte offset (-b)[0m
+[0;32m✓ PASS[0m: Byte offset (-b) (exit: 0)
+
+[1;33mTesting: Line number and byte offset (-n -b)[0m
+[0;32m✓ PASS[0m: Line number and byte offset (-n -b) (exit: 0)
+
+[1;33mTesting: Initial tab (-T) with line numbers[0m
+[0;32m✓ PASS[0m: Initial tab (-T) with line numbers (exit: 0)
+
+[1;33mTesting: Initial tab (-T) with byte offset[0m
+[0;32m✓ PASS[0m: Initial tab (-T) with byte offset (exit: 0)
+
+[1;33mTesting: Initial tab (-T) with both prefixes[0m
+[0;32m✓ PASS[0m: Initial tab (-T) with both prefixes (exit: 0)
+
+[1;33mTesting: Line numbers in output[0m
+[0;32m✓ PASS[0m: Line numbers in output (exit: 0)
+
+[1;33mTesting: Byte offsets in output[0m
+[0;32m✓ PASS[0m: Byte offsets in output (exit: 0)
+
+
+[0;34m=== CONTEXT LINES (-A, -B, -C) ===[0m
+
+[1;33mTesting: After context (-A 2)[0m
+[0;32m✓ PASS[0m: After context (-A 2) (exit: 0)
+
+[1;33mTesting: Before context (-B 2)[0m
+[0;32m✓ PASS[0m: Before context (-B 2) (exit: 0)
+
+[1;33mTesting: Both before and after (-B 1 -A 1)[0m
+[0;32m✓ PASS[0m: Both before and after (-B 1 -A 1) (exit: 0)
+
+[1;33mTesting: Context shorthand (-C 1)[0m
+[0;32m✓ PASS[0m: Context shorthand (-C 1) (exit: 0)
+
+[1;33mTesting: No group separator (--no-group-separator)[0m
+[0;32m✓ PASS[0m: No group separator (--no-group-separator) (exit: 0)
+
+[1;33mTesting: Before context (zero lines, -B 0)[0m
+[0;32m✓ PASS[0m: Before context (zero lines, -B 0) (exit: 0)
+
+[1;33mTesting: After context (zero lines, -A 0)[0m
+[0;32m✓ PASS[0m: After context (zero lines, -A 0) (exit: 0)
+
+[1;33mTesting: Large context (-C 10)[0m
+[0;32m✓ PASS[0m: Large context (-C 10) (exit: 0)
+
+[1;33mTesting: Custom group separator[0m
+[0;32m✓ PASS[0m: Custom group separator (exit: 0)
+
+
+[0;34m=== OUTPUT FORMATS (--output-format, -o) ===[0m
+
+[1;33mTesting: JSON output[0m
+[0;32m✓ PASS[0m: JSON output (exit: 0)
+
+[1;33mTesting: JSON output contains proper structure[0m
+[0;32m✓ PASS[0m: JSON output contains proper structure (exit: 0)
+
+[1;33mTesting: Table output[0m
+[0;32m✓ PASS[0m: Table output (exit: 0)
+
+[1;33mTesting: Only matching (-o)[0m
+[0;32m✓ PASS[0m: Only matching (-o) (exit: 0)
+
+[1;33mTesting: Only matching output contains IP/CIDR[0m
+[0;32m✓ PASS[0m: Only matching output contains IP/CIDR (exit: 0)
+
+[1;33mTesting: Extract mode (--extract)[0m
+[0;32m✓ PASS[0m: Extract mode (--extract) (exit: 0)
+
+[1;33mTesting: Extract with show-content[0m
+[0;32m✓ PASS[0m: Extract with show-content (exit: 0)
+
+[1;33mTesting: Consolidate mode (--consolidate)[0m
+[0;32m✓ PASS[0m: Consolidate mode (--consolidate) (exit: 0)
+
+[1;33mTesting: Text output (default)[0m
+[0;32m✓ PASS[0m: Text output (default) (exit: 0)
+
+[1;33mTesting: Max count limit (-m 1)[0m
+[0;32m✓ PASS[0m: Max count limit (-m 1) (exit: 0)
+
+
+[0;34m=== PARSING OPTIONS ===[0m
+
+[1;33mTesting: Parse ranges (default)[0m
+[0;32m✓ PASS[0m: Parse ranges (default) (exit: 0)
+
+[1;33mTesting: Parse long-form ranges only (--range-format=long)[0m
+[0;32m✓ PASS[0m: Parse long-form ranges only (--range-format=long) (exit: 0)
+
+[1;33mTesting: Parse short-form ranges only (--range-format=short)[0m
+[0;32m✓ PASS[0m: Parse short-form ranges only (--range-format=short) (exit: 0)
+
+[1;33mTesting: Disable CIDR parsing (--parse-cidr=none)[0m
+Exit code mismatch: Expected 1, Got 0
+STDOUT:\n192.0.2.0/24
+192.0.2.0 0.0.0.255
+192.0.2.0-192.0.2.255
+192.0.2.0-192.0.2.255
+Route to 192.0.2.0/24 via 10.0.0.0/8
+STDERR:\n
+[0;31m✗ FAIL[0m: Disable CIDR parsing (--parse-cidr=none)
+
+[1;33mTesting: Parse CIDR enabled (default, --parse-cidr=both)[0m
+[0;32m✓ PASS[0m: Parse CIDR enabled (default, --parse-cidr=both) (exit: 0)
+
+[1;33mTesting: Parse netmask format (default)[0m
+[0;32m✓ PASS[0m: Parse netmask format (default) (exit: 0)
+
+[1;33mTesting: Disable netmask parsing (--parse-netmask=none)[0m
+Exit code mismatch: Expected 1, Got 0
+STDOUT:\n/home/chains/dev/grepnet/tests/sample_networks.txt:192.0.2.0/24
+/home/chains/dev/grepnet/tests/sample_networks.txt:192.0.2.0 0.0.0.255
+/home/chains/dev/grepnet/tests/sample_networks.txt:192.0.2.0-192.0.2.255
+/home/chains/dev/grepnet/tests/sample_networks.txt:192.0.2.0-192.0.2.255
+/home/chains/dev/grepnet/tests/sample_networks.txt:Route to 192.0.2.0/24 via 10.0.0.0/8
+STDERR:\n
+[0;31m✗ FAIL[0m: Disable netmask parsing (--parse-netmask=none)
+
+[1;33mTesting: Parse hostmask format (default)[0m
+[0;32m✓ PASS[0m: Parse hostmask format (default) (exit: 0)
+
+[1;33mTesting: Disable hostmask parsing (--parse-hostmask=none)[0m
+Exit code mismatch: Expected 1, Got 0
+STDOUT:\n/home/chains/dev/grepnet/tests/sample_networks.txt:192.0.2.0/24
+/home/chains/dev/grepnet/tests/sample_networks.txt:192.0.2.0 0.0.0.255
+/home/chains/dev/grepnet/tests/sample_networks.txt:192.0.2.0-192.0.2.255
+/home/chains/dev/grepnet/tests/sample_networks.txt:192.0.2.0-192.0.2.255
+/home/chains/dev/grepnet/tests/sample_networks.txt:Route to 192.0.2.0/24 via 10.0.0.0/8
+STDERR:\n
+[0;31m✗ FAIL[0m: Disable hostmask parsing (--parse-hostmask=none)
+
+[1;33mTesting: Disable all parsing[0m
+Exit code mismatch: Expected 1, Got 0
+STDOUT:\n192.0.2.0/24
+192.0.2.0 0.0.0.255
+192.0.2.0-192.0.2.255
+Route to 192.0.2.0/24 via 10.0.0.0/8
+STDERR:\n
+[0;31m✗ FAIL[0m: Disable all parsing
+
+
+[0;34m=== STRICT CIDR VALIDATION ===[0m
+
+[1;33mTesting: Non-strict mode (default, normalizes)[0m
+[0;32m✓ PASS[0m: Non-strict mode (default, normalizes) (exit: 0)
+
+[1;33mTesting: Strict pattern mode with fail (--strict-cidr=pattern --strict-cidr-action=fail)[0m
+[0;32m✓ PASS[0m: Strict pattern mode with fail (--strict-cidr=pattern --strict-cidr-action=fail) (exit: 2)
+
+[1;33mTesting: Strict input mode with normalize (--strict-cidr=input)[0m
+[0;32m✓ PASS[0m: Strict input mode with normalize (--strict-cidr=input) (exit: 0)
+
+[1;33mTesting: Strict both modes with normalize (--strict-cidr=both)[0m
+[0;32m✓ PASS[0m: Strict both modes with normalize (--strict-cidr=both) (exit: 0)
+
+[1;33mTesting: Strict with fail action (--strict-cidr=both --strict-cidr-action=fail)[0m
+[0;32m✓ PASS[0m: Strict with fail action (--strict-cidr=both --strict-cidr-action=fail) (exit: 2)
+
+
+[0;34m=== COMMENT HANDLING ===[0m
+
+[1;33mTesting: Find networks ignoring comments[0m
+[0;32m✓ PASS[0m: Find networks ignoring comments (exit: 0)
+
+[1;33mTesting: Include comment lines (--no-filter-comments)[0m
+[0;32m✓ PASS[0m: Include comment lines (--no-filter-comments) (exit: 0)
+
+[1;33mTesting: No matches in comments with filter[0m
+[0;32m✓ PASS[0m: No matches in comments with filter (exit: 1)
+
+[1;33mTesting: Match networks in commented lines when no-filter is used[0m
+[0;32m✓ PASS[0m: Match networks in commented lines when no-filter is used (exit: 0)
+
+
+[0;34m=== IPv6 SUPPORT ===[0m
+
+[1;33mTesting: IPv6 CIDR match[0m
+[0;32m✓ PASS[0m: IPv6 CIDR match (exit: 0)
+
+[1;33mTesting: IPv6 single address[0m
+[0;32m✓ PASS[0m: IPv6 single address (exit: 0)
+
+[1;33mTesting: IPv6 range format[0m
+Exit code mismatch: Expected 0, Got 2
+STDOUT:\n
+STDERR:\nusage: grepnet [-h] [-P PATTERN_VALUES] [-f PATTERN_FILE] [-e] [-s] [-S] [-O]
+               [-u] [-v] [-q] [-H] [-n] [-b] [-l] [-L] [-c] [-T] [-o] [-A NUM]
+               [-B NUM] [-C NUM] [--group-separator SEP]
+               [--no-group-separator] [--no-filename]
+               [--exclude-string EXCLUDE_STRINGS]
+               [--exclude-strings-file EXCLUDE_FILE]
+               [--exclude-cidr EXCLUDE_CIDRS]
+               [--exclude-cidrs-file EXCLUDE_CIDRS_FILE]
+               [--output-format {text,json,table}]
+               [--color {auto,always,never}]
+               [--parse-cidr {pattern,input,both,none}]
+               [--parse-netmask {pattern,input,both,none}]
+               [--parse-hostmask {pattern,input,both,none}]
+               [--parse-ranges {pattern,input,both,none}]
+               [--range-format {long,short,both,none}]
+               [--strict-cidr {pattern,input,both,none}]
+               [--strict-cidr-action {fail,normalize,ignore,warn}]
+               [--filter-comments] [--no-filter-comments] [-r] [-R]
+               [-F INPUT_FILES_EXPLICIT] [-d {read,skip,recurse}]
+               [-D {read,skip}] [--include PATTERN] [--exclude PATTERN]
+               [--exclude-from FILE] [--exclude-dir PATTERN] [-a] [-I]
+               [--binary-files {binary,text,without-match}] [-m NUM] [-Z]
+               [--label LABEL] [--show-content] [--extract] [--consolidate]
+               [--version] [--no-messages] [--debug DEBUG]
+               [pattern] [input_files ...]
+grepnet: error: argument --parse-ranges: invalid choice: '2001:db8::1-2001:db8::ff' (choose from 'pattern', 'input', 'both', 'none')
+[0;31m✗ FAIL[0m: IPv6 range format
+
+[1;33mTesting: IPv6 compressed format[0m
+[0;32m✓ PASS[0m: IPv6 compressed format (exit: 0)
+
+[1;33mTesting: Mixed IPv4 and IPv6[0m
+[0;32m✓ PASS[0m: Mixed IPv4 and IPv6 (exit: 0)
+
+
+[0;34m=== MULTIPLE FILES ===[0m
+
+[1;33mTesting: Search multiple files[0m
+[0;32m✓ PASS[0m: Search multiple files (exit: 0)
+
+[1;33mTesting: Multiple files with matches in all[0m
+[0;32m✓ PASS[0m: Multiple files with matches in all (exit: 0)
+
+[1;33mTesting: Filename prefix for multiple files[0m
+[0;32m✓ PASS[0m: Filename prefix for multiple files (exit: 0)
+
+[1;33mTesting: Suppress filename (--no-filename)[0m
+[0;32m✓ PASS[0m: Suppress filename (--no-filename) (exit: 0)
+
+[1;33mTesting: Force filename on single file (-H)[0m
+[0;32m✓ PASS[0m: Force filename on single file (-H) (exit: 0)
+
+[1;33mTesting: Multiple files with line numbers (-n)[0m
+[0;32m✓ PASS[0m: Multiple files with line numbers (-n) (exit: 0)
+
+[1;33mTesting: Multiple files with count (-c)[0m
+[0;32m✓ PASS[0m: Multiple files with count (-c) (exit: 0)
+
+
+[0;34m=== EXCLUSION FILTERING ===[0m
+
+[1;33mTesting: Exclude network (--exclude-string)[0m
+[0;32m✓ PASS[0m: Exclude network (--exclude-string) (exit: 0)
+
+[1;33mTesting: Exclude multiple patterns[0m
+[0;32m✓ PASS[0m: Exclude multiple patterns (exit: 0)
+
+[1;33mTesting: Exclude via file[0m
+[0;32m✓ PASS[0m: Exclude via file (exit: 0)
+
+[1;33mTesting: Exclude with regex pattern[0m
+[0;32m✓ PASS[0m: Exclude with regex pattern (exit: 0)
+
+[1;33mTesting: Extract mode with exclusion[0m
+Command timed out after 30s
+[0;31m⏱ TIMEOUT[0m: Extract mode with exclusion (exceeded 30s)
+
+
+[0;34m=== HELP AND VERSION ===[0m
+
+[1;33mTesting: Help flag (-h)[0m
+[0;32m✓ PASS[0m: Help flag (-h) (exit: 0)
+
+[1;33mTesting: Full help (--help)[0m
+[0;32m✓ PASS[0m: Full help (--help) (exit: 0)
+
+[1;33mTesting: Version flag (--version)[0m
+[0;32m✓ PASS[0m: Version flag (--version) (exit: 0)
+
+[1;33mTesting: Help contains usage information[0m
+[0;32m✓ PASS[0m: Help contains usage information
+
+[1;33mTesting: Help contains pattern description[0m
+[0;32m✓ PASS[0m: Help contains pattern description
+
+[1;33mTesting: Version output[0m
+[0;32m✓ PASS[0m: Version output
+
+
+[0;34m=== ERROR HANDLING ===[0m
+
+[1;33mTesting: File not found returns exit 2[0m
+[0;32m✓ PASS[0m: File not found returns exit 2 (exit: 2)
+
+[1;33mTesting: Invalid flag handling[0m
+[0;32m✓ PASS[0m: Invalid flag handling (exit: 2)
+
+[1;33mTesting: Missing pattern[0m
+[0;32m✓ PASS[0m: Missing pattern (exit: 1)
+
+[1;33mTesting: Empty pattern file[0m
+[0;32m✓ PASS[0m: Empty pattern file (exit: 1)
+
+[1;33mTesting: No input files[0m
+Command timed out after 30s
+[0;31m⏱ TIMEOUT[0m: No input files (exceeded 30s)
+
+[1;33mTesting: Error message contains filename[0m
+String not found in STDOUT: /nonexistent/file.txt
+Full STDOUT was:
+grepnet: No input files
+[0;31m✗ FAIL[0m: Error message contains filename
+
+[1;33mTesting: Quiet mode suppresses error messages[0m
+[0;32m✓ PASS[0m: Quiet mode suppresses error messages
+
+
+[0;34m=== SUBNET MASK AND HOSTMASK VALIDATION ===[0m
+
+[1;33mTesting: Valid subnet mask: 255.255.255.0 (/24)[0m
+[0;32m✓ PASS[0m: Valid subnet mask: 255.255.255.0 (/24) (exit: 0)
+
+[1;33mTesting: Valid subnet mask: 255.255.0.0 (/16)[0m
+[0;32m✓ PASS[0m: Valid subnet mask: 255.255.0.0 (/16) (exit: 0)
+
+[1;33mTesting: Valid subnet mask: 255.0.0.0 (/8)[0m
+[0;32m✓ PASS[0m: Valid subnet mask: 255.0.0.0 (/8) (exit: 0)
+
+[1;33mTesting: Valid subnet mask: 255.255.255.128 (/25)[0m
+[0;32m✓ PASS[0m: Valid subnet mask: 255.255.255.128 (/25) (exit: 0)
+
+[1;33mTesting: Valid subnet mask: 255.255.255.255 (/32 - host)[0m
+[0;32m✓ PASS[0m: Valid subnet mask: 255.255.255.255 (/32 - host) (exit: 0)
+
+[1;33mTesting: Invalid subnet mask: 255.0.255.0 (non-contiguous) - extracts as two IPs[0m
+[0;32m✓ PASS[0m: Invalid subnet mask: 255.0.255.0 (non-contiguous) - extracts as two IPs
+
+[1;33mTesting: Invalid subnet mask: 255.255.0.255 (non-contiguous) - extracts as two IPs[0m
+[0;32m✓ PASS[0m: Invalid subnet mask: 255.255.0.255 (non-contiguous) - extracts as two IPs
+
+[1;33mTesting: Invalid subnet mask: 0.255.255.255 (MSB is 0) - extracts as two IPs[0m
+[0;32m✓ PASS[0m: Invalid subnet mask: 0.255.255.255 (MSB is 0) - extracts as two IPs
+
+[1;33mTesting: Valid hostmask: 0.0.0.255 (/24)[0m
+[0;32m✓ PASS[0m: Valid hostmask: 0.0.0.255 (/24) (exit: 0)
+
+[1;33mTesting: Valid hostmask: 0.0.255.255 (/16)[0m
+[0;32m✓ PASS[0m: Valid hostmask: 0.0.255.255 (/16) (exit: 0)
+
+[1;33mTesting: Valid hostmask: 0.255.255.255 (/8)[0m
+[0;32m✓ PASS[0m: Valid hostmask: 0.255.255.255 (/8) (exit: 0)
+
+[1;33mTesting: Valid hostmask: 0.0.0.127 (/25)[0m
+[0;32m✓ PASS[0m: Valid hostmask: 0.0.0.127 (/25) (exit: 0)
+
+[1;33mTesting: Valid hostmask: 0.0.0.0 (/32 - host)[0m
+[0;32m✓ PASS[0m: Valid hostmask: 0.0.0.0 (/32 - host) (exit: 0)
+
+[1;33mTesting: Invalid hostmask: 0.255.0.255 (non-contiguous) - extracts as two IPs[0m
+[0;32m✓ PASS[0m: Invalid hostmask: 0.255.0.255 (non-contiguous) - extracts as two IPs
+
+[1;33mTesting: Invalid hostmask: 255.0.0.0 (MSB is 1) - try as subnet mask, fail, extract as IPs[0m
+[0;32m✓ PASS[0m: Invalid hostmask: 255.0.0.0 (MSB is 1) - try as subnet mask, fail, extract as IPs
+
+[1;33mTesting: Invalid hostmask: 255.255.255.0 (MSB is 1) - try as subnet mask, fail, extract as IPs[0m
+[0;32m✓ PASS[0m: Invalid hostmask: 255.255.255.0 (MSB is 1) - try as subnet mask, fail, extract as IPs
+
+[1;33mTesting: Non-contiguous mask causes plain IP extraction - only 192.0.2.0 colored[0m
+[0;32m✓ PASS[0m: Non-contiguous mask causes plain IP extraction - only 192.0.2.0 colored
+
+[1;33mTesting: Valid subnet mask - network colored as match[0m
+[0;32m✓ PASS[0m: Valid subnet mask - network colored as match
+
+[1;33mTesting: Priority: 255.255.255.0 (valid subnet mask, MSB=1) not parsed as hostmask[0m
+[0;32m✓ PASS[0m: Priority: 255.255.255.0 (valid subnet mask, MSB=1) not parsed as hostmask (exit: 0)
+
+[1;33mTesting: Priority: 0.0.0.255 (valid hostmask, MSB=0) not parsed as subnet mask[0m
+[0;32m✓ PASS[0m: Priority: 0.0.0.255 (valid hostmask, MSB=0) not parsed as subnet mask (exit: 0)
+
+
+[0;34m=== PATTERN PARSING EDGE CASES ===[0m
+
+[1;33mTesting: Pattern with comma: extracts two patterns (192.0.2.0 and 0.0.0.0/0)[0m
+[0;32m✓ PASS[0m: Pattern with comma: extracts two patterns (192.0.2.0 and 0.0.0.0/0) (exit: 0)
+
+[1;33mTesting: Both networks match when pattern includes 0.0.0.0/0[0m
+[0;32m✓ PASS[0m: Both networks match when pattern includes 0.0.0.0/0 (exit: 0)
+
+[1;33mTesting: Invalid pattern: only comma, no valid networks[0m
+[0;32m✓ PASS[0m: Invalid pattern: only comma, no valid networks (exit: 1)
+
+[1;33mTesting: Pattern with semicolon: extracts IP before semicolon[0m
+[0;32m✓ PASS[0m: Pattern with semicolon: extracts IP before semicolon (exit: 0)
+
+[1;33mTesting: Pattern with pipe: extracts IP before pipe[0m
+[0;32m✓ PASS[0m: Pattern with pipe: extracts IP before pipe (exit: 0)
+
+[1;33mTesting: Pattern with spaces: parsed as subnet mask format[0m
+[0;32m✓ PASS[0m: Pattern with spaces: parsed as subnet mask format (exit: 0)
+
+[1;33mTesting: Empty pattern string: no patterns extracted, error exit[0m
+[0;32m✓ PASS[0m: Empty pattern string: no patterns extracted, error exit (exit: 2)
+
+[1;33mTesting: Pattern with only spaces: extracts nothing, no match exit[0m
+[0;32m✓ PASS[0m: Pattern with only spaces: extracts nothing, no match exit (exit: 1)
+
+
+[0;34m=== MATCH TYPE PRIORITIZATION ===[0m
+
+[1;33mTesting: Multiple patterns: EQUALS takes priority over SUPERSET[0m
+[0;32m✓ PASS[0m: Multiple patterns: EQUALS takes priority over SUPERSET (exit: 0)
+
+[1;33mTesting: Multiple patterns: both networks in line, different match types[0m
+[0;32m✓ PASS[0m: Multiple patterns: both networks in line, different match types (exit: 0)
+
+[1;33mTesting: EQUALS color prioritized when matching multiple patterns[0m
+[0;32m✓ PASS[0m: EQUALS color prioritized when matching multiple patterns
+
+[1;33mTesting: Both networks match when patterns have different priorities[0m
+[0;32m✓ PASS[0m: Both networks match when patterns have different priorities (exit: 0)
+
+[1;33mTesting: EQUALS wins even if 0.0.0.0/0 pattern comes first[0m
+[0;32m✓ PASS[0m: EQUALS wins even if 0.0.0.0/0 pattern comes first (exit: 0)
+
+[1;33mTesting: EQUALS prioritized over both SUBSET and SUPERSET[0m
+[0;32m✓ PASS[0m: EQUALS prioritized over both SUBSET and SUPERSET (exit: 0)
+
+[1;33mTesting: SUBSET prioritized over SUPERSET[0m
+[0;32m✓ PASS[0m: SUBSET prioritized over SUPERSET (exit: 0)
+
+[0;34m=== Summary ===[0m
+
+
+[0;34m=== CONTEXT OUTPUT VALIDATION (-B, -A, -C) ===[0m
+
+[1;33mTesting: Context: -B 1 includes line before[0m
+[0;32m✓ PASS[0m: Context: -B 1 includes line before
+
+[1;33mTesting: Context: -A 1 includes line after[0m
+[0;32m✓ PASS[0m: Context: -A 1 includes line after
+
+[1;33mTesting: Context: Separator between distant matches[0m
+[0;32m✓ PASS[0m: Context: Separator between distant matches
+
+[1;33mTesting: Context: No separator for close matches[0m
+[0;32m✓ PASS[0m: Context: No separator for close matches
+
+[1;33mTesting: Context: -B 2 -A 2 complete context[0m
+[0;32m✓ PASS[0m: Context: -B 2 -A 2 complete context
+
+[1;33mTesting: Context: Custom separator[0m
+[0;32m✓ PASS[0m: Context: Custom separator
+
+[1;33mTesting: Context: No separator with flag[0m
+[0;32m✓ PASS[0m: Context: No separator with flag
+
+
+[0;34m=== MULTI-LINE BLOCK COMMENT EDGE CASES ===[0m
+
+[1;33mTesting: Block comment: starts mid-line[0m
+[0;32m✓ PASS[0m: Block comment: starts mid-line (exit: 0)
+
+[1;33mTesting: Block comment: ends mid-line with content after[0m
+[0;32m✓ PASS[0m: Block comment: ends mid-line with content after (exit: 0)
+
+[1;33mTesting: Block comment: multiple blocks in file[0m
+[0;32m✓ PASS[0m: Block comment: multiple blocks in file (exit: 0)
+
+[1;33mTesting: Block comment: nested markers[0m
+[0;32m✓ PASS[0m: Block comment: nested markers (exit: 0)
+
+[1;33mTesting: Separator: no separator without context flags[0m
+[0;32m✓ PASS[0m: Separator: no separator without context flags (exit: 0)
+
+[1;33mTesting: Separator: appears with -B flag[0m
+[0;32m✓ PASS[0m: Separator: appears with -B flag (exit: 0)
+
+[1;33mTesting: Separator: appears with -A flag[0m
+[0;32m✓ PASS[0m: Separator: appears with -A flag (exit: 0)
+
+[1;33mTesting: Block comment: extract with --no-filter-comments[0m
+[0;32m✓ PASS[0m: Block comment: extract with --no-filter-comments (exit: 0)
+
+[1;33mTesting: Block comment: state resets between files[0m
+[0;32m✓ PASS[0m: Block comment: state resets between files (exit: 0)
+
+[1;33mTesting: Context: shows block comment as surrounding context[0m
+[0;32m✓ PASS[0m: Context: shows block comment as surrounding context (exit: 0)
+
+
+[0;34m=== GREP COMPATIBILITY: SEPARATOR BEHAVIOR ===[0m
+
+[1;33mTesting: Grep compat: No separator without context flags[0m
+[0;32m✓ PASS[0m: Grep compat: No separator without context flags (exit: 0)
+
+[1;33mTesting: Grep compat: Separator with -A0 flag[0m
+[0;32m✓ PASS[0m: Grep compat: Separator with -A0 flag (exit: 0)
+
+[1;33mTesting: Grep compat: Separator with -B0 flag[0m
+[0;32m✓ PASS[0m: Grep compat: Separator with -B0 flag (exit: 0)
+
+[1;33mTesting: Grep compat: Separator with -C0 flag[0m
+[0;32m✓ PASS[0m: Grep compat: Separator with -C0 flag (exit: 0)
+
+[1;33mTesting: Grep compat: Multi-line block comment with -A0[0m
+[0;32m✓ PASS[0m: Grep compat: Multi-line block comment with -A0 (exit: 0)
+
+[1;33mTesting: Grep compat: No separator for single match with -A0[0m
+[0;32m✓ PASS[0m: Grep compat: No separator for single match with -A0 (exit: 0)
+
+[1;33mTesting: Grep compat: Separator with -A 0 (space-separated)[0m
+[0;32m✓ PASS[0m: Grep compat: Separator with -A 0 (space-separated) (exit: 0)
+
+[1;33mTesting: Grep compat: Separator with --after-context=0[0m
+[0;32m✓ PASS[0m: Grep compat: Separator with --after-context=0 (exit: 0)
+
+FINAL SUMMARY
+Passed:  0
+Failed:  0
+Timeout: 0
+Skipped: 0
+Total:   0

@@ -1,0 +1,10 @@
+Line 1
+Line 2  
+Line 3: 192.168.1.0/24 <- MATCH 1
+Line 4
+Line 5
+Line 6: 10.0.0.0/8 <- MATCH 2
+Line 7
+Line 8
+Line 9
+Line 10: 172.16.0.0/12 <- MATCH 3

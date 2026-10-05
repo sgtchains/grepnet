@@ -1,0 +1,24 @@
+# Test data for context testing
+# Line 1: Match candidate
+192.168.1.0/24
+
+# Line 3: Before context line 1
+This is a context line before
+
+# Line 5: Before context line 2
+Another context line
+
+# Line 7: MATCH LINE
+192.168.0.0/16 is the network
+
+# Line 9: After context line 1
+This is after the match
+
+# Line 11: After context line 2
+And another line after
+
+# Line 13: Another MATCH
+10.0.0.0/8 gateway
+
+# Line 15: Final context
+Last line here

@@ -1,0 +1,8 @@
+#!/bin/bash
+# Development wrapper script for GrepNet
+# Sets PYTHONPATH and runs the grepnet CLI
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export PYTHONPATH="${SCRIPT_DIR}/src:${PYTHONPATH}"
+
+exec python3 "${SCRIPT_DIR}/bin/grepnet" "$@"

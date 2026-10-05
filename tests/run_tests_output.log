@@ -1,0 +1,4264 @@
+[0;34m╔════════════════════════════════════════════════════════════════╗[0m
+[0;34m║        GREPNET COMPREHENSIVE TEST SUITE                       ║[0m
+[0;34m╚════════════════════════════════════════════════════════════════╝[0m
+
+[0;36mVerifying grepnet installation...[0m
+[0;32m✓[0m grepnet found: /home/chains/dev/grepnet/grepnet
+[0;32m✓[0m Version: grepnet 3.0.0
+
+[0;36mDiscovering test files...[0m
+[0;32mFound 34 test file(s):[0m
+  [1;33m1-core:[0m
+    [0;36m→[0m 001_test_basic_matching
+    [0;36m→[0m 002_test_match_types
+    [0;36m→[0m 003_test_inversion_filtering
+  [1;33m2-output:[0m
+    [0;36m→[0m 004_test_output_control
+    [0;36m→[0m 005_test_line_prefixes
+    [0;36m→[0m 007_test_output_formats
+    [0;36m→[0m 020_test_context_output_validation
+    [0;36m→[0m 023_test_color_validation
+    [0;36m→[0m 027_test_output_features
+    [0;36m→[0m 030_test_multiple_matches_per_line
+  [1;33m3-filtering:[0m
+    [0;36m→[0m 013_test_exclusion_filtering
+    [0;36m→[0m 026_test_exclusion_filtering
+    [0;36m→[0m 028_test_file_discovery
+    [0;36m→[0m 029_test_binary_handling
+  [1;33m4-extraction:[0m
+    [0;36m→[0m 031_test_extract_consolidate_pattern
+    [0;36m→[0m 033_test_range_extraction_and_formatting
+    [0;36m→[0m 034_test_abbreviated_range_formats
+    [0;36m→[0m 035_test_cidr_format_conversion
+    [0;36m→[0m 036_test_format_original
+  [1;33m5-parsing:[0m
+    [0;36m→[0m 008_test_parsing_options
+    [0;36m→[0m 009_test_strict_cidr
+    [0;36m→[0m 016_test_mask_validation
+    [0;36m→[0m 032_test_malformed_patterns
+    [0;36m→[0m 032_test_multiple_format_occurrences
+  [1;33m6-advanced:[0m
+    [0;36m→[0m 006_test_context_lines
+    [0;36m→[0m 010_test_comments
+    [0;36m→[0m 011_test_ipv6
+    [0;36m→[0m 012_test_multiple_files
+    [0;36m→[0m 014_test_help_version
+    [0;36m→[0m 015_test_error_handling
+    [0;36m→[0m 017_test_pattern_edge_cases
+    [0;36m→[0m 018_test_match_type_prioritization
+    [0;36m→[0m 021_test_multiline_block_comments
+    [0;36m→[0m 022_test_grep_compatibility
+
+[0;34mRunning tests...[0m
+=
+
+[0;34m[1/34][0m Running: [0;36m001_test_basic_matching[0m
+
+
+[0;34m=== BASIC PATTERN MATCHING ===[0m
+
+[1;33mTesting: Basic CIDR pattern match[0m
+
+[0;36m../grepnet '192.0.2.0/24' 'files/sample_networks.txt'[0m
+[0;32m✓ PASS[0m: Basic CIDR pattern match (exit: 0)
+
+[1;33mTesting: Match IPv4 address[0m
+
+[0;36m../grepnet '192.0.1.1' 'files/sample_networks.txt'[0m
+[0;32m✓ PASS[0m: Match IPv4 address (exit: 0)
+
+[1;33mTesting: No match returns exit code 1[0m
+
+[0;36m../grepnet '203.0.114.0/24' 'files/sample_networks.txt'[0m
+[0;32m✓ PASS[0m: No match returns exit code 1 (exit: 1)
+
+[1;33mTesting: Pattern file input (-f)[0m
+
+[0;36mecho '192.0.2.0/24' > /tmp/pattern.txt && ../grepnet -f /tmp/pattern.txt 'files/sample_networks.txt'[0m
+[0;32m✓ PASS[0m: Pattern file input (-f) (exit: 0)
+
+[1;33mTesting: Pattern via -P flag[0m
+
+[0;36m../grepnet -P '192.0.2.0/24' 'files/sample_networks.txt'[0m
+[0;32m✓ PASS[0m: Pattern via -P flag (exit: 0)
+
+[1;33mTesting: Multiple patterns (-P multiple times)[0m
+
+[0;36m../grepnet -P '192.0.2.0/24' -P '10.0.0.0/8' 'files/sample_networks.txt'[0m
+[0;32m✓ PASS[0m: Multiple patterns (-P multiple times) (exit: 0)
+
+[1;33mTesting: Stdin input[0m
+
+[0;36mecho '192.0.2.0/24' | ../grepnet '192.0.2.0/24'[0m
+[0;32m✓ PASS[0m: Stdin input (exit: 0)
+
+[1;33mTesting: Empty pattern file[0m
+
+[0;36mecho '' > /tmp/empty_pattern.txt && ../grepnet -f /tmp/empty_pattern.txt 'files/sample_networks.txt'[0m
+[0;32m✓ PASS[0m: Empty pattern file (exit: 1)
+  Result: [0;32m✓ PASS[0m
+
+[0;34m[2/34][0m Running: [0;36m002_test_match_types[0m
+
+
+[0;34m=== MATCH TYPE FLAGS (-e, -s, -S, -O, -u) ===[0m
+
+[1;33mTesting: Exact match (-e)[0m
+
+[0;36m../grepnet -e '192.0.2.0/24' 'files/match_types.txt'[0m
+[0;32m✓ PASS[0m: Exact match (-e) (exit: 0)
+
+[1;33mTesting: Subset match (-s)[0m
+
+[0;36m../grepnet -s '192.0.2.0/24' 'files/match_types.txt'[0m
+[0;32m✓ PASS[0m: Subset match (-s) (exit: 0)
+
+[1;33mTesting: Superset match (-S)[0m
+
+[0;36m../grepnet -S '192.0.2.0/24' 'files/match_types.txt'[0m
+[0;32m✓ PASS[0m: Superset match (-S) (exit: 0)
+
+[1;33mTesting: Overlap match (-O)[0m
+
+[0;36m../grepnet -O '192.0.2.0/24' 'files/match_types.txt'[0m
+[0;32m✓ PASS[0m: Overlap match (-O) (exit: 1)
+
+[1;33mTesting: Combined match types (-e -s)[0m
+
+[0;36m../grepnet -e -s '192.0.2.0/24' 'files/match_types.txt'[0m
+[0;32m✓ PASS[0m: Combined match types (-e -s) (exit: 0)
+
+[1;33mTesting: Superset and overlap (-S -O)[0m
+
+[0;36m../grepnet -S -O '192.0.2.0/24' 'files/match_types.txt'[0m
+[0;32m✓ PASS[0m: Superset and overlap (-S -O) (exit: 0)
+
+[1;33mTesting: Unmatched networks (-u)[0m
+
+[0;36m../grepnet -u '192.0.2.0/24' 'files/match_types.txt'[0m
+[0;32m✓ PASS[0m: Unmatched networks (-u) (exit: 0)
+
+[1;33mTesting: Only equals (-e only, no others)[0m
+
+[0;36m../grepnet -e '192.0.2.0/24' 'files/match_types.txt'[0m
+[0;32m✓ PASS[0m: Only equals (-e only, no others) (exit: 0)
+  Result: [0;32m✓ PASS[0m
+
+[0;34m[3/34][0m Running: [0;36m003_test_inversion_filtering[0m
+
+
+[0;34m=== INVERSION AND FILTERING (-v) ===[0m
+
+[1;33mTesting: Invert match (-v)[0m
+
+[0;36m../grepnet -v '192.0.2.0/24' 'files/sample_networks.txt'[0m
+[0;32m✓ PASS[0m: Invert match (-v) (exit: 0)
+
+[1;33mTesting: Quiet mode (-q) with match[0m
+
+[0;36m../grepnet -q '192.0.2.0/24' 'files/sample_networks.txt'[0m
+[0;32m✓ PASS[0m: Quiet mode (-q) with match (exit: 0)
+
+[1;33mTesting: Quiet mode (-q) no match[0m
+
+[0;36m../grepnet -q '203.0.114.0/24' 'files/sample_networks.txt'[0m
+[0;32m✓ PASS[0m: Quiet mode (-q) no match (exit: 1)
+
+[1;33mTesting: Quiet mode suppresses output[0m
+
+[0;36m../grepnet -q '192.0.2.0/24' 'files/sample_networks.txt'[0m
+[0;32m✓ PASS[0m: Quiet mode suppresses output (exit: 0)
+
+[1;33mTesting: Invert with unmatched (-v -u)[0m
+
+[0;36m../grepnet -v -u '192.0.2.0/24' 'files/match_types.txt'[0m
+[0;32m✓ PASS[0m: Invert with unmatched (-v -u) (exit: 0)
+
+[1;33mTesting: Invert with no matches returns 0[0m
+
+[0;36m../grepnet -v '203.0.114.0/24' 'files/sample_networks.txt'[0m
+[0;32m✓ PASS[0m: Invert with no matches returns 0 (exit: 0)
+  Result: [0;32m✓ PASS[0m
+
+[0;34m[4/34][0m Running: [0;36m004_test_output_control[0m
+
+
+[0;34m=== OUTPUT CONTROL (-H, -l, -L, -c) ===[0m
+
+[1;33mTesting: With filename (-H)[0m
+
+[0;36m../grepnet -H '192.0.2.0/24' 'files/sample_networks.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  2f 68 6f 6d 65 2f 63 68  61 69 6e 73 2f 64 65 76  |/home/chains/dev|
+00000010  2f 67 72 65 70 6e 65 74  2f 74 65 73 74 73 2f 66  |/grepnet/tests/f|
+00000020  69 6c 65 73 2f 73 61 6d  70 6c 65 5f 6e 65 74 77  |iles/sample_netw|
+00000030  6f 72 6b 73 2e 74 78 74  3a 31 39 32 2e 30 2e 32  |orks.txt:192.0.2|
+00000040  2e 30 2f 32 34 0a 2f 68  6f 6d 65 2f 63 68 61 69  |.0/24./home/chai|
+00000050  6e 73 2f 64 65 76 2f 67  72 65 70 6e 65 74 2f 74  |ns/dev/grepnet/t|
+00000060  65 73 74 73 2f 66 69 6c  65 73 2f 73 61 6d 70 6c  |ests/files/sampl|
+00000070  65 5f 6e 65 74 77 6f 72  6b 73 2e 74 78 74 3a 31  |e_networks.txt:1|
+00000080  39 32 2e 30 2e 32 2e 30  20 32 35 35 2e 32 35 35  |92.0.2.0 255.255|
+00000090  2e 32 35 35 2e 30 0a 2f  68 6f 6d 65 2f 63 68 61  |.255.0./home/cha|
+000000a0  69 6e 73 2f 64 65 76 2f  67 72 65 70 6e 65 74 2f  |ins/dev/grepnet/|
+000000b0  74 65 73 74 73 2f 66 69  6c 65 73 2f 73 61 6d 70  |tests/files/samp|
+000000c0  6c 65 5f 6e 65 74 77 6f  72 6b 73 2e 74 78 74 3a  |le_networks.txt:|
+000000d0  31 39 32 2e 30 2e 32 2e  30 20 30 2e 30 2e 30 2e  |192.0.2.0 0.0.0.|
+000000e0  32 35 35 0a 2f 68 6f 6d  65 2f 63 68 61 69 6e 73  |255./home/chains|
+000000f0  2f 64 65 76 2f 67 72 65  70 6e 65 74 2f 74 65 73  |/dev/grepnet/tes|
+00000100  74 73 2f 66 69 6c 65 73  2f 73 61 6d 70 6c 65 5f  |ts/files/sample_|
+00000110  6e 65 74 77 6f 72 6b 73  2e 74 78 74 3a 31 39 32  |networks.txt:192|
+00000120  2e 30 2e 32 2e 30 2d 31  39 32 2e 30 2e 32 2e 32  |.0.2.0-192.0.2.2|
+00000130  35 35 0a 2f 68 6f 6d 65  2f 63 68 61 69 6e 73 2f  |55./home/chains/|
+00000140  64 65 76 2f 67 72 65 70  6e 65 74 2f 74 65 73 74  |dev/grepnet/test|
+00000150  73 2f 66 69 6c 65 73 2f  73 61 6d 70 6c 65 5f 6e  |s/files/sample_n|
+00000160  65 74 77 6f 72 6b 73 2e  74 78 74 3a 31 39 32 2e  |etworks.txt:192.|
+00000170  30 2e 32 2e 30 2d 31 39  32 2e 30 2e 32 2e 32 35  |0.2.0-192.0.2.25|
+00000180  35 0a 2f 68 6f 6d 65 2f  63 68 61 69 6e 73 2f 64  |5./home/chains/d|
+00000190  65 76 2f 67 72 65 70 6e  65 74 2f 74 65 73 74 73  |ev/grepnet/tests|
+000001a0  2f 66 69 6c 65 73 2f 73  61 6d 70 6c 65 5f 6e 65  |/files/sample_ne|
+000001b0  74 77 6f 72 6b 73 2e 74  78 74 3a 52 6f 75 74 65  |tworks.txt:Route|
+000001c0  20 74 6f 20 31 39 32 2e  30 2e 32 2e 30 2f 32 34  | to 192.0.2.0/24|
+000001d0  20 76 69 61 20 31 30 2e  30 2e 30 2e 30 2f 38     | via 10.0.0.0/8|
+000001df
+=== Actual STDOUT (hexdump) ===
+00000000  2f 68 6f 6d 65 2f 63 68  61 69 6e 73 2f 64 65 76  |/home/chains/dev|
+00000010  2f 67 72 65 70 6e 65 74  2f 74 65 73 74 73 2f 66  |/grepnet/tests/f|
+00000020  69 6c 65 73 2f 73 61 6d  70 6c 65 5f 6e 65 74 77  |iles/sample_netw|
+00000030  6f 72 6b 73 2e 74 78 74  3a 31 39 32 2e 30 2e 32  |orks.txt:192.0.2|
+00000040  2e 30 2f 32 34 0a 2f 68  6f 6d 65 2f 63 68 61 69  |.0/24./home/chai|
+00000050  6e 73 2f 64 65 76 2f 67  72 65 70 6e 65 74 2f 74  |ns/dev/grepnet/t|
+00000060  65 73 74 73 2f 66 69 6c  65 73 2f 73 61 6d 70 6c  |ests/files/sampl|
+00000070  65 5f 6e 65 74 77 6f 72  6b 73 2e 74 78 74 3a 31  |e_networks.txt:1|
+00000080  39 32 2e 30 2e 32 2e 30  20 32 35 35 2e 32 35 35  |92.0.2.0 255.255|
+00000090  2e 32 35 35 2e 30 0a 2f  68 6f 6d 65 2f 63 68 61  |.255.0./home/cha|
+000000a0  69 6e 73 2f 64 65 76 2f  67 72 65 70 6e 65 74 2f  |ins/dev/grepnet/|
+000000b0  74 65 73 74 73 2f 66 69  6c 65 73 2f 73 61 6d 70  |tests/files/samp|
+000000c0  6c 65 5f 6e 65 74 77 6f  72 6b 73 2e 74 78 74 3a  |le_networks.txt:|
+000000d0  31 39 32 2e 30 2e 32 2e  30 20 30 2e 30 2e 30 2e  |192.0.2.0 0.0.0.|
+000000e0  32 35 35 0a 2f 68 6f 6d  65 2f 63 68 61 69 6e 73  |255./home/chains|
+000000f0  2f 64 65 76 2f 67 72 65  70 6e 65 74 2f 74 65 73  |/dev/grepnet/tes|
+00000100  74 73 2f 66 69 6c 65 73  2f 73 61 6d 70 6c 65 5f  |ts/files/sample_|
+00000110  6e 65 74 77 6f 72 6b 73  2e 74 78 74 3a 31 39 32  |networks.txt:192|
+00000120  2e 30 2e 32 2e 30 2d 31  39 32 2e 30 2e 32 2e 32  |.0.2.0-192.0.2.2|
+00000130  35 35 0a 2f 68 6f 6d 65  2f 63 68 61 69 6e 73 2f  |55./home/chains/|
+00000140  64 65 76 2f 67 72 65 70  6e 65 74 2f 74 65 73 74  |dev/grepnet/test|
+00000150  73 2f 66 69 6c 65 73 2f  73 61 6d 70 6c 65 5f 6e  |s/files/sample_n|
+00000160  65 74 77 6f 72 6b 73 2e  74 78 74 3a 52 6f 75 74  |etworks.txt:Rout|
+00000170  65 20 74 6f 20 31 39 32  2e 30 2e 32 2e 30 2f 32  |e to 192.0.2.0/2|
+00000180  34 20 76 69 61 20 31 30  2e 30 2e 30 2e 30 2f 38  |4 via 10.0.0.0/8|
+00000190
+=== Hexdump Diff ===
+--- /tmp/tmp.lqMeljsvHy	2026-09-29 22:52:14.869727201 +0000
++++ /tmp/tmp.LVn4gH7eEl	2026-09-29 22:52:14.874727257 +0000
+@@ -20,12 +20,7 @@
+ 00000130  35 35 0a 2f 68 6f 6d 65  2f 63 68 61 69 6e 73 2f  |55./home/chains/|
+ 00000140  64 65 76 2f 67 72 65 70  6e 65 74 2f 74 65 73 74  |dev/grepnet/test|
+ 00000150  73 2f 66 69 6c 65 73 2f  73 61 6d 70 6c 65 5f 6e  |s/files/sample_n|
+-00000160  65 74 77 6f 72 6b 73 2e  74 78 74 3a 31 39 32 2e  |etworks.txt:192.|
+-00000170  30 2e 32 2e 30 2d 31 39  32 2e 30 2e 32 2e 32 35  |0.2.0-192.0.2.25|
+-00000180  35 0a 2f 68 6f 6d 65 2f  63 68 61 69 6e 73 2f 64  |5./home/chains/d|
+-00000190  65 76 2f 67 72 65 70 6e  65 74 2f 74 65 73 74 73  |ev/grepnet/tests|
+-000001a0  2f 66 69 6c 65 73 2f 73  61 6d 70 6c 65 5f 6e 65  |/files/sample_ne|
+-000001b0  74 77 6f 72 6b 73 2e 74  78 74 3a 52 6f 75 74 65  |tworks.txt:Route|
+-000001c0  20 74 6f 20 31 39 32 2e  30 2e 32 2e 30 2f 32 34  | to 192.0.2.0/24|
+-000001d0  20 76 69 61 20 31 30 2e  30 2e 30 2e 30 2f 38     | via 10.0.0.0/8|
+-000001df
++00000160  65 74 77 6f 72 6b 73 2e  74 78 74 3a 52 6f 75 74  |etworks.txt:Rout|
++00000170  65 20 74 6f 20 31 39 32  2e 30 2e 32 2e 30 2f 32  |e to 192.0.2.0/2|
++00000180  34 20 76 69 61 20 31 30  2e 30 2e 30 2e 30 2f 38  |4 via 10.0.0.0/8|
++00000190
+=== Expected STDOUT (text) ===
+/home/chains/dev/grepnet/tests/files/sample_networks.txt:192.0.2.0/24
+/home/chains/dev/grepnet/tests/files/sample_networks.txt:192.0.2.0 255.255.255.0
+/home/chains/dev/grepnet/tests/files/sample_networks.txt:192.0.2.0 0.0.0.255
+/home/chains/dev/grepnet/tests/files/sample_networks.txt:192.0.2.0-192.0.2.255
+/home/chains/dev/grepnet/tests/files/sample_networks.txt:192.0.2.0-192.0.2.255
+/home/chains/dev/grepnet/tests/files/sample_networks.txt:Route to 192.0.2.0/24 via 10.0.0.0/8
+=== Actual STDOUT (text) ===
+/home/chains/dev/grepnet/tests/files/sample_networks.txt:192.0.2.0/24
+/home/chains/dev/grepnet/tests/files/sample_networks.txt:192.0.2.0 255.255.255.0
+/home/chains/dev/grepnet/tests/files/sample_networks.txt:192.0.2.0 0.0.0.255
+/home/chains/dev/grepnet/tests/files/sample_networks.txt:192.0.2.0-192.0.2.255
+/home/chains/dev/grepnet/tests/files/sample_networks.txt:Route to 192.0.2.0/24 via 10.0.0.0/8
+[0;31m✗ FAIL[0m: With filename (-H)
+
+[1;33mTesting: List files only (-l)[0m
+
+[0;36m../grepnet -l '192.0.2.0/24' 'files/file1.txt' 'files/file2.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  66 69 6c 65 73 2f 66 69  6c 65 32 2e 74 78 74     |files/file2.txt|
+0000000f
+=== Actual STDOUT (hexdump) ===
+00000000  2f 68 6f 6d 65 2f 63 68  61 69 6e 73 2f 64 65 76  |/home/chains/dev|
+00000010  2f 67 72 65 70 6e 65 74  2f 74 65 73 74 73 2f 66  |/grepnet/tests/f|
+00000020  69 6c 65 73 2f 66 69 6c  65 32 2e 74 78 74        |iles/file2.txt|
+0000002e
+=== Hexdump Diff ===
+--- /tmp/tmp.1ucylzEiz5	2026-09-29 22:52:15.233731284 +0000
++++ /tmp/tmp.ShrAowNw25	2026-09-29 22:52:15.239731352 +0000
+@@ -1,2 +1,4 @@
+-00000000  66 69 6c 65 73 2f 66 69  6c 65 32 2e 74 78 74     |files/file2.txt|
+-0000000f
++00000000  2f 68 6f 6d 65 2f 63 68  61 69 6e 73 2f 64 65 76  |/home/chains/dev|
++00000010  2f 67 72 65 70 6e 65 74  2f 74 65 73 74 73 2f 66  |/grepnet/tests/f|
++00000020  69 6c 65 73 2f 66 69 6c  65 32 2e 74 78 74        |iles/file2.txt|
++0000002e
+=== Expected STDOUT (text) ===
+files/file2.txt
+=== Actual STDOUT (text) ===
+/home/chains/dev/grepnet/tests/files/file2.txt
+[0;31m✗ FAIL[0m: List files only (-l)
+
+[1;33mTesting: Files without matches (-L)[0m
+
+[0;36m../grepnet -L '192.0.2.0/24' 'files/file1.txt' 'files/file2.txt' 'files/file3.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  66 69 6c 65 73 2f 66 69  6c 65 31 2e 74 78 74 0a  |files/file1.txt.|
+00000010  66 69 6c 65 73 2f 66 69  6c 65 33 2e 74 78 74     |files/file3.txt|
+0000001f
+=== Actual STDOUT (hexdump) ===
+00000000  2f 68 6f 6d 65 2f 63 68  61 69 6e 73 2f 64 65 76  |/home/chains/dev|
+00000010  2f 67 72 65 70 6e 65 74  2f 74 65 73 74 73 2f 66  |/grepnet/tests/f|
+00000020  69 6c 65 73 2f 66 69 6c  65 31 2e 74 78 74 0a 2f  |iles/file1.txt./|
+00000030  68 6f 6d 65 2f 63 68 61  69 6e 73 2f 64 65 76 2f  |home/chains/dev/|
+00000040  67 72 65 70 6e 65 74 2f  74 65 73 74 73 2f 66 69  |grepnet/tests/fi|
+00000050  6c 65 73 2f 66 69 6c 65  33 2e 74 78 74           |les/file3.txt|
+0000005d
+=== Hexdump Diff ===
+--- /tmp/tmp.Oujdb1uPc3	2026-09-29 22:52:15.558734943 +0000
++++ /tmp/tmp.kCkEUNxAaN	2026-09-29 22:52:15.565735021 +0000
+@@ -1,3 +1,7 @@
+-00000000  66 69 6c 65 73 2f 66 69  6c 65 31 2e 74 78 74 0a  |files/file1.txt.|
+-00000010  66 69 6c 65 73 2f 66 69  6c 65 33 2e 74 78 74     |files/file3.txt|
+-0000001f
++00000000  2f 68 6f 6d 65 2f 63 68  61 69 6e 73 2f 64 65 76  |/home/chains/dev|
++00000010  2f 67 72 65 70 6e 65 74  2f 74 65 73 74 73 2f 66  |/grepnet/tests/f|
++00000020  69 6c 65 73 2f 66 69 6c  65 31 2e 74 78 74 0a 2f  |iles/file1.txt./|
++00000030  68 6f 6d 65 2f 63 68 61  69 6e 73 2f 64 65 76 2f  |home/chains/dev/|
++00000040  67 72 65 70 6e 65 74 2f  74 65 73 74 73 2f 66 69  |grepnet/tests/fi|
++00000050  6c 65 73 2f 66 69 6c 65  33 2e 74 78 74           |les/file3.txt|
++0000005d
+=== Expected STDOUT (text) ===
+files/file1.txt
+files/file3.txt
+=== Actual STDOUT (text) ===
+/home/chains/dev/grepnet/tests/files/file1.txt
+/home/chains/dev/grepnet/tests/files/file3.txt
+[0;31m✗ FAIL[0m: Files without matches (-L)
+
+[1;33mTesting: Count matches (-c)[0m
+
+[0;36m../grepnet -c '192.168.0.0/16' 'files/file1.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  31 39 32 2e 31 36 38 2e  31 2e 30 2f 32 34 0a 31  |192.168.1.0/24.1|
+00000010  39 32 2e 31 36 38 2e 32  2e 30 2f 32 34           |92.168.2.0/24|
+0000001d
+=== Actual STDOUT (hexdump) ===
+00000000  32                                                |2|
+00000001
+=== Hexdump Diff ===
+--- /tmp/tmp.YclqqzSDTE	2026-09-29 22:52:15.909738894 +0000
++++ /tmp/tmp.f0klCcWMgz	2026-09-29 22:52:15.917738983 +0000
+@@ -1,3 +1,2 @@
+-00000000  31 39 32 2e 31 36 38 2e  31 2e 30 2f 32 34 0a 31  |192.168.1.0/24.1|
+-00000010  39 32 2e 31 36 38 2e 32  2e 30 2f 32 34           |92.168.2.0/24|
+-0000001d
++00000000  32                                                |2|
++00000001
+=== Expected STDOUT (text) ===
+192.168.1.0/24
+192.168.2.0/24
+=== Actual STDOUT (text) ===
+2
+[0;31m✗ FAIL[0m: Count matches (-c)
+
+[1;33mTesting: Multiple files count[0m
+
+[0;36m../grepnet -c '192.0.2.0/24' 'files/file1.txt' 'files/file2.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  66 69 6c 65 73 2f 66 69  6c 65 32 2e 74 78 74 3a  |files/file2.txt:|
+00000010  31 39 32 2e 30 2e 32 2e  30 2f 32 34              |192.0.2.0/24|
+0000001c
+=== Actual STDOUT (hexdump) ===
+00000000  31                                                |1|
+00000001
+=== Hexdump Diff ===
+--- /tmp/tmp.cTBmNeUG3C	2026-09-29 22:52:16.256742826 +0000
++++ /tmp/tmp.CKorta39iK	2026-09-29 22:52:16.262742895 +0000
+@@ -1,3 +1,2 @@
+-00000000  66 69 6c 65 73 2f 66 69  6c 65 32 2e 74 78 74 3a  |files/file2.txt:|
+-00000010  31 39 32 2e 30 2e 32 2e  30 2f 32 34              |192.0.2.0/24|
+-0000001c
++00000000  31                                                |1|
++00000001
+=== Expected STDOUT (text) ===
+files/file2.txt:192.0.2.0/24
+=== Actual STDOUT (text) ===
+1
+[0;31m✗ FAIL[0m: Multiple files count
+
+[1;33mTesting: No filename prefix (single file)[0m
+
+[0;36m../grepnet '192.0.2.0/24' 'files/sample_networks.txt' | grep -v '.*:'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+=== Actual STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34 0a 31 39 32  |192.0.2.0/24.192|
+00000010  2e 30 2e 32 2e 30 20 32  35 35 2e 32 35 35 2e 32  |.0.2.0 255.255.2|
+00000020  35 35 2e 30 0a 31 39 32  2e 30 2e 32 2e 30 20 30  |55.0.192.0.2.0 0|
+00000030  2e 30 2e 30 2e 32 35 35  0a 31 39 32 2e 30 2e 32  |.0.0.255.192.0.2|
+00000040  2e 30 2d 31 39 32 2e 30  2e 32 2e 32 35 35 0a 52  |.0-192.0.2.255.R|
+00000050  6f 75 74 65 20 74 6f 20  31 39 32 2e 30 2e 32 2e  |oute to 192.0.2.|
+00000060  30 2f 32 34 20 76 69 61  20 31 30 2e 30 2e 30 2e  |0/24 via 10.0.0.|
+00000070  30 2f 38                                          |0/8|
+00000073
+=== Hexdump Diff ===
+--- /tmp/tmp.vYvKusublD	2026-09-29 22:52:16.612746871 +0000
++++ /tmp/tmp.XECxy2neOG	2026-09-29 22:52:16.621746974 +0000
+@@ -0,0 +1,9 @@
++00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34 0a 31 39 32  |192.0.2.0/24.192|
++00000010  2e 30 2e 32 2e 30 20 32  35 35 2e 32 35 35 2e 32  |.0.2.0 255.255.2|
++00000020  35 35 2e 30 0a 31 39 32  2e 30 2e 32 2e 30 20 30  |55.0.192.0.2.0 0|
++00000030  2e 30 2e 30 2e 32 35 35  0a 31 39 32 2e 30 2e 32  |.0.0.255.192.0.2|
++00000040  2e 30 2d 31 39 32 2e 30  2e 32 2e 32 35 35 0a 52  |.0-192.0.2.255.R|
++00000050  6f 75 74 65 20 74 6f 20  31 39 32 2e 30 2e 32 2e  |oute to 192.0.2.|
++00000060  30 2f 32 34 20 76 69 61  20 31 30 2e 30 2e 30 2e  |0/24 via 10.0.0.|
++00000070  30 2f 38                                          |0/8|
++00000073
+=== Expected STDOUT (text) ===
+
+=== Actual STDOUT (text) ===
+192.0.2.0/24
+192.0.2.0 255.255.255.0
+192.0.2.0 0.0.0.255
+192.0.2.0-192.0.2.255
+Route to 192.0.2.0/24 via 10.0.0.0/8
+[0;31m✗ FAIL[0m: No filename prefix (single file)
+
+[1;33mTesting: Force filename on single file (-H)[0m
+
+[0;36m../grepnet -H '192.0.2.0/24' 'files/sample_networks.txt' | grep ':'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+=== Actual STDOUT (hexdump) ===
+00000000  2f 68 6f 6d 65 2f 63 68  61 69 6e 73 2f 64 65 76  |/home/chains/dev|
+00000010  2f 67 72 65 70 6e 65 74  2f 74 65 73 74 73 2f 66  |/grepnet/tests/f|
+00000020  69 6c 65 73 2f 73 61 6d  70 6c 65 5f 6e 65 74 77  |iles/sample_netw|
+00000030  6f 72 6b 73 2e 74 78 74  3a 31 39 32 2e 30 2e 32  |orks.txt:192.0.2|
+00000040  2e 30 2f 32 34 0a 2f 68  6f 6d 65 2f 63 68 61 69  |.0/24./home/chai|
+00000050  6e 73 2f 64 65 76 2f 67  72 65 70 6e 65 74 2f 74  |ns/dev/grepnet/t|
+00000060  65 73 74 73 2f 66 69 6c  65 73 2f 73 61 6d 70 6c  |ests/files/sampl|
+00000070  65 5f 6e 65 74 77 6f 72  6b 73 2e 74 78 74 3a 31  |e_networks.txt:1|
+00000080  39 32 2e 30 2e 32 2e 30  20 32 35 35 2e 32 35 35  |92.0.2.0 255.255|
+00000090  2e 32 35 35 2e 30 0a 2f  68 6f 6d 65 2f 63 68 61  |.255.0./home/cha|
+000000a0  69 6e 73 2f 64 65 76 2f  67 72 65 70 6e 65 74 2f  |ins/dev/grepnet/|
+000000b0  74 65 73 74 73 2f 66 69  6c 65 73 2f 73 61 6d 70  |tests/files/samp|
+000000c0  6c 65 5f 6e 65 74 77 6f  72 6b 73 2e 74 78 74 3a  |le_networks.txt:|
+000000d0  31 39 32 2e 30 2e 32 2e  30 20 30 2e 30 2e 30 2e  |192.0.2.0 0.0.0.|
+000000e0  32 35 35 0a 2f 68 6f 6d  65 2f 63 68 61 69 6e 73  |255./home/chains|
+000000f0  2f 64 65 76 2f 67 72 65  70 6e 65 74 2f 74 65 73  |/dev/grepnet/tes|
+00000100  74 73 2f 66 69 6c 65 73  2f 73 61 6d 70 6c 65 5f  |ts/files/sample_|
+00000110  6e 65 74 77 6f 72 6b 73  2e 74 78 74 3a 31 39 32  |networks.txt:192|
+00000120  2e 30 2e 32 2e 30 2d 31  39 32 2e 30 2e 32 2e 32  |.0.2.0-192.0.2.2|
+00000130  35 35 0a 2f 68 6f 6d 65  2f 63 68 61 69 6e 73 2f  |55./home/chains/|
+00000140  64 65 76 2f 67 72 65 70  6e 65 74 2f 74 65 73 74  |dev/grepnet/test|
+00000150  73 2f 66 69 6c 65 73 2f  73 61 6d 70 6c 65 5f 6e  |s/files/sample_n|
+00000160  65 74 77 6f 72 6b 73 2e  74 78 74 3a 52 6f 75 74  |etworks.txt:Rout|
+00000170  65 20 74 6f 20 31 39 32  2e 30 2e 32 2e 30 2f 32  |e to 192.0.2.0/2|
+00000180  34 20 76 69 61 20 31 30  2e 30 2e 30 2e 30 2f 38  |4 via 10.0.0.0/8|
+00000190
+=== Hexdump Diff ===
+--- /tmp/tmp.NvxCaXm4bb	2026-09-29 22:52:16.928750462 +0000
++++ /tmp/tmp.2NQC1PpdVt	2026-09-29 22:52:16.938750575 +0000
+@@ -0,0 +1,26 @@
++00000000  2f 68 6f 6d 65 2f 63 68  61 69 6e 73 2f 64 65 76  |/home/chains/dev|
++00000010  2f 67 72 65 70 6e 65 74  2f 74 65 73 74 73 2f 66  |/grepnet/tests/f|
++00000020  69 6c 65 73 2f 73 61 6d  70 6c 65 5f 6e 65 74 77  |iles/sample_netw|
++00000030  6f 72 6b 73 2e 74 78 74  3a 31 39 32 2e 30 2e 32  |orks.txt:192.0.2|
++00000040  2e 30 2f 32 34 0a 2f 68  6f 6d 65 2f 63 68 61 69  |.0/24./home/chai|
++00000050  6e 73 2f 64 65 76 2f 67  72 65 70 6e 65 74 2f 74  |ns/dev/grepnet/t|
++00000060  65 73 74 73 2f 66 69 6c  65 73 2f 73 61 6d 70 6c  |ests/files/sampl|
++00000070  65 5f 6e 65 74 77 6f 72  6b 73 2e 74 78 74 3a 31  |e_networks.txt:1|
++00000080  39 32 2e 30 2e 32 2e 30  20 32 35 35 2e 32 35 35  |92.0.2.0 255.255|
++00000090  2e 32 35 35 2e 30 0a 2f  68 6f 6d 65 2f 63 68 61  |.255.0./home/cha|
++000000a0  69 6e 73 2f 64 65 76 2f  67 72 65 70 6e 65 74 2f  |ins/dev/grepnet/|
++000000b0  74 65 73 74 73 2f 66 69  6c 65 73 2f 73 61 6d 70  |tests/files/samp|
++000000c0  6c 65 5f 6e 65 74 77 6f  72 6b 73 2e 74 78 74 3a  |le_networks.txt:|
++000000d0  31 39 32 2e 30 2e 32 2e  30 20 30 2e 30 2e 30 2e  |192.0.2.0 0.0.0.|
++000000e0  32 35 35 0a 2f 68 6f 6d  65 2f 63 68 61 69 6e 73  |255./home/chains|
++000000f0  2f 64 65 76 2f 67 72 65  70 6e 65 74 2f 74 65 73  |/dev/grepnet/tes|
++00000100  74 73 2f 66 69 6c 65 73  2f 73 61 6d 70 6c 65 5f  |ts/files/sample_|
++00000110  6e 65 74 77 6f 72 6b 73  2e 74 78 74 3a 31 39 32  |networks.txt:192|
++00000120  2e 30 2e 32 2e 30 2d 31  39 32 2e 30 2e 32 2e 32  |.0.2.0-192.0.2.2|
++00000130  35 35 0a 2f 68 6f 6d 65  2f 63 68 61 69 6e 73 2f  |55./home/chains/|
++00000140  64 65 76 2f 67 72 65 70  6e 65 74 2f 74 65 73 74  |dev/grepnet/test|
++00000150  73 2f 66 69 6c 65 73 2f  73 61 6d 70 6c 65 5f 6e  |s/files/sample_n|
++00000160  65 74 77 6f 72 6b 73 2e  74 78 74 3a 52 6f 75 74  |etworks.txt:Rout|
++00000170  65 20 74 6f 20 31 39 32  2e 30 2e 32 2e 30 2f 32  |e to 192.0.2.0/2|
++00000180  34 20 76 69 61 20 31 30  2e 30 2e 30 2e 30 2f 38  |4 via 10.0.0.0/8|
++00000190
+=== Expected STDOUT (text) ===
+
+=== Actual STDOUT (text) ===
+/home/chains/dev/grepnet/tests/files/sample_networks.txt:192.0.2.0/24
+/home/chains/dev/grepnet/tests/files/sample_networks.txt:192.0.2.0 255.255.255.0
+/home/chains/dev/grepnet/tests/files/sample_networks.txt:192.0.2.0 0.0.0.255
+/home/chains/dev/grepnet/tests/files/sample_networks.txt:192.0.2.0-192.0.2.255
+/home/chains/dev/grepnet/tests/files/sample_networks.txt:Route to 192.0.2.0/24 via 10.0.0.0/8
+[0;31m✗ FAIL[0m: Force filename on single file (-H)
+
+[1;33mTesting: Suppress filename (--no-filename)[0m
+
+[0;36m../grepnet --no-filename '192.0.2.0/24' 'files/file1.txt' 'files/file2.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+=== Actual STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34              |192.0.2.0/24|
+0000000c
+=== Hexdump Diff ===
+--- /tmp/tmp.ChOv8Yxryc	2026-09-29 22:52:17.303754755 +0000
++++ /tmp/tmp.NsoDWvR2UH	2026-09-29 22:52:17.312754858 +0000
+@@ -0,0 +1,2 @@
++00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34              |192.0.2.0/24|
++0000000c
+=== Expected STDOUT (text) ===
+
+=== Actual STDOUT (text) ===
+192.0.2.0/24
+[0;31m✗ FAIL[0m: Suppress filename (--no-filename)
+  Result: [0;31m✗ FAIL[0m
+
+[0;34m[5/34][0m Running: [0;36m005_test_line_prefixes[0m
+
+
+[0;34m=== LINE PREFIXES (-n, -b, -T, -Z) ===[0m
+
+[1;33mTesting: Line numbers (-n)[0m
+
+[0;36m../grepnet -n '192.0.2.0/24' 'files/sample_networks.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  35 3a 31 39 32 2e 30 2e  32 2e 30 2f 32 34 0a 31  |5:192.0.2.0/24.1|
+00000010  31 3a 31 39 32 2e 30 2e  32 2e 30 20 32 35 35 2e  |1:192.0.2.0 255.|
+00000020  32 35 35 2e 32 35 35 2e  30 0a 31 37 3a 31 39 32  |255.255.0.17:192|
+00000030  2e 30 2e 32 2e 30 20 30  2e 30 2e 30 2e 32 35 35  |.0.2.0 0.0.0.255|
+00000040  0a 32 31 3a 31 39 32 2e  30 2e 32 2e 30 2d 31 39  |.21:192.0.2.0-19|
+00000050  32 2e 30 2e 32 2e 32 35  35 0a 32 31 3a 31 39 32  |2.0.2.255.21:192|
+00000060  2e 30 2e 32 2e 30 2d 31  39 32 2e 30 2e 32 2e 32  |.0.2.0-192.0.2.2|
+00000070  35 35 0a 33 31 3a 52 6f  75 74 65 20 74 6f 20 31  |55.31:Route to 1|
+00000080  39 32 2e 30 2e 32 2e 30  2f 32 34 20 76 69 61 20  |92.0.2.0/24 via |
+00000090  31 30 2e 30 2e 30 2e 30  2f 38                    |10.0.0.0/8|
+0000009a
+=== Actual STDOUT (hexdump) ===
+00000000  35 3a 31 39 32 2e 30 2e  32 2e 30 2f 32 34 0a 31  |5:192.0.2.0/24.1|
+00000010  31 3a 31 39 32 2e 30 2e  32 2e 30 20 32 35 35 2e  |1:192.0.2.0 255.|
+00000020  32 35 35 2e 32 35 35 2e  30 0a 31 37 3a 31 39 32  |255.255.0.17:192|
+00000030  2e 30 2e 32 2e 30 20 30  2e 30 2e 30 2e 32 35 35  |.0.2.0 0.0.0.255|
+00000040  0a 32 31 3a 31 39 32 2e  30 2e 32 2e 30 2d 31 39  |.21:192.0.2.0-19|
+00000050  32 2e 30 2e 32 2e 32 35  35 0a 33 31 3a 52 6f 75  |2.0.2.255.31:Rou|
+00000060  74 65 20 74 6f 20 31 39  32 2e 30 2e 32 2e 30 2f  |te to 192.0.2.0/|
+00000070  32 34 20 76 69 61 20 31  30 2e 30 2e 30 2e 30 2f  |24 via 10.0.0.0/|
+00000080  38                                                |8|
+00000081
+=== Hexdump Diff ===
+--- /tmp/tmp.Acf61jnKyu	2026-09-29 22:52:17.688759170 +0000
++++ /tmp/tmp.FjS2i9wYtB	2026-09-29 22:52:17.695759250 +0000
+@@ -3,9 +3,8 @@
+ 00000020  32 35 35 2e 32 35 35 2e  30 0a 31 37 3a 31 39 32  |255.255.0.17:192|
+ 00000030  2e 30 2e 32 2e 30 20 30  2e 30 2e 30 2e 32 35 35  |.0.2.0 0.0.0.255|
+ 00000040  0a 32 31 3a 31 39 32 2e  30 2e 32 2e 30 2d 31 39  |.21:192.0.2.0-19|
+-00000050  32 2e 30 2e 32 2e 32 35  35 0a 32 31 3a 31 39 32  |2.0.2.255.21:192|
+-00000060  2e 30 2e 32 2e 30 2d 31  39 32 2e 30 2e 32 2e 32  |.0.2.0-192.0.2.2|
+-00000070  35 35 0a 33 31 3a 52 6f  75 74 65 20 74 6f 20 31  |55.31:Route to 1|
+-00000080  39 32 2e 30 2e 32 2e 30  2f 32 34 20 76 69 61 20  |92.0.2.0/24 via |
+-00000090  31 30 2e 30 2e 30 2e 30  2f 38                    |10.0.0.0/8|
+-0000009a
++00000050  32 2e 30 2e 32 2e 32 35  35 0a 33 31 3a 52 6f 75  |2.0.2.255.31:Rou|
++00000060  74 65 20 74 6f 20 31 39  32 2e 30 2e 32 2e 30 2f  |te to 192.0.2.0/|
++00000070  32 34 20 76 69 61 20 31  30 2e 30 2e 30 2e 30 2f  |24 via 10.0.0.0/|
++00000080  38                                                |8|
++00000081
+=== Expected STDOUT (text) ===
+5:192.0.2.0/24
+11:192.0.2.0 255.255.255.0
+17:192.0.2.0 0.0.0.255
+21:192.0.2.0-192.0.2.255
+21:192.0.2.0-192.0.2.255
+31:Route to 192.0.2.0/24 via 10.0.0.0/8
+=== Actual STDOUT (text) ===
+5:192.0.2.0/24
+11:192.0.2.0 255.255.255.0
+17:192.0.2.0 0.0.0.255
+21:192.0.2.0-192.0.2.255
+31:Route to 192.0.2.0/24 via 10.0.0.0/8
+[0;31m✗ FAIL[0m: Line numbers (-n)
+
+[1;33mTesting: Byte offset (-b)[0m
+
+[0;36m../grepnet -b '192.0.2.0/24' 'files/sample_networks.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  30 3a 31 39 32 2e 30 2e  32 2e 30 2f 32 34 0a 30  |0:192.0.2.0/24.0|
+00000010  3a 31 39 32 2e 30 2e 32  2e 30 20 30 2e 30 2e 30  |:192.0.2.0 0.0.0|
+00000020  2e 32 35 35 0a 30 3a 31  39 32 2e 30 2e 32 2e 30  |.255.0:192.0.2.0|
+00000030  2d 31 39 32 2e 30 2e 32  2e 32 35 35 0a 30 3a 31  |-192.0.2.255.0:1|
+00000040  39 32 2e 30 2e 32 2e 30  2d 31 39 32 2e 30 2e 32  |92.0.2.0-192.0.2|
+00000050  2e 32 35 35 0a 39 3a 52  6f 75 74 65 20 74 6f 20  |.255.9:Route to |
+00000060  31 39 32 2e 30 2e 32 2e  30 2f 32 34 20 76 69 61  |192.0.2.0/24 via|
+00000070  20 31 30 2e 30 2e 30 2e  30 2f 38                 | 10.0.0.0/8|
+0000007b
+=== Actual STDOUT (hexdump) ===
+00000000  31 32 36 3a 31 39 32 2e  30 2e 32 2e 30 2f 32 34  |126:192.0.2.0/24|
+00000010  0a 32 30 37 3a 31 39 32  2e 30 2e 32 2e 30 20 32  |.207:192.0.2.0 2|
+00000020  35 35 2e 32 35 35 2e 32  35 35 2e 30 0a 33 33 32  |55.255.255.0.332|
+00000030  3a 31 39 32 2e 30 2e 32  2e 30 20 30 2e 30 2e 30  |:192.0.2.0 0.0.0|
+00000040  2e 32 35 35 0a 33 38 38  3a 31 39 32 2e 30 2e 32  |.255.388:192.0.2|
+00000050  2e 30 2d 31 39 32 2e 30  2e 32 2e 32 35 35 0a 35  |.0-192.0.2.255.5|
+00000060  36 37 3a 52 6f 75 74 65  20 74 6f 20 31 39 32 2e  |67:Route to 192.|
+00000070  30 2e 32 2e 30 2f 32 34  20 76 69 61 20 31 30 2e  |0.2.0/24 via 10.|
+00000080  30 2e 30 2e 30 2f 38                              |0.0.0/8|
+00000087
+=== Hexdump Diff ===
+--- /tmp/tmp.WlQUYRwVfe	2026-09-29 22:52:18.096763859 +0000
++++ /tmp/tmp.FJSW3umCIl	2026-09-29 22:52:18.102763928 +0000
+@@ -1,9 +1,10 @@
+-00000000  30 3a 31 39 32 2e 30 2e  32 2e 30 2f 32 34 0a 30  |0:192.0.2.0/24.0|
+-00000010  3a 31 39 32 2e 30 2e 32  2e 30 20 30 2e 30 2e 30  |:192.0.2.0 0.0.0|
+-00000020  2e 32 35 35 0a 30 3a 31  39 32 2e 30 2e 32 2e 30  |.255.0:192.0.2.0|
+-00000030  2d 31 39 32 2e 30 2e 32  2e 32 35 35 0a 30 3a 31  |-192.0.2.255.0:1|
+-00000040  39 32 2e 30 2e 32 2e 30  2d 31 39 32 2e 30 2e 32  |92.0.2.0-192.0.2|
+-00000050  2e 32 35 35 0a 39 3a 52  6f 75 74 65 20 74 6f 20  |.255.9:Route to |
+-00000060  31 39 32 2e 30 2e 32 2e  30 2f 32 34 20 76 69 61  |192.0.2.0/24 via|
+-00000070  20 31 30 2e 30 2e 30 2e  30 2f 38                 | 10.0.0.0/8|
+-0000007b
++00000000  31 32 36 3a 31 39 32 2e  30 2e 32 2e 30 2f 32 34  |126:192.0.2.0/24|
++00000010  0a 32 30 37 3a 31 39 32  2e 30 2e 32 2e 30 20 32  |.207:192.0.2.0 2|
++00000020  35 35 2e 32 35 35 2e 32  35 35 2e 30 0a 33 33 32  |55.255.255.0.332|
++00000030  3a 31 39 32 2e 30 2e 32  2e 30 20 30 2e 30 2e 30  |:192.0.2.0 0.0.0|
++00000040  2e 32 35 35 0a 33 38 38  3a 31 39 32 2e 30 2e 32  |.255.388:192.0.2|
++00000050  2e 30 2d 31 39 32 2e 30  2e 32 2e 32 35 35 0a 35  |.0-192.0.2.255.5|
++00000060  36 37 3a 52 6f 75 74 65  20 74 6f 20 31 39 32 2e  |67:Route to 192.|
++00000070  30 2e 32 2e 30 2f 32 34  20 76 69 61 20 31 30 2e  |0.2.0/24 via 10.|
++00000080  30 2e 30 2e 30 2f 38                              |0.0.0/8|
++00000087
+=== Expected STDOUT (text) ===
+0:192.0.2.0/24
+0:192.0.2.0 0.0.0.255
+0:192.0.2.0-192.0.2.255
+0:192.0.2.0-192.0.2.255
+9:Route to 192.0.2.0/24 via 10.0.0.0/8
+=== Actual STDOUT (text) ===
+126:192.0.2.0/24
+207:192.0.2.0 255.255.255.0
+332:192.0.2.0 0.0.0.255
+388:192.0.2.0-192.0.2.255
+567:Route to 192.0.2.0/24 via 10.0.0.0/8
+[0;31m✗ FAIL[0m: Byte offset (-b)
+
+[1;33mTesting: Line number and byte offset (-n -b)[0m
+
+[0;36m../grepnet -n -b '192.0.2.0/24' 'files/sample_networks.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  30 3a 35 3a 31 39 32 2e  30 2e 32 2e 30 2f 32 34  |0:5:192.0.2.0/24|
+00000010  0a 30 3a 31 36 3a 31 39  32 2e 30 2e 32 2e 30 20  |.0:16:192.0.2.0 |
+00000020  30 2e 30 2e 30 2e 32 35  35 0a 30 3a 32 30 3a 31  |0.0.0.255.0:20:1|
+00000030  39 32 2e 30 2e 32 2e 30  2d 31 39 32 2e 30 2e 32  |92.0.2.0-192.0.2|
+00000040  2e 32 35 35 0a 30 3a 32  30 3a 31 39 32 2e 30 2e  |.255.0:20:192.0.|
+00000050  32 2e 30 2d 31 39 32 2e  30 2e 32 2e 32 35 35 0a  |2.0-192.0.2.255.|
+00000060  39 3a 33 30 3a 52 6f 75  74 65 20 74 6f 20 31 39  |9:30:Route to 19|
+00000070  32 2e 30 2e 32 2e 30 2f  32 34 20 76 69 61 20 31  |2.0.2.0/24 via 1|
+00000080  30 2e 30 2e 30 2e 30 2f  38                       |0.0.0.0/8|
+00000089
+=== Actual STDOUT (hexdump) ===
+00000000  35 3a 31 32 36 3a 31 39  32 2e 30 2e 32 2e 30 2f  |5:126:192.0.2.0/|
+00000010  32 34 0a 31 31 3a 32 30  37 3a 31 39 32 2e 30 2e  |24.11:207:192.0.|
+00000020  32 2e 30 20 32 35 35 2e  32 35 35 2e 32 35 35 2e  |2.0 255.255.255.|
+00000030  30 0a 31 37 3a 33 33 32  3a 31 39 32 2e 30 2e 32  |0.17:332:192.0.2|
+00000040  2e 30 20 30 2e 30 2e 30  2e 32 35 35 0a 32 31 3a  |.0 0.0.0.255.21:|
+00000050  33 38 38 3a 31 39 32 2e  30 2e 32 2e 30 2d 31 39  |388:192.0.2.0-19|
+00000060  32 2e 30 2e 32 2e 32 35  35 0a 33 31 3a 35 36 37  |2.0.2.255.31:567|
+00000070  3a 52 6f 75 74 65 20 74  6f 20 31 39 32 2e 30 2e  |:Route to 192.0.|
+00000080  32 2e 30 2f 32 34 20 76  69 61 20 31 30 2e 30 2e  |2.0/24 via 10.0.|
+00000090  30 2e 30 2f 38                                    |0.0/8|
+00000095
+=== Hexdump Diff ===
+--- /tmp/tmp.PXDuKrY9iY	2026-09-29 22:52:18.486768372 +0000
++++ /tmp/tmp.HAlj1aEMrf	2026-09-29 22:52:18.492768441 +0000
+@@ -1,10 +1,11 @@
+-00000000  30 3a 35 3a 31 39 32 2e  30 2e 32 2e 30 2f 32 34  |0:5:192.0.2.0/24|
+-00000010  0a 30 3a 31 36 3a 31 39  32 2e 30 2e 32 2e 30 20  |.0:16:192.0.2.0 |
+-00000020  30 2e 30 2e 30 2e 32 35  35 0a 30 3a 32 30 3a 31  |0.0.0.255.0:20:1|
+-00000030  39 32 2e 30 2e 32 2e 30  2d 31 39 32 2e 30 2e 32  |92.0.2.0-192.0.2|
+-00000040  2e 32 35 35 0a 30 3a 32  30 3a 31 39 32 2e 30 2e  |.255.0:20:192.0.|
+-00000050  32 2e 30 2d 31 39 32 2e  30 2e 32 2e 32 35 35 0a  |2.0-192.0.2.255.|
+-00000060  39 3a 33 30 3a 52 6f 75  74 65 20 74 6f 20 31 39  |9:30:Route to 19|
+-00000070  32 2e 30 2e 32 2e 30 2f  32 34 20 76 69 61 20 31  |2.0.2.0/24 via 1|
+-00000080  30 2e 30 2e 30 2e 30 2f  38                       |0.0.0.0/8|
+-00000089
++00000000  35 3a 31 32 36 3a 31 39  32 2e 30 2e 32 2e 30 2f  |5:126:192.0.2.0/|
++00000010  32 34 0a 31 31 3a 32 30  37 3a 31 39 32 2e 30 2e  |24.11:207:192.0.|
++00000020  32 2e 30 20 32 35 35 2e  32 35 35 2e 32 35 35 2e  |2.0 255.255.255.|
++00000030  30 0a 31 37 3a 33 33 32  3a 31 39 32 2e 30 2e 32  |0.17:332:192.0.2|
++00000040  2e 30 20 30 2e 30 2e 30  2e 32 35 35 0a 32 31 3a  |.0 0.0.0.255.21:|
++00000050  33 38 38 3a 31 39 32 2e  30 2e 32 2e 30 2d 31 39  |388:192.0.2.0-19|
++00000060  32 2e 30 2e 32 2e 32 35  35 0a 33 31 3a 35 36 37  |2.0.2.255.31:567|
++00000070  3a 52 6f 75 74 65 20 74  6f 20 31 39 32 2e 30 2e  |:Route to 192.0.|
++00000080  32 2e 30 2f 32 34 20 76  69 61 20 31 30 2e 30 2e  |2.0/24 via 10.0.|
++00000090  30 2e 30 2f 38                                    |0.0/8|
++00000095
+=== Expected STDOUT (text) ===
+0:5:192.0.2.0/24
+0:16:192.0.2.0 0.0.0.255
+0:20:192.0.2.0-192.0.2.255
+0:20:192.0.2.0-192.0.2.255
+9:30:Route to 192.0.2.0/24 via 10.0.0.0/8
+=== Actual STDOUT (text) ===
+5:126:192.0.2.0/24
+11:207:192.0.2.0 255.255.255.0
+17:332:192.0.2.0 0.0.0.255
+21:388:192.0.2.0-192.0.2.255
+31:567:Route to 192.0.2.0/24 via 10.0.0.0/8
+[0;31m✗ FAIL[0m: Line number and byte offset (-n -b)
+
+[1;33mTesting: Initial tab (-T) with line numbers[0m
+
+[0;36m../grepnet -n -T '192.0.2.0/24' 'files/sample_networks.txt'[0m
+Exit code mismatch: Expected 0, Got 2
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  35 09 31 39 32 2e 30 2e  32 2e 30 2f 32 34 0a 31  |5.192.0.2.0/24.1|
+00000010  36 09 31 39 32 2e 30 2e  32 2e 30 20 30 2e 30 2e  |6.192.0.2.0 0.0.|
+00000020  30 2e 32 35 35 0a 32 30  09 31 39 32 2e 30 2e 32  |0.255.20.192.0.2|
+00000030  2e 30 2d 31 39 32 2e 30  2e 32 2e 32 35 35 0a 32  |.0-192.0.2.255.2|
+00000040  30 09 31 39 32 2e 30 2e  32 2e 30 2d 31 39 32 2e  |0.192.0.2.0-192.|
+00000050  30 2e 32 2e 32 35 35 0a  33 30 09 52 6f 75 74 65  |0.2.255.30.Route|
+00000060  20 74 6f 20 31 39 32 2e  30 2e 32 2e 30 2f 32 34  | to 192.0.2.0/24|
+00000070  20 76 69 61 20 31 30 2e  30 2e 30 2e 30 2f 38     | via 10.0.0.0/8|
+0000007f
+=== Actual STDOUT (hexdump) ===
+=== Hexdump Diff ===
+--- /tmp/tmp.a7aSr5AuOb	2026-09-29 22:52:18.870772816 +0000
++++ /tmp/tmp.OyuLeo1xAt	2026-09-29 22:52:18.872772839 +0000
+@@ -1,9 +0,0 @@
+-00000000  35 09 31 39 32 2e 30 2e  32 2e 30 2f 32 34 0a 31  |5.192.0.2.0/24.1|
+-00000010  36 09 31 39 32 2e 30 2e  32 2e 30 20 30 2e 30 2e  |6.192.0.2.0 0.0.|
+-00000020  30 2e 32 35 35 0a 32 30  09 31 39 32 2e 30 2e 32  |0.255.20.192.0.2|
+-00000030  2e 30 2d 31 39 32 2e 30  2e 32 2e 32 35 35 0a 32  |.0-192.0.2.255.2|
+-00000040  30 09 31 39 32 2e 30 2e  32 2e 30 2d 31 39 32 2e  |0.192.0.2.0-192.|
+-00000050  30 2e 32 2e 32 35 35 0a  33 30 09 52 6f 75 74 65  |0.2.255.30.Route|
+-00000060  20 74 6f 20 31 39 32 2e  30 2e 32 2e 30 2f 32 34  | to 192.0.2.0/24|
+-00000070  20 76 69 61 20 31 30 2e  30 2e 30 2e 30 2f 38     | via 10.0.0.0/8|
+-0000007f
+=== Expected STDOUT (text) ===
+5	192.0.2.0/24
+16	192.0.2.0 0.0.0.255
+20	192.0.2.0-192.0.2.255
+20	192.0.2.0-192.0.2.255
+30	Route to 192.0.2.0/24 via 10.0.0.0/8
+=== Actual STDOUT (text) ===
+
+STDERR byte-per-byte mismatch (hexdump):
+=== Expected STDERR (hexdump) ===
+=== Actual STDERR (hexdump) ===
+00000000  75 73 61 67 65 3a 20 67  72 65 70 6e 65 74 20 5b  |usage: grepnet [|
+00000010  4f 50 54 49 4f 4e 2e 2e  2e 5d 20 50 41 54 54 45  |OPTION...] PATTE|
+00000020  52 4e 20 5b 46 49 4c 45  2e 2e 2e 5d 20 20 4f 52  |RN [FILE...]  OR|
+00000030  20 20 67 72 65 70 6e 65  74 20 5b 4f 50 54 49 4f  |  grepnet [OPTIO|
+00000040  4e 2e 2e 2e 5d 20 2d 66  20 50 41 54 54 45 52 4e  |N...] -f PATTERN|
+00000050  53 5f 46 49 4c 45 20 5b  46 49 4c 45 2e 2e 2e 5d  |S_FILE [FILE...]|
+00000060  0a 67 72 65 70 6e 65 74  3a 20 65 72 72 6f 72 3a  |.grepnet: error:|
+00000070  20 75 6e 72 65 63 6f 67  6e 69 7a 65 64 20 61 72  | unrecognized ar|
+00000080  67 75 6d 65 6e 74 73 3a  20 2d 54                 |guments: -T|
+0000008b
+=== Hexdump Diff ===
+--- /tmp/tmp.2SKkvDwMGU	2026-09-29 22:52:18.979774077 +0000
++++ /tmp/tmp.Pex4x9Yf6i	2026-09-29 22:52:18.989774193 +0000
+@@ -0,0 +1,10 @@
++00000000  75 73 61 67 65 3a 20 67  72 65 70 6e 65 74 20 5b  |usage: grepnet [|
++00000010  4f 50 54 49 4f 4e 2e 2e  2e 5d 20 50 41 54 54 45  |OPTION...] PATTE|
++00000020  52 4e 20 5b 46 49 4c 45  2e 2e 2e 5d 20 20 4f 52  |RN [FILE...]  OR|
++00000030  20 20 67 72 65 70 6e 65  74 20 5b 4f 50 54 49 4f  |  grepnet [OPTIO|
++00000040  4e 2e 2e 2e 5d 20 2d 66  20 50 41 54 54 45 52 4e  |N...] -f PATTERN|
++00000050  53 5f 46 49 4c 45 20 5b  46 49 4c 45 2e 2e 2e 5d  |S_FILE [FILE...]|
++00000060  0a 67 72 65 70 6e 65 74  3a 20 65 72 72 6f 72 3a  |.grepnet: error:|
++00000070  20 75 6e 72 65 63 6f 67  6e 69 7a 65 64 20 61 72  | unrecognized ar|
++00000080  67 75 6d 65 6e 74 73 3a  20 2d 54                 |guments: -T|
++0000008b
+=== Expected STDERR (text) ===
+
+=== Actual STDERR (text) ===
+usage: grepnet [OPTION...] PATTERN [FILE...]  OR  grepnet [OPTION...] -f PATTERNS_FILE [FILE...]
+grepnet: error: unrecognized arguments: -T
+[0;31m✗ FAIL[0m: Initial tab (-T) with line numbers
+
+[1;33mTesting: Initial tab (-T) with byte offset[0m
+
+[0;36m../grepnet -b -T '192.0.2.0/24' 'files/sample_networks.txt'[0m
+Exit code mismatch: Expected 0, Got 2
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  30 09 31 39 32 2e 30 2e  32 2e 30 2f 32 34 0a 30  |0.192.0.2.0/24.0|
+00000010  09 31 39 32 2e 30 2e 32  2e 30 20 30 2e 30 2e 30  |.192.0.2.0 0.0.0|
+00000020  2e 32 35 35 0a 30 09 31  39 32 2e 30 2e 32 2e 30  |.255.0.192.0.2.0|
+00000030  2d 31 39 32 2e 30 2e 32  2e 32 35 35 0a 30 09 31  |-192.0.2.255.0.1|
+00000040  39 32 2e 30 2e 32 2e 30  2d 31 39 32 2e 30 2e 32  |92.0.2.0-192.0.2|
+00000050  2e 32 35 35 0a 39 09 52  6f 75 74 65 20 74 6f 20  |.255.9.Route to |
+00000060  31 39 32 2e 30 2e 32 2e  30 2f 32 34 20 76 69 61  |192.0.2.0/24 via|
+00000070  20 31 30 2e 30 2e 30 2e  30 2f 38                 | 10.0.0.0/8|
+0000007b
+=== Actual STDOUT (hexdump) ===
+=== Hexdump Diff ===
+--- /tmp/tmp.scF4QkD4kt	2026-09-29 22:52:19.313777975 +0000
++++ /tmp/tmp.wVcHSG7TKl	2026-09-29 22:52:19.316778010 +0000
+@@ -1,9 +0,0 @@
+-00000000  30 09 31 39 32 2e 30 2e  32 2e 30 2f 32 34 0a 30  |0.192.0.2.0/24.0|
+-00000010  09 31 39 32 2e 30 2e 32  2e 30 20 30 2e 30 2e 30  |.192.0.2.0 0.0.0|
+-00000020  2e 32 35 35 0a 30 09 31  39 32 2e 30 2e 32 2e 30  |.255.0.192.0.2.0|
+-00000030  2d 31 39 32 2e 30 2e 32  2e 32 35 35 0a 30 09 31  |-192.0.2.255.0.1|
+-00000040  39 32 2e 30 2e 32 2e 30  2d 31 39 32 2e 30 2e 32  |92.0.2.0-192.0.2|
+-00000050  2e 32 35 35 0a 39 09 52  6f 75 74 65 20 74 6f 20  |.255.9.Route to |
+-00000060  31 39 32 2e 30 2e 32 2e  30 2f 32 34 20 76 69 61  |192.0.2.0/24 via|
+-00000070  20 31 30 2e 30 2e 30 2e  30 2f 38                 | 10.0.0.0/8|
+-0000007b
+=== Expected STDOUT (text) ===
+0	192.0.2.0/24
+0	192.0.2.0 0.0.0.255
+0	192.0.2.0-192.0.2.255
+0	192.0.2.0-192.0.2.255
+9	Route to 192.0.2.0/24 via 10.0.0.0/8
+=== Actual STDOUT (text) ===
+
+STDERR byte-per-byte mismatch (hexdump):
+=== Expected STDERR (hexdump) ===
+=== Actual STDERR (hexdump) ===
+00000000  75 73 61 67 65 3a 20 67  72 65 70 6e 65 74 20 5b  |usage: grepnet [|
+00000010  4f 50 54 49 4f 4e 2e 2e  2e 5d 20 50 41 54 54 45  |OPTION...] PATTE|
+00000020  52 4e 20 5b 46 49 4c 45  2e 2e 2e 5d 20 20 4f 52  |RN [FILE...]  OR|
+00000030  20 20 67 72 65 70 6e 65  74 20 5b 4f 50 54 49 4f  |  grepnet [OPTIO|
+00000040  4e 2e 2e 2e 5d 20 2d 66  20 50 41 54 54 45 52 4e  |N...] -f PATTERN|
+00000050  53 5f 46 49 4c 45 20 5b  46 49 4c 45 2e 2e 2e 5d  |S_FILE [FILE...]|
+00000060  0a 67 72 65 70 6e 65 74  3a 20 65 72 72 6f 72 3a  |.grepnet: error:|
+00000070  20 75 6e 72 65 63 6f 67  6e 69 7a 65 64 20 61 72  | unrecognized ar|
+00000080  67 75 6d 65 6e 74 73 3a  20 2d 54                 |guments: -T|
+0000008b
+=== Hexdump Diff ===
+--- /tmp/tmp.9Fv6tHRHxr	2026-09-29 22:52:19.427779306 +0000
++++ /tmp/tmp.hqRkDvXmSb	2026-09-29 22:52:19.439779446 +0000
+@@ -0,0 +1,10 @@
++00000000  75 73 61 67 65 3a 20 67  72 65 70 6e 65 74 20 5b  |usage: grepnet [|
++00000010  4f 50 54 49 4f 4e 2e 2e  2e 5d 20 50 41 54 54 45  |OPTION...] PATTE|
++00000020  52 4e 20 5b 46 49 4c 45  2e 2e 2e 5d 20 20 4f 52  |RN [FILE...]  OR|
++00000030  20 20 67 72 65 70 6e 65  74 20 5b 4f 50 54 49 4f  |  grepnet [OPTIO|
++00000040  4e 2e 2e 2e 5d 20 2d 66  20 50 41 54 54 45 52 4e  |N...] -f PATTERN|
++00000050  53 5f 46 49 4c 45 20 5b  46 49 4c 45 2e 2e 2e 5d  |S_FILE [FILE...]|
++00000060  0a 67 72 65 70 6e 65 74  3a 20 65 72 72 6f 72 3a  |.grepnet: error:|
++00000070  20 75 6e 72 65 63 6f 67  6e 69 7a 65 64 20 61 72  | unrecognized ar|
++00000080  67 75 6d 65 6e 74 73 3a  20 2d 54                 |guments: -T|
++0000008b
+=== Expected STDERR (text) ===
+
+=== Actual STDERR (text) ===
+usage: grepnet [OPTION...] PATTERN [FILE...]  OR  grepnet [OPTION...] -f PATTERNS_FILE [FILE...]
+grepnet: error: unrecognized arguments: -T
+[0;31m✗ FAIL[0m: Initial tab (-T) with byte offset
+
+[1;33mTesting: Initial tab (-T) with both prefixes[0m
+
+[0;36m../grepnet -n -b -T '192.0.2.0/24' 'files/sample_networks.txt'[0m
+Exit code mismatch: Expected 0, Got 2
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  30 09 35 3a 31 39 32 2e  30 2e 32 2e 30 2f 32 34  |0.5:192.0.2.0/24|
+00000010  0a 30 09 31 36 3a 31 39  32 2e 30 2e 32 2e 30 20  |.0.16:192.0.2.0 |
+00000020  30 2e 30 2e 30 2e 32 35  35 0a 30 09 32 30 3a 31  |0.0.0.255.0.20:1|
+00000030  39 32 2e 30 2e 32 2e 30  2d 31 39 32 2e 30 2e 32  |92.0.2.0-192.0.2|
+00000040  2e 32 35 35 0a 30 09 32  30 3a 31 39 32 2e 30 2e  |.255.0.20:192.0.|
+00000050  32 2e 30 2d 31 39 32 2e  30 2e 32 2e 32 35 35 0a  |2.0-192.0.2.255.|
+00000060  39 09 33 30 3a 52 6f 75  74 65 20 74 6f 20 31 39  |9.30:Route to 19|
+00000070  32 2e 30 2e 32 2e 30 2f  32 34 20 76 69 61 20 31  |2.0.2.0/24 via 1|
+00000080  30 2e 30 2e 30 2e 30 2f  38                       |0.0.0.0/8|
+00000089
+=== Actual STDOUT (hexdump) ===
+=== Hexdump Diff ===
+--- /tmp/tmp.r1atr4uqdV	2026-09-29 22:52:19.802783685 +0000
++++ /tmp/tmp.AP2vdIWoZq	2026-09-29 22:52:19.804783709 +0000
+@@ -1,10 +0,0 @@
+-00000000  30 09 35 3a 31 39 32 2e  30 2e 32 2e 30 2f 32 34  |0.5:192.0.2.0/24|
+-00000010  0a 30 09 31 36 3a 31 39  32 2e 30 2e 32 2e 30 20  |.0.16:192.0.2.0 |
+-00000020  30 2e 30 2e 30 2e 32 35  35 0a 30 09 32 30 3a 31  |0.0.0.255.0.20:1|
+-00000030  39 32 2e 30 2e 32 2e 30  2d 31 39 32 2e 30 2e 32  |92.0.2.0-192.0.2|
+-00000040  2e 32 35 35 0a 30 09 32  30 3a 31 39 32 2e 30 2e  |.255.0.20:192.0.|
+-00000050  32 2e 30 2d 31 39 32 2e  30 2e 32 2e 32 35 35 0a  |2.0-192.0.2.255.|
+-00000060  39 09 33 30 3a 52 6f 75  74 65 20 74 6f 20 31 39  |9.30:Route to 19|
+-00000070  32 2e 30 2e 32 2e 30 2f  32 34 20 76 69 61 20 31  |2.0.2.0/24 via 1|
+-00000080  30 2e 30 2e 30 2e 30 2f  38                       |0.0.0.0/8|
+-00000089
+=== Expected STDOUT (text) ===
+0	5:192.0.2.0/24
+0	16:192.0.2.0 0.0.0.255
+0	20:192.0.2.0-192.0.2.255
+0	20:192.0.2.0-192.0.2.255
+9	30:Route to 192.0.2.0/24 via 10.0.0.0/8
+=== Actual STDOUT (text) ===
+
+STDERR byte-per-byte mismatch (hexdump):
+=== Expected STDERR (hexdump) ===
+=== Actual STDERR (hexdump) ===
+00000000  75 73 61 67 65 3a 20 67  72 65 70 6e 65 74 20 5b  |usage: grepnet [|
+00000010  4f 50 54 49 4f 4e 2e 2e  2e 5d 20 50 41 54 54 45  |OPTION...] PATTE|
+00000020  52 4e 20 5b 46 49 4c 45  2e 2e 2e 5d 20 20 4f 52  |RN [FILE...]  OR|
+00000030  20 20 67 72 65 70 6e 65  74 20 5b 4f 50 54 49 4f  |  grepnet [OPTIO|
+00000040  4e 2e 2e 2e 5d 20 2d 66  20 50 41 54 54 45 52 4e  |N...] -f PATTERN|
+00000050  53 5f 46 49 4c 45 20 5b  46 49 4c 45 2e 2e 2e 5d  |S_FILE [FILE...]|
+00000060  0a 67 72 65 70 6e 65 74  3a 20 65 72 72 6f 72 3a  |.grepnet: error:|
+00000070  20 75 6e 72 65 63 6f 67  6e 69 7a 65 64 20 61 72  | unrecognized ar|
+00000080  67 75 6d 65 6e 74 73 3a  20 2d 54                 |guments: -T|
+0000008b
+=== Hexdump Diff ===
+--- /tmp/tmp.7zmotwnJFv	2026-09-29 22:52:19.911784958 +0000
++++ /tmp/tmp.sOBfIwhcZb	2026-09-29 22:52:19.922785087 +0000
+@@ -0,0 +1,10 @@
++00000000  75 73 61 67 65 3a 20 67  72 65 70 6e 65 74 20 5b  |usage: grepnet [|
++00000010  4f 50 54 49 4f 4e 2e 2e  2e 5d 20 50 41 54 54 45  |OPTION...] PATTE|
++00000020  52 4e 20 5b 46 49 4c 45  2e 2e 2e 5d 20 20 4f 52  |RN [FILE...]  OR|
++00000030  20 20 67 72 65 70 6e 65  74 20 5b 4f 50 54 49 4f  |  grepnet [OPTIO|
++00000040  4e 2e 2e 2e 5d 20 2d 66  20 50 41 54 54 45 52 4e  |N...] -f PATTERN|
++00000050  53 5f 46 49 4c 45 20 5b  46 49 4c 45 2e 2e 2e 5d  |S_FILE [FILE...]|
++00000060  0a 67 72 65 70 6e 65 74  3a 20 65 72 72 6f 72 3a  |.grepnet: error:|
++00000070  20 75 6e 72 65 63 6f 67  6e 69 7a 65 64 20 61 72  | unrecognized ar|
++00000080  67 75 6d 65 6e 74 73 3a  20 2d 54                 |guments: -T|
++0000008b
+=== Expected STDERR (text) ===
+
+=== Actual STDERR (text) ===
+usage: grepnet [OPTION...] PATTERN [FILE...]  OR  grepnet [OPTION...] -f PATTERNS_FILE [FILE...]
+grepnet: error: unrecognized arguments: -T
+[0;31m✗ FAIL[0m: Initial tab (-T) with both prefixes
+
+[1;33mTesting: Line numbers in output[0m
+
+[0;36m../grepnet -n '192.0.2.0/24' 'files/sample_networks.txt' | grep '^[0-9]'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  35 3a 31 39 32 2e 30 2e  32 2e 30 2f 32 34 0a 31  |5:192.0.2.0/24.1|
+00000010  36 3a 31 39 32 2e 30 2e  32 2e 30 20 30 2e 30 2e  |6:192.0.2.0 0.0.|
+00000020  30 2e 32 35 35 0a 32 30  3a 31 39 32 2e 30 2e 32  |0.255.20:192.0.2|
+00000030  2e 30 2d 31 39 32 2e 30  2e 32 2e 32 35 35 0a 32  |.0-192.0.2.255.2|
+00000040  30 3a 31 39 32 2e 30 2e  32 2e 30 2d 31 39 32 2e  |0:192.0.2.0-192.|
+00000050  30 2e 32 2e 32 35 35 0a  33 30 3a 52 6f 75 74 65  |0.2.255.30:Route|
+00000060  20 74 6f 20 31 39 32 2e  30 2e 32 2e 30 2f 32 34  | to 192.0.2.0/24|
+00000070  20 76 69 61 20 31 30 2e  30 2e 30 2e 30 2f 38     | via 10.0.0.0/8|
+0000007f
+=== Actual STDOUT (hexdump) ===
+00000000  35 3a 31 39 32 2e 30 2e  32 2e 30 2f 32 34 0a 31  |5:192.0.2.0/24.1|
+00000010  31 3a 31 39 32 2e 30 2e  32 2e 30 20 32 35 35 2e  |1:192.0.2.0 255.|
+00000020  32 35 35 2e 32 35 35 2e  30 0a 31 37 3a 31 39 32  |255.255.0.17:192|
+00000030  2e 30 2e 32 2e 30 20 30  2e 30 2e 30 2e 32 35 35  |.0.2.0 0.0.0.255|
+00000040  0a 32 31 3a 31 39 32 2e  30 2e 32 2e 30 2d 31 39  |.21:192.0.2.0-19|
+00000050  32 2e 30 2e 32 2e 32 35  35 0a 33 31 3a 52 6f 75  |2.0.2.255.31:Rou|
+00000060  74 65 20 74 6f 20 31 39  32 2e 30 2e 32 2e 30 2f  |te to 192.0.2.0/|
+00000070  32 34 20 76 69 61 20 31  30 2e 30 2e 30 2e 30 2f  |24 via 10.0.0.0/|
+00000080  38                                                |8|
+00000081
+=== Hexdump Diff ===
+--- /tmp/tmp.CA2bfXfB9n	2026-09-29 22:52:20.257789025 +0000
++++ /tmp/tmp.p8WsbrPEnW	2026-09-29 22:52:20.264789108 +0000
+@@ -1,9 +1,10 @@
+ 00000000  35 3a 31 39 32 2e 30 2e  32 2e 30 2f 32 34 0a 31  |5:192.0.2.0/24.1|
+-00000010  36 3a 31 39 32 2e 30 2e  32 2e 30 20 30 2e 30 2e  |6:192.0.2.0 0.0.|
+-00000020  30 2e 32 35 35 0a 32 30  3a 31 39 32 2e 30 2e 32  |0.255.20:192.0.2|
+-00000030  2e 30 2d 31 39 32 2e 30  2e 32 2e 32 35 35 0a 32  |.0-192.0.2.255.2|
+-00000040  30 3a 31 39 32 2e 30 2e  32 2e 30 2d 31 39 32 2e  |0:192.0.2.0-192.|
+-00000050  30 2e 32 2e 32 35 35 0a  33 30 3a 52 6f 75 74 65  |0.2.255.30:Route|
+-00000060  20 74 6f 20 31 39 32 2e  30 2e 32 2e 30 2f 32 34  | to 192.0.2.0/24|
+-00000070  20 76 69 61 20 31 30 2e  30 2e 30 2e 30 2f 38     | via 10.0.0.0/8|
+-0000007f
++00000010  31 3a 31 39 32 2e 30 2e  32 2e 30 20 32 35 35 2e  |1:192.0.2.0 255.|
++00000020  32 35 35 2e 32 35 35 2e  30 0a 31 37 3a 31 39 32  |255.255.0.17:192|
++00000030  2e 30 2e 32 2e 30 20 30  2e 30 2e 30 2e 32 35 35  |.0.2.0 0.0.0.255|
++00000040  0a 32 31 3a 31 39 32 2e  30 2e 32 2e 30 2d 31 39  |.21:192.0.2.0-19|
++00000050  32 2e 30 2e 32 2e 32 35  35 0a 33 31 3a 52 6f 75  |2.0.2.255.31:Rou|
++00000060  74 65 20 74 6f 20 31 39  32 2e 30 2e 32 2e 30 2f  |te to 192.0.2.0/|
++00000070  32 34 20 76 69 61 20 31  30 2e 30 2e 30 2e 30 2f  |24 via 10.0.0.0/|
++00000080  38                                                |8|
++00000081
+=== Expected STDOUT (text) ===
+5:192.0.2.0/24
+16:192.0.2.0 0.0.0.255
+20:192.0.2.0-192.0.2.255
+20:192.0.2.0-192.0.2.255
+30:Route to 192.0.2.0/24 via 10.0.0.0/8
+=== Actual STDOUT (text) ===
+5:192.0.2.0/24
+11:192.0.2.0 255.255.255.0
+17:192.0.2.0 0.0.0.255
+21:192.0.2.0-192.0.2.255
+31:Route to 192.0.2.0/24 via 10.0.0.0/8
+[0;31m✗ FAIL[0m: Line numbers in output
+
+[1;33mTesting: Byte offsets in output[0m
+
+[0;36m../grepnet -b '192.0.2.0/24' 'files/sample_networks.txt' | grep '^[0-9]'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  30 3a 31 39 32 2e 30 2e  32 2e 30 2f 32 34 0a 30  |0:192.0.2.0/24.0|
+00000010  3a 31 39 32 2e 30 2e 32  2e 30 20 30 2e 30 2e 30  |:192.0.2.0 0.0.0|
+00000020  2e 32 35 35 0a 30 3a 31  39 32 2e 30 2e 32 2e 30  |.255.0:192.0.2.0|
+00000030  2d 31 39 32 2e 30 2e 32  2e 32 35 35 0a 30 3a 31  |-192.0.2.255.0:1|
+00000040  39 32 2e 30 2e 32 2e 30  2d 31 39 32 2e 30 2e 32  |92.0.2.0-192.0.2|
+00000050  2e 32 35 35 0a 39 3a 52  6f 75 74 65 20 74 6f 20  |.255.9:Route to |
+00000060  31 39 32 2e 30 2e 32 2e  30 2f 32 34 20 76 69 61  |192.0.2.0/24 via|
+00000070  20 31 30 2e 30 2e 30 2e  30 2f 38                 | 10.0.0.0/8|
+0000007b
+=== Actual STDOUT (hexdump) ===
+00000000  31 32 36 3a 31 39 32 2e  30 2e 32 2e 30 2f 32 34  |126:192.0.2.0/24|
+00000010  0a 32 30 37 3a 31 39 32  2e 30 2e 32 2e 30 20 32  |.207:192.0.2.0 2|
+00000020  35 35 2e 32 35 35 2e 32  35 35 2e 30 0a 33 33 32  |55.255.255.0.332|
+00000030  3a 31 39 32 2e 30 2e 32  2e 30 20 30 2e 30 2e 30  |:192.0.2.0 0.0.0|
+00000040  2e 32 35 35 0a 33 38 38  3a 31 39 32 2e 30 2e 32  |.255.388:192.0.2|
+00000050  2e 30 2d 31 39 32 2e 30  2e 32 2e 32 35 35 0a 35  |.0-192.0.2.255.5|
+00000060  36 37 3a 52 6f 75 74 65  20 74 6f 20 31 39 32 2e  |67:Route to 192.|
+00000070  30 2e 32 2e 30 2f 32 34  20 76 69 61 20 31 30 2e  |0.2.0/24 via 10.|
+00000080  30 2e 30 2e 30 2f 38                              |0.0.0/8|
+00000087
+=== Hexdump Diff ===
+--- /tmp/tmp.0L7MofZRLC	2026-09-29 22:52:20.647793620 +0000
++++ /tmp/tmp.3JMPzotJqN	2026-09-29 22:52:20.654793702 +0000
+@@ -1,9 +1,10 @@
+-00000000  30 3a 31 39 32 2e 30 2e  32 2e 30 2f 32 34 0a 30  |0:192.0.2.0/24.0|
+-00000010  3a 31 39 32 2e 30 2e 32  2e 30 20 30 2e 30 2e 30  |:192.0.2.0 0.0.0|
+-00000020  2e 32 35 35 0a 30 3a 31  39 32 2e 30 2e 32 2e 30  |.255.0:192.0.2.0|
+-00000030  2d 31 39 32 2e 30 2e 32  2e 32 35 35 0a 30 3a 31  |-192.0.2.255.0:1|
+-00000040  39 32 2e 30 2e 32 2e 30  2d 31 39 32 2e 30 2e 32  |92.0.2.0-192.0.2|
+-00000050  2e 32 35 35 0a 39 3a 52  6f 75 74 65 20 74 6f 20  |.255.9:Route to |
+-00000060  31 39 32 2e 30 2e 32 2e  30 2f 32 34 20 76 69 61  |192.0.2.0/24 via|
+-00000070  20 31 30 2e 30 2e 30 2e  30 2f 38                 | 10.0.0.0/8|
+-0000007b
++00000000  31 32 36 3a 31 39 32 2e  30 2e 32 2e 30 2f 32 34  |126:192.0.2.0/24|
++00000010  0a 32 30 37 3a 31 39 32  2e 30 2e 32 2e 30 20 32  |.207:192.0.2.0 2|
++00000020  35 35 2e 32 35 35 2e 32  35 35 2e 30 0a 33 33 32  |55.255.255.0.332|
++00000030  3a 31 39 32 2e 30 2e 32  2e 30 20 30 2e 30 2e 30  |:192.0.2.0 0.0.0|
++00000040  2e 32 35 35 0a 33 38 38  3a 31 39 32 2e 30 2e 32  |.255.388:192.0.2|
++00000050  2e 30 2d 31 39 32 2e 30  2e 32 2e 32 35 35 0a 35  |.0-192.0.2.255.5|
++00000060  36 37 3a 52 6f 75 74 65  20 74 6f 20 31 39 32 2e  |67:Route to 192.|
++00000070  30 2e 32 2e 30 2f 32 34  20 76 69 61 20 31 30 2e  |0.2.0/24 via 10.|
++00000080  30 2e 30 2e 30 2f 38                              |0.0.0/8|
++00000087
+=== Expected STDOUT (text) ===
+0:192.0.2.0/24
+0:192.0.2.0 0.0.0.255
+0:192.0.2.0-192.0.2.255
+0:192.0.2.0-192.0.2.255
+9:Route to 192.0.2.0/24 via 10.0.0.0/8
+=== Actual STDOUT (text) ===
+126:192.0.2.0/24
+207:192.0.2.0 255.255.255.0
+332:192.0.2.0 0.0.0.255
+388:192.0.2.0-192.0.2.255
+567:Route to 192.0.2.0/24 via 10.0.0.0/8
+[0;31m✗ FAIL[0m: Byte offsets in output
+  Result: [0;31m✗ FAIL[0m
+
+[0;34m[6/34][0m Running: [0;36m007_test_output_formats[0m
+
+
+[0;34m=== OUTPUT FORMATS (--output-format, -o) ===[0m
+
+[1;33mTesting: JSON output[0m
+
+[0;36m../grepnet --output-format json '192.0.2.0/24' 'files/sample_networks.txt'[0m
+Exit code mismatch: Expected 0, Got 2
+[0;31m✗ FAIL[0m: JSON output
+
+[1;33mTesting: JSON output contains proper structure[0m
+
+[0;36m../grepnet --output-format json '192.0.2.0/24' 'files/sample_networks.txt' | grep -q '{' && echo 0 || echo 1[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+=== Actual STDOUT (hexdump) ===
+00000000  31                                                |1|
+00000001
+=== Hexdump Diff ===
+--- /tmp/tmp.JUFnBHjrQc	2026-09-29 22:52:21.326801654 +0000
++++ /tmp/tmp.KURZ6jSRLU	2026-09-29 22:52:21.336801772 +0000
+@@ -0,0 +1,2 @@
++00000000  31                                                |1|
++00000001
+=== Expected STDOUT (text) ===
+
+=== Actual STDOUT (text) ===
+1
+[0;31m✗ FAIL[0m: JSON output contains proper structure
+
+[1;33mTesting: Table output[0m
+
+[0;36m../grepnet --output-format table '192.0.2.0/24' 'files/sample_networks.txt'[0m
+Exit code mismatch: Expected 0, Got 2
+[0;31m✗ FAIL[0m: Table output
+
+[1;33mTesting: Only matching (-o)[0m
+
+[0;36m../grepnet -o '192.0.2.0/24' 'files/sample_networks.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+=== Actual STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34 0a 31 39 32  |192.0.2.0/24.192|
+00000010  2e 30 2e 32 2e 30 20 32  35 35 2e 32 35 35 2e 32  |.0.2.0 255.255.2|
+00000020  35 35 2e 30 0a 31 39 32  2e 30 2e 32 2e 30 20 30  |55.0.192.0.2.0 0|
+00000030  2e 30 2e 30 2e 32 35 35  0a 31 39 32 2e 30 2e 32  |.0.0.255.192.0.2|
+00000040  2e 30 2d 31 39 32 2e 30  2e 32 2e 32 35 35 0a 31  |.0-192.0.2.255.1|
+00000050  39 32 2e 30 2e 32 2e 30  2f 32 34                 |92.0.2.0/24|
+0000005b
+=== Hexdump Diff ===
+--- /tmp/tmp.3HDmUoX0ah	2026-09-29 22:52:21.907808559 +0000
++++ /tmp/tmp.4TyKZ3xWIw	2026-09-29 22:52:21.919808702 +0000
+@@ -0,0 +1,7 @@
++00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34 0a 31 39 32  |192.0.2.0/24.192|
++00000010  2e 30 2e 32 2e 30 20 32  35 35 2e 32 35 35 2e 32  |.0.2.0 255.255.2|
++00000020  35 35 2e 30 0a 31 39 32  2e 30 2e 32 2e 30 20 30  |55.0.192.0.2.0 0|
++00000030  2e 30 2e 30 2e 32 35 35  0a 31 39 32 2e 30 2e 32  |.0.0.255.192.0.2|
++00000040  2e 30 2d 31 39 32 2e 30  2e 32 2e 32 35 35 0a 31  |.0-192.0.2.255.1|
++00000050  39 32 2e 30 2e 32 2e 30  2f 32 34                 |92.0.2.0/24|
++0000005b
+=== Expected STDOUT (text) ===
+
+=== Actual STDOUT (text) ===
+192.0.2.0/24
+192.0.2.0 255.255.255.0
+192.0.2.0 0.0.0.255
+192.0.2.0-192.0.2.255
+192.0.2.0/24
+[0;31m✗ FAIL[0m: Only matching (-o)
+
+[1;33mTesting: Only matching output contains IP/CIDR[0m
+
+[0;36m../grepnet -o '192.0.2.0/24' 'files/sample_networks.txt' | grep -E '[0-9]+\.[0-9]+'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+=== Actual STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34 0a 31 39 32  |192.0.2.0/24.192|
+00000010  2e 30 2e 32 2e 30 20 32  35 35 2e 32 35 35 2e 32  |.0.2.0 255.255.2|
+00000020  35 35 2e 30 0a 31 39 32  2e 30 2e 32 2e 30 20 30  |55.0.192.0.2.0 0|
+00000030  2e 30 2e 30 2e 32 35 35  0a 31 39 32 2e 30 2e 32  |.0.0.255.192.0.2|
+00000040  2e 30 2d 31 39 32 2e 30  2e 32 2e 32 35 35 0a 31  |.0-192.0.2.255.1|
+00000050  39 32 2e 30 2e 32 2e 30  2f 32 34                 |92.0.2.0/24|
+0000005b
+=== Hexdump Diff ===
+--- /tmp/tmp.r4hnLPmAaM	2026-09-29 22:52:22.407814543 +0000
++++ /tmp/tmp.P3D14v5CMr	2026-09-29 22:52:22.420814699 +0000
+@@ -0,0 +1,7 @@
++00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34 0a 31 39 32  |192.0.2.0/24.192|
++00000010  2e 30 2e 32 2e 30 20 32  35 35 2e 32 35 35 2e 32  |.0.2.0 255.255.2|
++00000020  35 35 2e 30 0a 31 39 32  2e 30 2e 32 2e 30 20 30  |55.0.192.0.2.0 0|
++00000030  2e 30 2e 30 2e 32 35 35  0a 31 39 32 2e 30 2e 32  |.0.0.255.192.0.2|
++00000040  2e 30 2d 31 39 32 2e 30  2e 32 2e 32 35 35 0a 31  |.0-192.0.2.255.1|
++00000050  39 32 2e 30 2e 32 2e 30  2f 32 34                 |92.0.2.0/24|
++0000005b
+=== Expected STDOUT (text) ===
+
+=== Actual STDOUT (text) ===
+192.0.2.0/24
+192.0.2.0 255.255.255.0
+192.0.2.0 0.0.0.255
+192.0.2.0-192.0.2.255
+192.0.2.0/24
+[0;31m✗ FAIL[0m: Only matching output contains IP/CIDR
+
+[1;33mTesting: Extract mode (--extract)[0m
+
+[0;36m../grepnet --extract '192.0.2.0/24' 'files/sample_networks.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+=== Actual STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34 0a 31 39 32  |192.0.2.0/24.192|
+00000010  2e 30 2e 32 2e 30 2f 32  34                       |.0.2.0/24|
+00000019
+=== Hexdump Diff ===
+--- /tmp/tmp.k2bLGwlVTo	2026-09-29 22:52:22.738818512 +0000
++++ /tmp/tmp.rlkDetJMh8	2026-09-29 22:52:22.750818656 +0000
+@@ -0,0 +1,3 @@
++00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34 0a 31 39 32  |192.0.2.0/24.192|
++00000010  2e 30 2e 32 2e 30 2f 32  34                       |.0.2.0/24|
++00000019
+=== Expected STDOUT (text) ===
+
+=== Actual STDOUT (text) ===
+192.0.2.0/24
+192.0.2.0/24
+[0;31m✗ FAIL[0m: Extract mode (--extract)
+
+[1;33mTesting: Extract with show-content[0m
+
+[0;36m../grepnet --extract --show-content '192.0.2.0/24' 'files/sample_networks.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+=== Actual STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34 20 31 39 32  |192.0.2.0/24 192|
+00000010  2e 30 2e 32 2e 30 2f 32  34 0a 31 39 32 2e 30 2e  |.0.2.0/24.192.0.|
+00000020  32 2e 30 2f 32 34 20 31  39 32 2e 30 2e 32 2e 30  |2.0/24 192.0.2.0|
+00000030  2d 31 39 32 2e 30 2e 32  2e 32 35 35              |-192.0.2.255|
+0000003c
+=== Hexdump Diff ===
+--- /tmp/tmp.zmbBPQ8FVJ	2026-09-29 22:52:23.082822644 +0000
++++ /tmp/tmp.rN6YWvmUNi	2026-09-29 22:52:23.092822765 +0000
+@@ -0,0 +1,5 @@
++00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34 20 31 39 32  |192.0.2.0/24 192|
++00000010  2e 30 2e 32 2e 30 2f 32  34 0a 31 39 32 2e 30 2e  |.0.2.0/24.192.0.|
++00000020  32 2e 30 2f 32 34 20 31  39 32 2e 30 2e 32 2e 30  |2.0/24 192.0.2.0|
++00000030  2d 31 39 32 2e 30 2e 32  2e 32 35 35              |-192.0.2.255|
++0000003c
+=== Expected STDOUT (text) ===
+
+=== Actual STDOUT (text) ===
+192.0.2.0/24 192.0.2.0/24
+192.0.2.0/24 192.0.2.0-192.0.2.255
+[0;31m✗ FAIL[0m: Extract with show-content
+
+[1;33mTesting: Consolidate mode (--consolidate)[0m
+
+[0;36m../grepnet --consolidate '192.0.2.0/24' 'files/sample_networks.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+=== Actual STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34 0a 31 39 32  |192.0.2.0/24.192|
+00000010  2e 30 2e 32 2e 30 2f 32  34                       |.0.2.0/24|
+00000019
+=== Hexdump Diff ===
+--- /tmp/tmp.xTerF2zUxz	2026-09-29 22:52:23.398826465 +0000
++++ /tmp/tmp.DX7DKmbgY3	2026-09-29 22:52:23.411826623 +0000
+@@ -0,0 +1,3 @@
++00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34 0a 31 39 32  |192.0.2.0/24.192|
++00000010  2e 30 2e 32 2e 30 2f 32  34                       |.0.2.0/24|
++00000019
+=== Expected STDOUT (text) ===
+
+=== Actual STDOUT (text) ===
+192.0.2.0/24
+192.0.2.0/24
+[0;31m✗ FAIL[0m: Consolidate mode (--consolidate)
+
+[1;33mTesting: Text output (default)[0m
+
+[0;36m../grepnet '192.0.2.0/24' 'files/sample_networks.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+=== Actual STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34 0a 31 39 32  |192.0.2.0/24.192|
+00000010  2e 30 2e 32 2e 30 20 32  35 35 2e 32 35 35 2e 32  |.0.2.0 255.255.2|
+00000020  35 35 2e 30 0a 31 39 32  2e 30 2e 32 2e 30 20 30  |55.0.192.0.2.0 0|
+00000030  2e 30 2e 30 2e 32 35 35  0a 31 39 32 2e 30 2e 32  |.0.0.255.192.0.2|
+00000040  2e 30 2d 31 39 32 2e 30  2e 32 2e 32 35 35 0a 52  |.0-192.0.2.255.R|
+00000050  6f 75 74 65 20 74 6f 20  31 39 32 2e 30 2e 32 2e  |oute to 192.0.2.|
+00000060  30 2f 32 34 20 76 69 61  20 31 30 2e 30 2e 30 2e  |0/24 via 10.0.0.|
+00000070  30 2f 38                                          |0/8|
+00000073
+=== Hexdump Diff ===
+--- /tmp/tmp.AkeCjWZInM	2026-09-29 22:52:23.736830552 +0000
++++ /tmp/tmp.lMnd7E5fY0	2026-09-29 22:52:23.745830661 +0000
+@@ -0,0 +1,9 @@
++00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34 0a 31 39 32  |192.0.2.0/24.192|
++00000010  2e 30 2e 32 2e 30 20 32  35 35 2e 32 35 35 2e 32  |.0.2.0 255.255.2|
++00000020  35 35 2e 30 0a 31 39 32  2e 30 2e 32 2e 30 20 30  |55.0.192.0.2.0 0|
++00000030  2e 30 2e 30 2e 32 35 35  0a 31 39 32 2e 30 2e 32  |.0.0.255.192.0.2|
++00000040  2e 30 2d 31 39 32 2e 30  2e 32 2e 32 35 35 0a 52  |.0-192.0.2.255.R|
++00000050  6f 75 74 65 20 74 6f 20  31 39 32 2e 30 2e 32 2e  |oute to 192.0.2.|
++00000060  30 2f 32 34 20 76 69 61  20 31 30 2e 30 2e 30 2e  |0/24 via 10.0.0.|
++00000070  30 2f 38                                          |0/8|
++00000073
+=== Expected STDOUT (text) ===
+
+=== Actual STDOUT (text) ===
+192.0.2.0/24
+192.0.2.0 255.255.255.0
+192.0.2.0 0.0.0.255
+192.0.2.0-192.0.2.255
+Route to 192.0.2.0/24 via 10.0.0.0/8
+[0;31m✗ FAIL[0m: Text output (default)
+
+[1;33mTesting: Max count limit (-m 1)[0m
+
+[0;36m../grepnet -m 1 '192.0.2.0/24' 'files/file1.txt' 'files/file2.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+=== Actual STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34              |192.0.2.0/24|
+0000000c
+=== Hexdump Diff ===
+--- /tmp/tmp.Bb8AUME4lM	2026-09-29 22:52:24.039834220 +0000
++++ /tmp/tmp.CkECVe1GOn	2026-09-29 22:52:24.049834342 +0000
+@@ -0,0 +1,2 @@
++00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34              |192.0.2.0/24|
++0000000c
+=== Expected STDOUT (text) ===
+
+=== Actual STDOUT (text) ===
+192.0.2.0/24
+[0;31m✗ FAIL[0m: Max count limit (-m 1)
+  Result: [0;31m✗ FAIL[0m
+
+[0;34m[7/34][0m Running: [0;36m020_test_context_output_validation[0m
+
+
+[0;34m=== CONTEXT OUTPUT VALIDATION (-B, -A, -C) ===[0m
+
+[1;33mTesting: Context: -B 1 includes line before[0m
+
+[0;36mgrepnet/../grepnet/grepnet -B 1 -P '192.168.1.0/24' 'grepnet/../grepnet/tests/files/context_validation.txt'[0m
+[0;32m✓ PASS[0m: Context: -B 1 includes line before
+
+[1;33mTesting: Context: -A 1 includes line after[0m
+
+[0;36mgrepnet/../grepnet/grepnet -A 1 -P '192.168.1.0/24' 'grepnet/../grepnet/tests/files/context_validation.txt'[0m
+[0;32m✓ PASS[0m: Context: -A 1 includes line after
+
+[1;33mTesting: Context: Separator between distant matches[0m
+
+[0;36mgrepnet/../grepnet/grepnet -B 0 -A 0 -P '192.168.1.0/24' -P '172.16.0.0/12' 'grepnet/../grepnet/tests/files/context_validation.txt'[0m
+STDOUT does not match regex: \-\-
+STDOUT was:
+Line 3: 192.168.1.0/24 <- MATCH 1
+Line 10: 172.16.0.0/12 <- MATCH 3
+[0;31m✗ FAIL[0m: Context: Separator between distant matches
+
+[1;33mTesting: Context: No separator for close matches[0m
+
+[0;36mgrepnet/../grepnet/grepnet -A 10 -P '192.168.1.0/24' -P '10.0.0.0/8' 'grepnet/../grepnet/tests/files/context_validation.txt'[0m
+[0;32m✓ PASS[0m: Context: No separator for close matches
+
+[1;33mTesting: Context: -B 2 -A 2 complete context[0m
+
+[0;36mgrepnet/../grepnet/grepnet -B 2 -A 2 -P '10.0.0.0/8' 'grepnet/../grepnet/tests/files/context_validation.txt'[0m
+[0;32m✓ PASS[0m: Context: -B 2 -A 2 complete context
+
+[1;33mTesting: Context: Custom separator[0m
+
+[0;36mgrepnet/../grepnet/grepnet --group-separator='===SEP===' -B 0 -A 0 -P '192.168.1.0/24' -P '172.16.0.0/12' 'grepnet/../grepnet/tests/files/context_validation.txt'[0m
+STDOUT does not match regex: ===SEP===
+STDOUT was:
+Line 3: 192.168.1.0/24 <- MATCH 1
+Line 10: 172.16.0.0/12 <- MATCH 3
+[0;31m✗ FAIL[0m: Context: Custom separator
+
+[1;33mTesting: Context: No separator with flag[0m
+
+[0;36mgrepnet/../grepnet/grepnet --no-group-separator -B 0 -A 0 -P '192.168.1.0/24' -P '172.16.0.0/12' 'grepnet/../grepnet/tests/files/context_validation.txt'[0m
+[0;32m✓ PASS[0m: Context: No separator with flag
+/home/chains/dev/grepnet/tests/sub-tests/2-output/020_test_context_output_validation.sh: line 75: log_footer: command not found
+  Result: [0;32m✓ PASS[0m
+
+[0;34m[8/34][0m Running: [0;36m023_test_color_validation[0m
+
+
+[0;34m=== COLOR OUTPUT VALIDATION ===[0m
+
+[1;33mTesting: Default match with colors[0m
+[0;32m✓ PASS[0m: Default match with colors
+
+[1;33mTesting: Normalized CIDR with underline[0m
+[0;32m✓ PASS[0m: Normalized CIDR with underline
+
+[1;33mTesting: No colors with --color=never[0m
+[0;32m✓ PASS[0m: No colors with --color=never
+
+[0;34m=== Summary ===[0m
+Passed: 3 / Failed: 0 / Skipped: 0 / Timeouts: 0
+  Result: [0;31m✗ FAIL[0m
+
+[0;34m[9/34][0m Running: [0;36m027_test_output_features[0m
+
+====== Phase 3: Output Features Tests ======
+
+--- -o (Only Matching) Tests ---
+Testing: -o basic ... ✗ FAIL (exit: 1, expected: 0)
+  Result: [0;31m✗ FAIL[0m
+
+[0;34m[10/34][0m Running: [0;36m030_test_multiple_matches_per_line[0m
+
+=== MULTIPLE MATCHES PER LINE TESTS ===
+
+Testing: Multiple networks on single line with -o
+✓ PASS: Multiple networks on single line with -o (exit: 0)
+
+Testing: Verify -o outputs both networks
+✓ PASS: Verify -o outputs both networks (exit: 0)
+
+Testing: Multiple matches with -n flag
+✓ PASS: Multiple matches with -n flag (exit: 0)
+
+Testing: Multiple lines with multiple matches each
+✓ PASS: Multiple lines with multiple matches each (exit: 0)
+
+Testing: Count matches correctly (4 total)
+✓ PASS: Count matches correctly (4 total) (exit: 0)
+
+Testing: Multiple matches with -m flag (limit to 2)
+✓ PASS: Multiple matches with -m flag (limit to 2) (exit: 0)
+
+Creating test file with multiple matches per line...
+Testing: Multiple matches in file with -o
+✓ PASS: Multiple matches in file with -o (exit: 0)
+
+Testing: Multiple matches with -H (show filename)
+✓ PASS: Multiple matches with -H (show filename) (exit: 0)
+
+Testing: Multiple matches with --show-content
+✓ PASS: Multiple matches with --show-content (exit: 0)
+
+Testing: No matches returns correct exit code
+✓ PASS: No matches returns correct exit code (exit: 1)
+
+=== MULTIPLE MATCHES PER LINE TESTS COMPLETE ===
+  Result: [0;32m✓ PASS[0m
+
+[0;34m[11/34][0m Running: [0;36m013_test_exclusion_filtering[0m
+
+
+[0;34m=== EXCLUSION FILTERING ===[0m
+
+[1;33mTesting: Exclude network (--exclude-string)[0m
+
+[0;36m../grepnet --exclude-string '192.0.2.0/24' '192.0.0.0/16' 'files/sample_networks.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+=== Actual STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 20 32 35 35 2e 32 35  |192.0.2.0 255.25|
+00000010  35 2e 32 35 35 2e 30 0a  31 39 32 2e 30 2e 32 2e  |5.255.0.192.0.2.|
+00000020  30 20 30 2e 30 2e 30 2e  32 35 35 0a 31 39 32 2e  |0 0.0.0.255.192.|
+00000030  30 2e 32 2e 30 2d 31 39  32 2e 30 2e 32 2e 32 35  |0.2.0-192.0.2.25|
+00000040  35 0a 31 39 32 2e 30 2e  31 2e 31                 |5.192.0.1.1|
+0000004b
+=== Hexdump Diff ===
+--- /tmp/tmp.2ff7Yo58D6	2026-09-29 22:52:28.242886182 +0000
++++ /tmp/tmp.XWgmuWZZvf	2026-09-29 22:52:28.253886321 +0000
+@@ -0,0 +1,6 @@
++00000000  31 39 32 2e 30 2e 32 2e  30 20 32 35 35 2e 32 35  |192.0.2.0 255.25|
++00000010  35 2e 32 35 35 2e 30 0a  31 39 32 2e 30 2e 32 2e  |5.255.0.192.0.2.|
++00000020  30 20 30 2e 30 2e 30 2e  32 35 35 0a 31 39 32 2e  |0 0.0.0.255.192.|
++00000030  30 2e 32 2e 30 2d 31 39  32 2e 30 2e 32 2e 32 35  |0.2.0-192.0.2.25|
++00000040  35 0a 31 39 32 2e 30 2e  31 2e 31                 |5.192.0.1.1|
++0000004b
+=== Expected STDOUT (text) ===
+
+=== Actual STDOUT (text) ===
+192.0.2.0 255.255.255.0
+192.0.2.0 0.0.0.255
+192.0.2.0-192.0.2.255
+192.0.1.1
+[0;31m✗ FAIL[0m: Exclude network (--exclude-string)
+
+[1;33mTesting: Exclude multiple patterns[0m
+
+[0;36m../grepnet --exclude-string '192.0.2.0/24' --exclude-string '10.0.0.0/8' '192.0.0.0/16' 'files/sample_networks.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+=== Actual STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 20 32 35 35 2e 32 35  |192.0.2.0 255.25|
+00000010  35 2e 32 35 35 2e 30 0a  31 39 32 2e 30 2e 32 2e  |5.255.0.192.0.2.|
+00000020  30 20 30 2e 30 2e 30 2e  32 35 35 0a 31 39 32 2e  |0 0.0.0.255.192.|
+00000030  30 2e 32 2e 30 2d 31 39  32 2e 30 2e 32 2e 32 35  |0.2.0-192.0.2.25|
+00000040  35 0a 31 39 32 2e 30 2e  31 2e 31                 |5.192.0.1.1|
+0000004b
+=== Hexdump Diff ===
+--- /tmp/tmp.I3wh15QQNG	2026-09-29 22:52:28.575890378 +0000
++++ /tmp/tmp.WyQYqoAiZJ	2026-09-29 22:52:28.585890504 +0000
+@@ -0,0 +1,6 @@
++00000000  31 39 32 2e 30 2e 32 2e  30 20 32 35 35 2e 32 35  |192.0.2.0 255.25|
++00000010  35 2e 32 35 35 2e 30 0a  31 39 32 2e 30 2e 32 2e  |5.255.0.192.0.2.|
++00000020  30 20 30 2e 30 2e 30 2e  32 35 35 0a 31 39 32 2e  |0 0.0.0.255.192.|
++00000030  30 2e 32 2e 30 2d 31 39  32 2e 30 2e 32 2e 32 35  |0.2.0-192.0.2.25|
++00000040  35 0a 31 39 32 2e 30 2e  31 2e 31                 |5.192.0.1.1|
++0000004b
+=== Expected STDOUT (text) ===
+
+=== Actual STDOUT (text) ===
+192.0.2.0 255.255.255.0
+192.0.2.0 0.0.0.255
+192.0.2.0-192.0.2.255
+192.0.1.1
+[0;31m✗ FAIL[0m: Exclude multiple patterns
+
+[1;33mTesting: Exclude via file[0m
+
+[0;36mecho '192.0.2.0/24' > /tmp/exclude.txt && ../grepnet --exclude-strings-file /tmp/exclude.txt '192.0.0.0/16' 'files/sample_networks.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+=== Actual STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34 0a 31 39 32  |192.0.2.0/24.192|
+00000010  2e 30 2e 32 2e 30 20 32  35 35 2e 32 35 35 2e 32  |.0.2.0 255.255.2|
+00000020  35 35 2e 30 0a 31 39 32  2e 30 2e 32 2e 30 20 30  |55.0.192.0.2.0 0|
+00000030  2e 30 2e 30 2e 32 35 35  0a 31 39 32 2e 30 2e 32  |.0.0.255.192.0.2|
+00000040  2e 30 2d 31 39 32 2e 30  2e 32 2e 32 35 35 0a 31  |.0-192.0.2.255.1|
+00000050  39 32 2e 30 2e 31 2e 31  0a 52 6f 75 74 65 20 74  |92.0.1.1.Route t|
+00000060  6f 20 31 39 32 2e 30 2e  32 2e 30 2f 32 34 20 76  |o 192.0.2.0/24 v|
+00000070  69 61 20 31 30 2e 30 2e  30 2e 30 2f 38           |ia 10.0.0.0/8|
+0000007d
+=== Hexdump Diff ===
+--- /tmp/tmp.np86m2280b	2026-09-29 22:52:28.892894372 +0000
++++ /tmp/tmp.ICML2Cp0Yi	2026-09-29 22:52:28.900894473 +0000
+@@ -0,0 +1,9 @@
++00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34 0a 31 39 32  |192.0.2.0/24.192|
++00000010  2e 30 2e 32 2e 30 20 32  35 35 2e 32 35 35 2e 32  |.0.2.0 255.255.2|
++00000020  35 35 2e 30 0a 31 39 32  2e 30 2e 32 2e 30 20 30  |55.0.192.0.2.0 0|
++00000030  2e 30 2e 30 2e 32 35 35  0a 31 39 32 2e 30 2e 32  |.0.0.255.192.0.2|
++00000040  2e 30 2d 31 39 32 2e 30  2e 32 2e 32 35 35 0a 31  |.0-192.0.2.255.1|
++00000050  39 32 2e 30 2e 31 2e 31  0a 52 6f 75 74 65 20 74  |92.0.1.1.Route t|
++00000060  6f 20 31 39 32 2e 30 2e  32 2e 30 2f 32 34 20 76  |o 192.0.2.0/24 v|
++00000070  69 61 20 31 30 2e 30 2e  30 2e 30 2f 38           |ia 10.0.0.0/8|
++0000007d
+=== Expected STDOUT (text) ===
+
+=== Actual STDOUT (text) ===
+192.0.2.0/24
+192.0.2.0 255.255.255.0
+192.0.2.0 0.0.0.255
+192.0.2.0-192.0.2.255
+192.0.1.1
+Route to 192.0.2.0/24 via 10.0.0.0/8
+[0;31m✗ FAIL[0m: Exclude via file
+
+[1;33mTesting: Exclude with regex pattern[0m
+
+[0;36m../grepnet --exclude-string '192.0.[2-3]' '192.0.0.0/16' 'files/sample_networks.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+=== Actual STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34 0a 31 39 32  |192.0.2.0/24.192|
+00000010  2e 30 2e 32 2e 30 20 32  35 35 2e 32 35 35 2e 32  |.0.2.0 255.255.2|
+00000020  35 35 2e 30 0a 31 39 32  2e 30 2e 32 2e 30 20 30  |55.0.192.0.2.0 0|
+00000030  2e 30 2e 30 2e 32 35 35  0a 31 39 32 2e 30 2e 32  |.0.0.255.192.0.2|
+00000040  2e 30 2d 31 39 32 2e 30  2e 32 2e 32 35 35 0a 31  |.0-192.0.2.255.1|
+00000050  39 32 2e 30 2e 31 2e 31  0a 52 6f 75 74 65 20 74  |92.0.1.1.Route t|
+00000060  6f 20 31 39 32 2e 30 2e  32 2e 30 2f 32 34 20 76  |o 192.0.2.0/24 v|
+00000070  69 61 20 31 30 2e 30 2e  30 2e 30 2f 38           |ia 10.0.0.0/8|
+0000007d
+=== Hexdump Diff ===
+--- /tmp/tmp.gmz7cqm3oB	2026-09-29 22:52:29.202898299 +0000
++++ /tmp/tmp.glh8lrxSbT	2026-09-29 22:52:29.215898464 +0000
+@@ -0,0 +1,9 @@
++00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34 0a 31 39 32  |192.0.2.0/24.192|
++00000010  2e 30 2e 32 2e 30 20 32  35 35 2e 32 35 35 2e 32  |.0.2.0 255.255.2|
++00000020  35 35 2e 30 0a 31 39 32  2e 30 2e 32 2e 30 20 30  |55.0.192.0.2.0 0|
++00000030  2e 30 2e 30 2e 32 35 35  0a 31 39 32 2e 30 2e 32  |.0.0.255.192.0.2|
++00000040  2e 30 2d 31 39 32 2e 30  2e 32 2e 32 35 35 0a 31  |.0-192.0.2.255.1|
++00000050  39 32 2e 30 2e 31 2e 31  0a 52 6f 75 74 65 20 74  |92.0.1.1.Route t|
++00000060  6f 20 31 39 32 2e 30 2e  32 2e 30 2f 32 34 20 76  |o 192.0.2.0/24 v|
++00000070  69 61 20 31 30 2e 30 2e  30 2e 30 2f 38           |ia 10.0.0.0/8|
++0000007d
+=== Expected STDOUT (text) ===
+
+=== Actual STDOUT (text) ===
+192.0.2.0/24
+192.0.2.0 255.255.255.0
+192.0.2.0 0.0.0.255
+192.0.2.0-192.0.2.255
+192.0.1.1
+Route to 192.0.2.0/24 via 10.0.0.0/8
+[0;31m✗ FAIL[0m: Exclude with regex pattern
+
+[1;33mTesting: Extract mode with exclusion[0m
+
+[0;36m../grepnet --extract --exclude-string '192.0.2.0/24' 'files/sample_networks.txt'[0m
+Exit code mismatch: Expected 0, Got 2
+[0;31m✗ FAIL[0m: Extract mode with exclusion
+  Result: [0;31m✗ FAIL[0m
+
+[0;34m[12/34][0m Running: [0;36m026_test_exclusion_filtering[0m
+
+====== Phase 2: Exclusion Filtering Tests ======
+
+--- Regex Exclusion Tests ---
+Testing: Regex exclusion - single pattern ... ✓ PASS (exit: 0)
+  Result: [0;31m✗ FAIL[0m
+
+[0;34m[13/34][0m Running: [0;36m028_test_file_discovery[0m
+
+====== Phase 3: File Discovery Tests ======
+
+--- --include Tests ---
+Testing: --include single pattern ... ✗ FAIL
+  Expected exit code: 0, Got: 1
+  Output:
+      File "/home/chains/dev/grepnet/grepnet", line 5
+        SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+                          ^
+    SyntaxError: invalid syntax
+    0
+  Result: [0;31m✗ FAIL[0m
+
+[0;34m[14/34][0m Running: [0;36m029_test_binary_handling[0m
+
+====== Phase 3: Binary File Handling Tests ======
+
+--- Default Binary Handling (Show Warning) ---
+Testing: Binary file shows warning ...   Result: [0;31m✗ FAIL[0m
+
+[0;34m[15/34][0m Running: [0;36m031_test_extract_consolidate_pattern[0m
+
+
+[0;34m=== EXTRACT & CONSOLIDATE WITH PATTERN FILTERING ===[0m
+
+[0;34m=== Extract Mode - No Pattern ===[0m
+
+[1;33mTesting: Extract all networks from simple input[0m
+
+[0;36mecho -en '192.0.2.0 192.0.2.1
+' | ../grepnet --extract[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 2f 33 32 0a 31 39 32  |192.0.2.0/32.192|
+00000010  2e 30 2e 32 2e 31 2f 33  32                       |.0.2.1/32|
+00000019
+=== Actual STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 2f 33 32              |192.0.2.0/32|
+0000000c
+=== Hexdump Diff ===
+--- /tmp/tmp.DMTvcI5hUe	2026-09-29 22:52:30.532915245 +0000
++++ /tmp/tmp.VrlZ9ob6aP	2026-09-29 22:52:30.539915334 +0000
+@@ -1,3 +1,2 @@
+-00000000  31 39 32 2e 30 2e 32 2e  30 2f 33 32 0a 31 39 32  |192.0.2.0/32.192|
+-00000010  2e 30 2e 32 2e 31 2f 33  32                       |.0.2.1/32|
+-00000019
++00000000  31 39 32 2e 30 2e 32 2e  30 2f 33 32              |192.0.2.0/32|
++0000000c
+=== Expected STDOUT (text) ===
+192.0.2.0/32
+192.0.2.1/32
+=== Actual STDOUT (text) ===
+192.0.2.0/32
+[0;31m✗ FAIL[0m: Extract all networks from simple input
+
+[1;33mTesting: Extract dedup by network-object[0m
+
+[0;36mecho -en '192.0.2.1
+192.0.2.1
+' | ../grepnet --extract[0m
+Exit code mismatch: Expected 0, Got 1
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  31 2f 33 32 0a 31 39 32  |192.0.2.1/32.192|
+00000010  2e 30 2e 32 2e 31 2f 33  32                       |.0.2.1/32|
+00000019
+=== Actual STDOUT (hexdump) ===
+=== Hexdump Diff ===
+--- /tmp/tmp.RzJKKvtlHQ	2026-09-29 22:52:30.885919763 +0000
++++ /tmp/tmp.qZ8Y1d6YKk	2026-09-29 22:52:30.887919789 +0000
+@@ -1,3 +0,0 @@
+-00000000  31 39 32 2e 30 2e 32 2e  31 2f 33 32 0a 31 39 32  |192.0.2.1/32.192|
+-00000010  2e 30 2e 32 2e 31 2f 33  32                       |.0.2.1/32|
+-00000019
+=== Expected STDOUT (text) ===
+192.0.2.1/32
+192.0.2.1/32
+=== Actual STDOUT (text) ===
+
+[0;31m✗ FAIL[0m: Extract dedup by network-object
+
+[1;33mTesting: Extract subnet mask converted to CIDR[0m
+
+[0;36mecho -en '192.0.2.0 255.255.255.0
+' | ../grepnet --extract[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34              |192.0.2.0/24|
+0000000c
+=== Actual STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 2f 33 32              |192.0.2.0/32|
+0000000c
+=== Hexdump Diff ===
+--- /tmp/tmp.DElUHpEOLx	2026-09-29 22:52:31.235924267 +0000
++++ /tmp/tmp.Ggc6xHc6Z1	2026-09-29 22:52:31.243924371 +0000
+@@ -1,2 +1,2 @@
+-00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34              |192.0.2.0/24|
++00000000  31 39 32 2e 30 2e 32 2e  30 2f 33 32              |192.0.2.0/32|
+ 0000000c
+=== Expected STDOUT (text) ===
+192.0.2.0/24
+=== Actual STDOUT (text) ===
+192.0.2.0/32
+[0;31m✗ FAIL[0m: Extract subnet mask converted to CIDR
+
+[1;33mTesting: Extract hostmask converted to CIDR[0m
+
+[0;36mecho -en '192.0.2.0 0.0.0.255
+' | ../grepnet --extract[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34              |192.0.2.0/24|
+0000000c
+=== Actual STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 2f 33 32              |192.0.2.0/32|
+0000000c
+=== Hexdump Diff ===
+--- /tmp/tmp.yggHlEmgwk	2026-09-29 22:52:31.591928860 +0000
++++ /tmp/tmp.qpZtFBAF1k	2026-09-29 22:52:31.597928937 +0000
+@@ -1,2 +1,2 @@
+-00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34              |192.0.2.0/24|
++00000000  31 39 32 2e 30 2e 32 2e  30 2f 33 32              |192.0.2.0/32|
+ 0000000c
+=== Expected STDOUT (text) ===
+192.0.2.0/24
+=== Actual STDOUT (text) ===
+192.0.2.0/32
+[0;31m✗ FAIL[0m: Extract hostmask converted to CIDR
+
+[1;33mTesting: Extract plain IP as /32[0m
+
+[0;36mecho -en '192.0.2.1
+' | ../grepnet --extract[0m
+Exit code mismatch: Expected 0, Got 1
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  31 2f 33 32              |192.0.2.1/32|
+0000000c
+=== Actual STDOUT (hexdump) ===
+=== Hexdump Diff ===
+--- /tmp/tmp.KrT50rpqUq	2026-09-29 22:52:31.956933569 +0000
++++ /tmp/tmp.kL2N7bxvfg	2026-09-29 22:52:31.958933595 +0000
+@@ -1,2 +0,0 @@
+-00000000  31 39 32 2e 30 2e 32 2e  31 2f 33 32              |192.0.2.1/32|
+-0000000c
+=== Expected STDOUT (text) ===
+192.0.2.1/32
+=== Actual STDOUT (text) ===
+
+[0;31m✗ FAIL[0m: Extract plain IP as /32
+
+[1;33mTesting: Extract multiple networks dedup[0m
+
+[0;36mecho -en '192.0.2.0/31
+192.0.2.1
+' | ../grepnet --extract | sort[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 2f 33 31 0a 31 39 32  |192.0.2.0/31.192|
+00000010  2e 30 2e 32 2e 31 2f 33  32                       |.0.2.1/32|
+00000019
+=== Actual STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 2f 33 32              |192.0.2.0/32|
+0000000c
+=== Hexdump Diff ===
+--- /tmp/tmp.tLBi6Xucmq	2026-09-29 22:52:32.330938427 +0000
++++ /tmp/tmp.agRJQYNfuH	2026-09-29 22:52:32.336938505 +0000
+@@ -1,3 +1,2 @@
+-00000000  31 39 32 2e 30 2e 32 2e  30 2f 33 31 0a 31 39 32  |192.0.2.0/31.192|
+-00000010  2e 30 2e 32 2e 31 2f 33  32                       |.0.2.1/32|
+-00000019
++00000000  31 39 32 2e 30 2e 32 2e  30 2f 33 32              |192.0.2.0/32|
++0000000c
+=== Expected STDOUT (text) ===
+192.0.2.0/31
+192.0.2.1/32
+=== Actual STDOUT (text) ===
+192.0.2.0/32
+[0;31m✗ FAIL[0m: Extract multiple networks dedup
+
+[0;34m=== Consolidate Mode ===[0m
+
+[1;33mTesting: Consolidate overlapping networks[0m
+
+[0;36mecho -en '192.0.2.0/31
+192.0.2.1/32
+' | ../grepnet --consolidate[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 2f 33 31              |192.0.2.0/31|
+0000000c
+=== Actual STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 2f 33 32              |192.0.2.0/32|
+0000000c
+=== Hexdump Diff ===
+--- /tmp/tmp.bMsk5vSocV	2026-09-29 22:52:32.721943510 +0000
++++ /tmp/tmp.1Ii47jtLbu	2026-09-29 22:52:32.729943614 +0000
+@@ -1,2 +1,2 @@
+-00000000  31 39 32 2e 30 2e 32 2e  30 2f 33 31              |192.0.2.0/31|
++00000000  31 39 32 2e 30 2e 32 2e  30 2f 33 32              |192.0.2.0/32|
+ 0000000c
+=== Expected STDOUT (text) ===
+192.0.2.0/31
+=== Actual STDOUT (text) ===
+192.0.2.0/32
+[0;31m✗ FAIL[0m: Consolidate overlapping networks
+
+[1;33mTesting: Consolidate adjacent networks[0m
+
+[0;36mecho -en '192.0.2.0/24
+192.0.3.0/24
+' | ../grepnet --consolidate[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 33              |192.0.2.0/23|
+0000000c
+=== Actual STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 2f 33 32              |192.0.2.0/32|
+0000000c
+=== Hexdump Diff ===
+--- /tmp/tmp.QhGxzFrWSh	2026-09-29 22:52:33.106948526 +0000
++++ /tmp/tmp.VHSgyRNYEy	2026-09-29 22:52:33.114948631 +0000
+@@ -1,2 +1,2 @@
+-00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 33              |192.0.2.0/23|
++00000000  31 39 32 2e 30 2e 32 2e  30 2f 33 32              |192.0.2.0/32|
+ 0000000c
+=== Expected STDOUT (text) ===
+192.0.2.0/23
+=== Actual STDOUT (text) ===
+192.0.2.0/32
+[0;31m✗ FAIL[0m: Consolidate adjacent networks
+
+[1;33mTesting: Consolidate handles subnet masks[0m
+
+[0;36mecho -en '192.0.2.0 255.255.255.0
+192.0.3.0/24
+' | ../grepnet --consolidate[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 33              |192.0.2.0/23|
+0000000c
+=== Actual STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 2f 33 32              |192.0.2.0/32|
+0000000c
+=== Hexdump Diff ===
+--- /tmp/tmp.hzBoBbQsd0	2026-09-29 22:52:33.479953412 +0000
++++ /tmp/tmp.kYJeSS34WB	2026-09-29 22:52:33.486953504 +0000
+@@ -1,2 +1,2 @@
+-00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 33              |192.0.2.0/23|
++00000000  31 39 32 2e 30 2e 32 2e  30 2f 33 32              |192.0.2.0/32|
+ 0000000c
+=== Expected STDOUT (text) ===
+192.0.2.0/23
+=== Actual STDOUT (text) ===
+192.0.2.0/32
+[0;31m✗ FAIL[0m: Consolidate handles subnet masks
+
+[1;33mTesting: Consolidate single address[0m
+
+[0;36mecho -en '192.0.2.1
+' | ../grepnet --consolidate[0m
+Exit code mismatch: Expected 0, Got 1
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  31 2f 33 32              |192.0.2.1/32|
+0000000c
+=== Actual STDOUT (hexdump) ===
+=== Hexdump Diff ===
+--- /tmp/tmp.LBm6WT1iHS	2026-09-29 22:52:33.824957931 +0000
++++ /tmp/tmp.O9HdmN1qyn	2026-09-29 22:52:33.826957958 +0000
+@@ -1,2 +0,0 @@
+-00000000  31 39 32 2e 30 2e 32 2e  31 2f 33 32              |192.0.2.1/32|
+-0000000c
+=== Expected STDOUT (text) ===
+192.0.2.1/32
+=== Actual STDOUT (text) ===
+
+[0;31m✗ FAIL[0m: Consolidate single address
+
+[0;34m=== Only Matching (-o) Flag ===[0m
+
+[1;33mTesting: Only matching outputs original text[0m
+
+[0;36mprintf '192.0.2.0/24' | ../grepnet -o 192.0.2.0/24[0m
+[0;32m✓ PASS[0m: Only matching outputs original text (exit: 0)
+
+[1;33mTesting: Only matching keeps subnet mask format[0m
+
+[0;36mprintf '192.0.2.0 255.255.255.0' | ../grepnet -o 192.0.2.0/24[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 20 32 35 35 2e 32 35  |192.0.2.0 255.25|
+00000010  35 2e 32 35 35 2e 30                              |5.255.0|
+00000017
+=== Actual STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30                       |192.0.2.0|
+00000009
+=== Hexdump Diff ===
+--- /tmp/tmp.ArKFjE8Knd	2026-09-29 22:52:34.425965846 +0000
++++ /tmp/tmp.zqANTbDorN	2026-09-29 22:52:34.433965952 +0000
+@@ -1,3 +1,2 @@
+-00000000  31 39 32 2e 30 2e 32 2e  30 20 32 35 35 2e 32 35  |192.0.2.0 255.25|
+-00000010  35 2e 32 35 35 2e 30                              |5.255.0|
+-00000017
++00000000  31 39 32 2e 30 2e 32 2e  30                       |192.0.2.0|
++00000009
+=== Expected STDOUT (text) ===
+192.0.2.0 255.255.255.0
+=== Actual STDOUT (text) ===
+192.0.2.0
+[0;31m✗ FAIL[0m: Only matching keeps subnet mask format
+
+[1;33mTesting: Only matching with duplicates shows each[0m
+
+[0;36mecho -en '192.0.2.1
+192.0.2.1
+' | ../grepnet -o 192.0.2.0/24[0m
+Exit code mismatch: Expected 0, Got 1
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  31 0a 31 39 32 2e 30 2e  |192.0.2.1.192.0.|
+00000010  32 2e 31                                          |2.1|
+00000013
+=== Actual STDOUT (hexdump) ===
+=== Hexdump Diff ===
+--- /tmp/tmp.LItqz8GIrl	2026-09-29 22:52:34.802970822 +0000
++++ /tmp/tmp.fQ07jcWkWz	2026-09-29 22:52:34.804970848 +0000
+@@ -1,3 +0,0 @@
+-00000000  31 39 32 2e 30 2e 32 2e  31 0a 31 39 32 2e 30 2e  |192.0.2.1.192.0.|
+-00000010  32 2e 31                                          |2.1|
+-00000013
+=== Expected STDOUT (text) ===
+192.0.2.1
+192.0.2.1
+=== Actual STDOUT (text) ===
+
+[0;31m✗ FAIL[0m: Only matching with duplicates shows each
+
+[1;33mTesting: Only matching shows multiple networks per line[0m
+
+[0;36mecho -en '192.0.2.0 192.0.2.1' | ../grepnet -o 192.0.2.0/24[0m
+[0;32m✓ PASS[0m: Only matching shows multiple networks per line (exit: 0)
+
+[0;34m=== IPv6 Support ===[0m
+
+[1;33mTesting: Extract IPv6 plain address[0m
+
+[0;36mecho -en '2001:db8::1
+' | ../grepnet --extract[0m
+Exit code mismatch: Expected 0, Got 1
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  32 30 30 31 3a 64 62 38  3a 3a 31 2f 31 32 38     |2001:db8::1/128|
+0000000f
+=== Actual STDOUT (hexdump) ===
+=== Hexdump Diff ===
+--- /tmp/tmp.afQ8tlHomi	2026-09-29 22:52:35.448979392 +0000
++++ /tmp/tmp.vgftTb5cXi	2026-09-29 22:52:35.450979418 +0000
+@@ -1,2 +0,0 @@
+-00000000  32 30 30 31 3a 64 62 38  3a 3a 31 2f 31 32 38     |2001:db8::1/128|
+-0000000f
+=== Expected STDOUT (text) ===
+2001:db8::1/128
+=== Actual STDOUT (text) ===
+
+[0;31m✗ FAIL[0m: Extract IPv6 plain address
+
+[1;33mTesting: Extract IPv6 CIDR[0m
+
+[0;36mecho -en '2001:db8::/32
+' | ../grepnet --extract[0m
+Exit code mismatch: Expected 0, Got 1
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  32 30 30 31 3a 64 62 38  3a 3a 2f 33 32           |2001:db8::/32|
+0000000d
+=== Actual STDOUT (hexdump) ===
+=== Hexdump Diff ===
+--- /tmp/tmp.keXaQi1arc	2026-09-29 22:52:35.816984285 +0000
++++ /tmp/tmp.EjvN5wNiOt	2026-09-29 22:52:35.818984312 +0000
+@@ -1,2 +0,0 @@
+-00000000  32 30 30 31 3a 64 62 38  3a 3a 2f 33 32           |2001:db8::/32|
+-0000000d
+=== Expected STDOUT (text) ===
+2001:db8::/32
+=== Actual STDOUT (text) ===
+
+[0;31m✗ FAIL[0m: Extract IPv6 CIDR
+
+[1;33mTesting: Consolidate IPv4 and IPv6 mixed (should separate versions)[0m
+
+[0;36mecho -en '192.0.2.0/24
+2001:db8::/32
+' | ../grepnet --consolidate[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34 0a 32 30 30  |192.0.2.0/24.200|
+00000010  31 3a 64 62 38 3a 3a 2f  33 32                    |1:db8::/32|
+0000001a
+=== Actual STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 2f 33 32              |192.0.2.0/32|
+0000000c
+=== Hexdump Diff ===
+--- /tmp/tmp.emr9TuqHFS	2026-09-29 22:52:36.175989075 +0000
++++ /tmp/tmp.Bcl9HHaMGB	2026-09-29 22:52:36.182989169 +0000
+@@ -1,3 +1,2 @@
+-00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34 0a 32 30 30  |192.0.2.0/24.200|
+-00000010  31 3a 64 62 38 3a 3a 2f  33 32                    |1:db8::/32|
+-0000001a
++00000000  31 39 32 2e 30 2e 32 2e  30 2f 33 32              |192.0.2.0/32|
++0000000c
+=== Expected STDOUT (text) ===
+192.0.2.0/24
+2001:db8::/32
+=== Actual STDOUT (text) ===
+192.0.2.0/32
+[0;31m✗ FAIL[0m: Consolidate IPv4 and IPv6 mixed (should separate versions)
+
+[0;34m=== Pattern Filtering for Extract Mode ===[0m
+
+[1;33mTesting: Extract with pattern: only matching network[0m
+
+[0;36mecho -en '192.0.2.0/24
+198.51.100.0/24
+' | ../grepnet -P 192.0.2.0/24 --extract[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34              |192.0.2.0/24|
+0000000c
+=== Actual STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 2f 33 32              |192.0.2.0/32|
+0000000c
+=== Hexdump Diff ===
+--- /tmp/tmp.8LSY8ZCjFR	2026-09-29 22:52:36.563994272 +0000
++++ /tmp/tmp.VttIXDn5xQ	2026-09-29 22:52:36.570994366 +0000
+@@ -1,2 +1,2 @@
+-00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34              |192.0.2.0/24|
++00000000  31 39 32 2e 30 2e 32 2e  30 2f 33 32              |192.0.2.0/32|
+ 0000000c
+=== Expected STDOUT (text) ===
+192.0.2.0/24
+=== Actual STDOUT (text) ===
+192.0.2.0/32
+[0;31m✗ FAIL[0m: Extract with pattern: only matching network
+
+[1;33mTesting: Extract with pattern: multiple matching networks[0m
+
+[0;36mecho -en '192.0.2.0/24
+192.0.2.128/25
+198.51.100.0/24
+' | ../grepnet -P 192.0.2.0/24 --extract | sort[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34 0a 31 39 32  |192.0.2.0/24.192|
+00000010  2e 30 2e 32 2e 31 32 38  2f 32 35                 |.0.2.128/25|
+0000001b
+=== Actual STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 2f 33 32              |192.0.2.0/32|
+0000000c
+=== Hexdump Diff ===
+--- /tmp/tmp.YYBXbkFahd	2026-09-29 22:52:36.956999537 +0000
++++ /tmp/tmp.V0in3EUY65	2026-09-29 22:52:36.964999644 +0000
+@@ -1,3 +1,2 @@
+-00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34 0a 31 39 32  |192.0.2.0/24.192|
+-00000010  2e 30 2e 32 2e 31 32 38  2f 32 35                 |.0.2.128/25|
+-0000001b
++00000000  31 39 32 2e 30 2e 32 2e  30 2f 33 32              |192.0.2.0/32|
++0000000c
+=== Expected STDOUT (text) ===
+192.0.2.0/24
+192.0.2.128/25
+=== Actual STDOUT (text) ===
+192.0.2.0/32
+[0;31m✗ FAIL[0m: Extract with pattern: multiple matching networks
+
+[1;33mTesting: Extract with pattern: subset networks match[0m
+
+[0;36mecho -en '192.0.2.1
+192.0.2.2
+198.51.100.1
+' | ../grepnet -P 192.0.2.0/24 --extract | sort[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  31 2f 33 32 0a 31 39 32  |192.0.2.1/32.192|
+00000010  2e 30 2e 32 2e 32 2f 33  32                       |.0.2.2/32|
+00000019
+=== Actual STDOUT (hexdump) ===
+=== Hexdump Diff ===
+--- /tmp/tmp.hXrWe7b5dM	2026-09-29 22:52:37.341004713 +0000
++++ /tmp/tmp.8aiYgo7VYg	2026-09-29 22:52:37.343004740 +0000
+@@ -1,3 +0,0 @@
+-00000000  31 39 32 2e 30 2e 32 2e  31 2f 33 32 0a 31 39 32  |192.0.2.1/32.192|
+-00000010  2e 30 2e 32 2e 32 2f 33  32                       |.0.2.2/32|
+-00000019
+=== Expected STDOUT (text) ===
+192.0.2.1/32
+192.0.2.2/32
+=== Actual STDOUT (text) ===
+
+[0;31m✗ FAIL[0m: Extract with pattern: subset networks match
+
+[1;33mTesting: Extract with pattern: no matches returns 1[0m
+
+[0;36mecho -en '198.51.100.0/24
+203.0.113.0/24
+' | ../grepnet -P 192.0.2.0/24 --extract[0m
+[0;32m✓ PASS[0m: Extract with pattern: no matches returns 1 (exit: 1)
+
+[1;33mTesting: Extract with pattern: dedup still works[0m
+
+[0;36mecho -en '192.0.2.1
+192.0.2.1
+' | ../grepnet -P 192.0.2.0/24 --extract[0m
+Exit code mismatch: Expected 0, Got 1
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  31 2f 33 32 0a 31 39 32  |192.0.2.1/32.192|
+00000010  2e 30 2e 32 2e 31 2f 33  32                       |.0.2.1/32|
+00000019
+=== Actual STDOUT (hexdump) ===
+=== Hexdump Diff ===
+--- /tmp/tmp.XGYCd4lXL6	2026-09-29 22:52:38.025013944 +0000
++++ /tmp/tmp.RLPx7ZFpFv	2026-09-29 22:52:38.027013971 +0000
+@@ -1,3 +0,0 @@
+-00000000  31 39 32 2e 30 2e 32 2e  31 2f 33 32 0a 31 39 32  |192.0.2.1/32.192|
+-00000010  2e 30 2e 32 2e 31 2f 33  32                       |.0.2.1/32|
+-00000019
+=== Expected STDOUT (text) ===
+192.0.2.1/32
+192.0.2.1/32
+=== Actual STDOUT (text) ===
+
+[0;31m✗ FAIL[0m: Extract with pattern: dedup still works
+
+[0;34m=== Pattern Filtering for Consolidate Mode ===[0m
+
+[1;33mTesting: Consolidate with pattern: only matching networks[0m
+
+[0;36mecho -en '192.0.2.0/25
+192.0.2.128/25
+198.51.100.0/24
+' | ../grepnet -P 192.0.2.0/24 --consolidate[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34              |192.0.2.0/24|
+0000000c
+=== Actual STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 2f 33 32              |192.0.2.0/32|
+0000000c
+=== Hexdump Diff ===
+--- /tmp/tmp.kGd9OiwZcN	2026-09-29 22:52:38.366018578 +0000
++++ /tmp/tmp.BxhS6ipr7S	2026-09-29 22:52:38.372018659 +0000
+@@ -1,2 +1,2 @@
+-00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34              |192.0.2.0/24|
++00000000  31 39 32 2e 30 2e 32 2e  30 2f 33 32              |192.0.2.0/32|
+ 0000000c
+=== Expected STDOUT (text) ===
+192.0.2.0/24
+=== Actual STDOUT (text) ===
+192.0.2.0/32
+[0;31m✗ FAIL[0m: Consolidate with pattern: only matching networks
+
+[1;33mTesting: Consolidate with pattern: partial overlap excluded[0m
+
+[0;36mecho -en '192.0.2.0/24
+198.51.100.0/24
+198.51.100.128/25
+' | ../grepnet -P 198.51.100.0/24 --consolidate[0m
+Exit code mismatch: Expected 0, Got 1
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  31 39 38 2e 35 31 2e 31  30 30 2e 30 2f 32 34     |198.51.100.0/24|
+0000000f
+=== Actual STDOUT (hexdump) ===
+=== Hexdump Diff ===
+--- /tmp/tmp.x8TASo96qA	2026-09-29 22:52:38.723023429 +0000
++++ /tmp/tmp.IVLt9MBaLE	2026-09-29 22:52:38.725023456 +0000
+@@ -1,2 +0,0 @@
+-00000000  31 39 38 2e 35 31 2e 31  30 30 2e 30 2f 32 34     |198.51.100.0/24|
+-0000000f
+=== Expected STDOUT (text) ===
+198.51.100.0/24
+=== Actual STDOUT (text) ===
+
+[0;31m✗ FAIL[0m: Consolidate with pattern: partial overlap excluded
+
+[1;33mTesting: Consolidate with pattern: no matches returns 1[0m
+
+[0;36mecho -en '10.0.0.0/8
+172.16.0.0/12
+' | ../grepnet -P 192.0.2.0/24 --consolidate[0m
+[0;32m✓ PASS[0m: Consolidate with pattern: no matches returns 1 (exit: 1)
+
+[1;33mTesting: Consolidate with pattern: mixed IPv4/IPv6[0m
+
+[0;36mecho -en '192.0.2.0/24
+2001:db8::/32
+192.0.2.128/25
+' | ../grepnet -P 192.0.2.0/24 --consolidate[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34              |192.0.2.0/24|
+0000000c
+=== Actual STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 2f 33 32              |192.0.2.0/32|
+0000000c
+=== Hexdump Diff ===
+--- /tmp/tmp.3g5dQH3s6n	2026-09-29 22:52:39.345031915 +0000
++++ /tmp/tmp.EdcZ2DoqM0	2026-09-29 22:52:39.352032011 +0000
+@@ -1,2 +1,2 @@
+-00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34              |192.0.2.0/24|
++00000000  31 39 32 2e 30 2e 32 2e  30 2f 33 32              |192.0.2.0/32|
+ 0000000c
+=== Expected STDOUT (text) ===
+192.0.2.0/24
+=== Actual STDOUT (text) ===
+192.0.2.0/32
+[0;31m✗ FAIL[0m: Consolidate with pattern: mixed IPv4/IPv6
+
+[0;34m=== TESTING COMPLETE ===[0m
+  Result: [0;32m✓ PASS[0m
+
+[0;34m[16/34][0m Running: [0;36m033_test_range_extraction_and_formatting[0m
+
+=== Test 033: Range Extraction & Formatting ===
+
+Test 033-1: Range markup format type
+  ✓ PASS: Shows OBJ:RANGE
+
+Test 033-2: Extract mode outputs range format not tuple
+  ✓ PASS: Shows range format
+
+Test 033-3: Extract --format=range
+  ✓ PASS
+
+Test 033-4: Extract --format=short-range
+  ✓ PASS
+
+Test 033-5: Extract --format=cidr
+  ℹ Note: Range to CIDR conversion requires collapse_addresses (deferred)
+  Current: '192.0.2.0/24'
+
+Test 033-6: Normal CIDR extraction
+  ✓ PASS
+
+Test 033-7: Format flag without --extract/--consolidate errors
+  ✓ PASS: Correctly errored
+
+Test 033-8: Mixed CIDR and range on same line
+  ✓ PASS: Mixed formats extracted correctly (both represent same network)
+
+================================================
+RESULTS: 8 passed, 0 failed
+  Result: [0;32m✓ PASS[0m
+
+[0;34m[17/34][0m Running: [0;36m034_test_abbreviated_range_formats[0m
+
+=== Test 034: Abbreviated Range Formats ===
+
+Test 034-1: Long form range (192.0.2.0-192.0.2.255)
+  ✓ PASS: Long form recognized as RANGE
+
+Test 034-2: Short form range (192.0.2.0-255 means 192.0.2.0-192.0.2.255)
+  ✓ PASS: Short form recognized as RANGE
+
+Test 034-3: Tiny short form range (192.0.2.0-4 means 192.0.2.0-192.0.2.4)
+  ✓ PASS: Tiny short form recognized as RANGE
+
+Test 034-4: Extract abbreviated range format
+  ✓ PASS: Extracts as full range '192.0.2.0-192.0.2.4'
+
+Test 034-5: Format abbreviated range as short-range
+  ✓ PASS: Formats back as short-range '192.0.2.0-4'
+
+Test 034-6: Mixed long and short form ranges
+  ✓ PASS: Both ranges extracted correctly
+
+Test 034-7: Markup shows both abbreviated ranges as RANGE
+  ✓ PASS: Both ranges marked as OBJ:RANGE
+
+Test 034-8: Boundary cases (0 and 255)
+  Note: Got '192.0.2.1/32
+192.0.2.2/31
+192.0.2.4/30
+192.0.2.8/29
+192.0.2.16/28
+192.0.2.32/27
+192.0.2.64/26
+192.0.2.128/25'
+
+================================================
+RESULTS: 8 passed, 0 failed
+
+NOTE: Abbreviated range format like '192.0.2.0-4' is VALID range notation.
+      It expands to the full range: '192.0.2.0-192.0.2.4'
+      The final octet (0-255) can be abbreviated in short form.
+
+  Result: [0;32m✓ PASS[0m
+
+[0;34m[18/34][0m Running: [0;36m035_test_cidr_format_conversion[0m
+
+=== Test 035: CIDR Format Conversion ===
+
+Test 035-1: Extract range as CIDR (192.0.2.0-4)
+  ✓ PASS: Range expanded to proper CIDR blocks
+
+Test 035-2: Extract large range as CIDR (192.0.2.0-255)
+  ✓ PASS: Range consolidated to single /24
+
+Test 035-3: Consolidate ranges as CIDR
+  ✓ PASS: Both ranges converted to CIDR: 4 blocks
+
+Test 035-4: Extract with explicit range format (not CIDR)
+  ✓ PASS: Explicit range format is range
+
+Test 035-5: Mixed CIDR and range with CIDR output
+  ✓ PASS: Both CIDR and range normalized to CIDR format
+
+================================================
+RESULTS: 5 passed, 0 failed
+
+  Result: [0;32m✓ PASS[0m
+
+[0;34m[19/34][0m Running: [0;36m036_test_format_original[0m
+
+
+[0;34m=== FORMAT ORIGINAL OPTION ===[0m
+
+[1;33mTesting: Extract CIDR notation with --format=original[0m
+
+[0;36mecho '192.0.2.0/24' | ../grepnet --extract --format=original[0m
+[0;32m✓ PASS[0m: Extract CIDR notation with --format=original (exit: 0)
+
+[1;33mTesting: Extract subnet mask with --format=original[0m
+
+[0;36mecho '192.0.2.0 255.255.255.0' | ../grepnet --extract --format=original[0m
+[0;32m✓ PASS[0m: Extract subnet mask with --format=original (exit: 0)
+
+[1;33mTesting: Extract inverse mask with --format=original[0m
+
+[0;36mecho '192.0.2.0 0.0.0.255' | ../grepnet --extract --format=original[0m
+[0;32m✓ PASS[0m: Extract inverse mask with --format=original (exit: 0)
+
+[1;33mTesting: Extract range with --format=original[0m
+
+[0;36mecho '192.0.2.0-192.0.2.255' | ../grepnet --extract --format=original[0m
+[0;32m✓ PASS[0m: Extract range with --format=original (exit: 0)
+
+[1;33mTesting: Extract abbreviated range with --format=original[0m
+
+[0;36mecho '192.0.2.0-4' | ../grepnet --extract --format=original[0m
+[0;32m✓ PASS[0m: Extract abbreviated range with --format=original (exit: 0)
+
+[1;33mTesting: Extract bare IP with --format=original[0m
+
+[0;36mecho '192.0.2.5' | ../grepnet --extract --format=original[0m
+[0;32m✓ PASS[0m: Extract bare IP with --format=original (exit: 0)
+
+[1;33mTesting: --format=original with --consolidate should error[0m
+
+[0;36mecho -e '192.0.2.0/24
+192.0.3.0/24' | ../grepnet --consolidate --format=original[0m
+[0;32m✓ PASS[0m: --format=original with --consolidate should error (exit: 2)
+
+[1;33mTesting: Extract single range with --format=original[0m
+
+[0;36mecho '192.0.2.0-192.0.2.255' | ../grepnet --extract --format=original[0m
+[0;32m✓ PASS[0m: Extract single range with --format=original (exit: 0)
+
+[1;33mTesting: Compare: original vs cidr format[0m
+
+[0;36mecho '192.0.2.0-192.0.2.255' | ../grepnet --extract --format=cidr[0m
+[0;32m✓ PASS[0m: Compare: original vs cidr format (exit: 0)
+  Result: [0;32m✓ PASS[0m
+
+[0;34m[20/34][0m Running: [0;36m008_test_parsing_options[0m
+
+
+[0;34m=== PARSING OPTIONS ===[0m
+
+[1;33mTesting: Parse ranges (default)[0m
+
+[0;36m../grepnet '192.0.2.0-192.0.2.255' 'files/sample_networks.txt'[0m
+[0;32m✓ PASS[0m: Parse ranges (default) (exit: 0)
+
+[1;33mTesting: Parse long-form ranges only (--range-format=long)[0m
+
+[0;36m../grepnet --range-format=long '192.0.2.0-192.0.2.255' 'files/sample_networks.txt'[0m
+[0;32m✓ PASS[0m: Parse long-form ranges only (--range-format=long) (exit: 0)
+
+[1;33mTesting: Parse short-form ranges only (--range-format=short)[0m
+
+[0;36m../grepnet --range-format=short '192.0.2.0-255' 'files/sample_networks.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+=== Actual STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34 0a 31 39 32  |192.0.2.0/24.192|
+00000010  2e 30 2e 32 2e 30 20 32  35 35 2e 32 35 35 2e 32  |.0.2.0 255.255.2|
+00000020  35 35 2e 30 0a 31 39 32  2e 30 2e 32 2e 30 20 30  |55.0.192.0.2.0 0|
+00000030  2e 30 2e 30 2e 32 35 35  0a 31 39 32 2e 30 2e 32  |.0.0.255.192.0.2|
+00000040  2e 30 2d 31 39 32 2e 30  2e 32 2e 32 35 35 0a 52  |.0-192.0.2.255.R|
+00000050  6f 75 74 65 20 74 6f 20  31 39 32 2e 30 2e 32 2e  |oute to 192.0.2.|
+00000060  30 2f 32 34 20 76 69 61  20 31 30 2e 30 2e 30 2e  |0/24 via 10.0.0.|
+00000070  30 2f 38                                          |0/8|
+00000073
+=== Hexdump Diff ===
+--- /tmp/tmp.qGm1Wa3doD	2026-09-29 22:52:45.770121724 +0000
++++ /tmp/tmp.92kOAs0OSc	2026-09-29 22:52:45.781121881 +0000
+@@ -0,0 +1,9 @@
++00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34 0a 31 39 32  |192.0.2.0/24.192|
++00000010  2e 30 2e 32 2e 30 20 32  35 35 2e 32 35 35 2e 32  |.0.2.0 255.255.2|
++00000020  35 35 2e 30 0a 31 39 32  2e 30 2e 32 2e 30 20 30  |55.0.192.0.2.0 0|
++00000030  2e 30 2e 30 2e 32 35 35  0a 31 39 32 2e 30 2e 32  |.0.0.255.192.0.2|
++00000040  2e 30 2d 31 39 32 2e 30  2e 32 2e 32 35 35 0a 52  |.0-192.0.2.255.R|
++00000050  6f 75 74 65 20 74 6f 20  31 39 32 2e 30 2e 32 2e  |oute to 192.0.2.|
++00000060  30 2f 32 34 20 76 69 61  20 31 30 2e 30 2e 30 2e  |0/24 via 10.0.0.|
++00000070  30 2f 38                                          |0/8|
++00000073
+=== Expected STDOUT (text) ===
+
+=== Actual STDOUT (text) ===
+192.0.2.0/24
+192.0.2.0 255.255.255.0
+192.0.2.0 0.0.0.255
+192.0.2.0-192.0.2.255
+Route to 192.0.2.0/24 via 10.0.0.0/8
+[0;31m✗ FAIL[0m: Parse short-form ranges only (--range-format=short)
+
+[1;33mTesting: Disable CIDR parsing (--parse-cidr=none)[0m
+
+[0;36m../grepnet --parse-cidr=none '192.0.2.0/24' 'files/sample_networks.txt'[0m
+Exit code mismatch: Expected 1, Got 0
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+=== Actual STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34 0a 31 39 32  |192.0.2.0/24.192|
+00000010  2e 30 2e 32 2e 30 20 32  35 35 2e 32 35 35 2e 32  |.0.2.0 255.255.2|
+00000020  35 35 2e 30 0a 31 39 32  2e 30 2e 32 2e 30 20 30  |55.0.192.0.2.0 0|
+00000030  2e 30 2e 30 2e 32 35 35  0a 31 39 32 2e 30 2e 32  |.0.0.255.192.0.2|
+00000040  2e 30 2d 31 39 32 2e 30  2e 32 2e 32 35 35 0a 52  |.0-192.0.2.255.R|
+00000050  6f 75 74 65 20 74 6f 20  31 39 32 2e 30 2e 32 2e  |oute to 192.0.2.|
+00000060  30 2f 32 34 20 76 69 61  20 31 30 2e 30 2e 30 2e  |0/24 via 10.0.0.|
+00000070  30 2f 38                                          |0/8|
+00000073
+=== Hexdump Diff ===
+--- /tmp/tmp.1kQotLdLz8	2026-09-29 22:52:46.172127472 +0000
++++ /tmp/tmp.WwQbD0Z4Dr	2026-09-29 22:52:46.183127630 +0000
+@@ -0,0 +1,9 @@
++00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34 0a 31 39 32  |192.0.2.0/24.192|
++00000010  2e 30 2e 32 2e 30 20 32  35 35 2e 32 35 35 2e 32  |.0.2.0 255.255.2|
++00000020  35 35 2e 30 0a 31 39 32  2e 30 2e 32 2e 30 20 30  |55.0.192.0.2.0 0|
++00000030  2e 30 2e 30 2e 32 35 35  0a 31 39 32 2e 30 2e 32  |.0.0.255.192.0.2|
++00000040  2e 30 2d 31 39 32 2e 30  2e 32 2e 32 35 35 0a 52  |.0-192.0.2.255.R|
++00000050  6f 75 74 65 20 74 6f 20  31 39 32 2e 30 2e 32 2e  |oute to 192.0.2.|
++00000060  30 2f 32 34 20 76 69 61  20 31 30 2e 30 2e 30 2e  |0/24 via 10.0.0.|
++00000070  30 2f 38                                          |0/8|
++00000073
+=== Expected STDOUT (text) ===
+
+=== Actual STDOUT (text) ===
+192.0.2.0/24
+192.0.2.0 255.255.255.0
+192.0.2.0 0.0.0.255
+192.0.2.0-192.0.2.255
+Route to 192.0.2.0/24 via 10.0.0.0/8
+[0;31m✗ FAIL[0m: Disable CIDR parsing (--parse-cidr=none)
+
+[1;33mTesting: Parse CIDR enabled (default, --parse-cidr=both)[0m
+
+[0;36m../grepnet --parse-cidr=both '192.0.2.0/24' 'files/sample_networks.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34 0a 31 39 32  |192.0.2.0/24.192|
+00000010  2e 30 2e 32 2e 30 20 30  2e 30 2e 30 2e 32 35 35  |.0.2.0 0.0.0.255|
+00000020  0a 31 39 32 2e 30 2e 32  2e 30 2d 31 39 32 2e 30  |.192.0.2.0-192.0|
+00000030  2e 32 2e 32 35 35 0a 52  6f 75 74 65 20 74 6f 20  |.2.255.Route to |
+00000040  31 39 32 2e 30 2e 32 2e  30 2f 32 34 20 76 69 61  |192.0.2.0/24 via|
+00000050  20 31 30 2e 30 2e 30 2e  30 2f 38                 | 10.0.0.0/8|
+0000005b
+=== Actual STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34 0a 31 39 32  |192.0.2.0/24.192|
+00000010  2e 30 2e 32 2e 30 20 32  35 35 2e 32 35 35 2e 32  |.0.2.0 255.255.2|
+00000020  35 35 2e 30 0a 31 39 32  2e 30 2e 32 2e 30 20 30  |55.0.192.0.2.0 0|
+00000030  2e 30 2e 30 2e 32 35 35  0a 31 39 32 2e 30 2e 32  |.0.0.255.192.0.2|
+00000040  2e 30 2d 31 39 32 2e 30  2e 32 2e 32 35 35 0a 52  |.0-192.0.2.255.R|
+00000050  6f 75 74 65 20 74 6f 20  31 39 32 2e 30 2e 32 2e  |oute to 192.0.2.|
+00000060  30 2f 32 34 20 76 69 61  20 31 30 2e 30 2e 30 2e  |0/24 via 10.0.0.|
+00000070  30 2f 38                                          |0/8|
+00000073
+=== Hexdump Diff ===
+--- /tmp/tmp.uoUZ9vXnwn	2026-09-29 22:52:46.534132668 +0000
++++ /tmp/tmp.aMpL5YXqZs	2026-09-29 22:52:46.541132768 +0000
+@@ -1,7 +1,9 @@
+ 00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34 0a 31 39 32  |192.0.2.0/24.192|
+-00000010  2e 30 2e 32 2e 30 20 30  2e 30 2e 30 2e 32 35 35  |.0.2.0 0.0.0.255|
+-00000020  0a 31 39 32 2e 30 2e 32  2e 30 2d 31 39 32 2e 30  |.192.0.2.0-192.0|
+-00000030  2e 32 2e 32 35 35 0a 52  6f 75 74 65 20 74 6f 20  |.2.255.Route to |
+-00000040  31 39 32 2e 30 2e 32 2e  30 2f 32 34 20 76 69 61  |192.0.2.0/24 via|
+-00000050  20 31 30 2e 30 2e 30 2e  30 2f 38                 | 10.0.0.0/8|
+-0000005b
++00000010  2e 30 2e 32 2e 30 20 32  35 35 2e 32 35 35 2e 32  |.0.2.0 255.255.2|
++00000020  35 35 2e 30 0a 31 39 32  2e 30 2e 32 2e 30 20 30  |55.0.192.0.2.0 0|
++00000030  2e 30 2e 30 2e 32 35 35  0a 31 39 32 2e 30 2e 32  |.0.0.255.192.0.2|
++00000040  2e 30 2d 31 39 32 2e 30  2e 32 2e 32 35 35 0a 52  |.0-192.0.2.255.R|
++00000050  6f 75 74 65 20 74 6f 20  31 39 32 2e 30 2e 32 2e  |oute to 192.0.2.|
++00000060  30 2f 32 34 20 76 69 61  20 31 30 2e 30 2e 30 2e  |0/24 via 10.0.0.|
++00000070  30 2f 38                                          |0/8|
++00000073
+=== Expected STDOUT (text) ===
+192.0.2.0/24
+192.0.2.0 0.0.0.255
+192.0.2.0-192.0.2.255
+Route to 192.0.2.0/24 via 10.0.0.0/8
+=== Actual STDOUT (text) ===
+192.0.2.0/24
+192.0.2.0 255.255.255.0
+192.0.2.0 0.0.0.255
+192.0.2.0-192.0.2.255
+Route to 192.0.2.0/24 via 10.0.0.0/8
+[0;31m✗ FAIL[0m: Parse CIDR enabled (default, --parse-cidr=both)
+
+[1;33mTesting: Parse netmask format (default)[0m
+
+[0;36m../grepnet --parse-netmask=both '192.0.2.0 255.255.255.0' 'files/sample_networks.txt'[0m
+Exit code mismatch: Expected 0, Got 2
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34 0a 31 39 32  |192.0.2.0/24.192|
+00000010  2e 30 2e 32 2e 30 20 30  2e 30 2e 30 2e 32 35 35  |.0.2.0 0.0.0.255|
+00000020  0a 31 39 32 2e 30 2e 32  2e 30 2d 31 39 32 2e 30  |.192.0.2.0-192.0|
+00000030  2e 32 2e 32 35 35 0a 52  6f 75 74 65 20 74 6f 20  |.2.255.Route to |
+00000040  31 39 32 2e 30 2e 32 2e  30 2f 32 34 20 76 69 61  |192.0.2.0/24 via|
+00000050  20 31 30 2e 30 2e 30 2e  30 2f 38                 | 10.0.0.0/8|
+0000005b
+=== Actual STDOUT (hexdump) ===
+=== Hexdump Diff ===
+--- /tmp/tmp.5YTHnxwfA0	2026-09-29 22:52:46.917138165 +0000
++++ /tmp/tmp.PLk9mdIQdu	2026-09-29 22:52:46.919138193 +0000
+@@ -1,7 +0,0 @@
+-00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34 0a 31 39 32  |192.0.2.0/24.192|
+-00000010  2e 30 2e 32 2e 30 20 30  2e 30 2e 30 2e 32 35 35  |.0.2.0 0.0.0.255|
+-00000020  0a 31 39 32 2e 30 2e 32  2e 30 2d 31 39 32 2e 30  |.192.0.2.0-192.0|
+-00000030  2e 32 2e 32 35 35 0a 52  6f 75 74 65 20 74 6f 20  |.2.255.Route to |
+-00000040  31 39 32 2e 30 2e 32 2e  30 2f 32 34 20 76 69 61  |192.0.2.0/24 via|
+-00000050  20 31 30 2e 30 2e 30 2e  30 2f 38                 | 10.0.0.0/8|
+-0000005b
+=== Expected STDOUT (text) ===
+192.0.2.0/24
+192.0.2.0 0.0.0.255
+192.0.2.0-192.0.2.255
+Route to 192.0.2.0/24 via 10.0.0.0/8
+=== Actual STDOUT (text) ===
+
+STDERR byte-per-byte mismatch (hexdump):
+=== Expected STDERR (hexdump) ===
+=== Actual STDERR (hexdump) ===
+00000000  67 72 65 70 6e 65 74 3a  20 43 61 6e 6e 6f 74 20  |grepnet: Cannot |
+00000010  72 65 61 64 20 32 35 35  2e 32 35 35 2e 32 35 35  |read 255.255.255|
+00000020  2e 30 3a 20 5b 45 72 72  6e 6f 20 32 5d 20 4e 6f  |.0: [Errno 2] No|
+00000030  20 73 75 63 68 20 66 69  6c 65 20 6f 72 20 64 69  | such file or di|
+00000040  72 65 63 74 6f 72 79 3a  20 27 32 35 35 2e 32 35  |rectory: '255.25|
+00000050  35 2e 32 35 35 2e 30 27                           |5.255.0'|
+00000058
+=== Hexdump Diff ===
+--- /tmp/tmp.gGFsOMkuEr	2026-09-29 22:52:47.030139789 +0000
++++ /tmp/tmp.LCbq6RRvaS	2026-09-29 22:52:47.043139977 +0000
+@@ -0,0 +1,7 @@
++00000000  67 72 65 70 6e 65 74 3a  20 43 61 6e 6e 6f 74 20  |grepnet: Cannot |
++00000010  72 65 61 64 20 32 35 35  2e 32 35 35 2e 32 35 35  |read 255.255.255|
++00000020  2e 30 3a 20 5b 45 72 72  6e 6f 20 32 5d 20 4e 6f  |.0: [Errno 2] No|
++00000030  20 73 75 63 68 20 66 69  6c 65 20 6f 72 20 64 69  | such file or di|
++00000040  72 65 63 74 6f 72 79 3a  20 27 32 35 35 2e 32 35  |rectory: '255.25|
++00000050  35 2e 32 35 35 2e 30 27                           |5.255.0'|
++00000058
+=== Expected STDERR (text) ===
+
+=== Actual STDERR (text) ===
+grepnet: Cannot read 255.255.255.0: [Errno 2] No such file or directory: '255.255.255.0'
+[0;31m✗ FAIL[0m: Parse netmask format (default)
+
+[1;33mTesting: Disable netmask parsing (--parse-netmask=none)[0m
+
+[0;36m../grepnet --parse-netmask=none '192.0.2.0 255.255.255.0' 'files/sample_networks.txt'[0m
+Exit code mismatch: Expected 1, Got 2
+STDERR byte-per-byte mismatch (hexdump):
+=== Expected STDERR (hexdump) ===
+=== Actual STDERR (hexdump) ===
+00000000  67 72 65 70 6e 65 74 3a  20 43 61 6e 6e 6f 74 20  |grepnet: Cannot |
+00000010  72 65 61 64 20 32 35 35  2e 32 35 35 2e 32 35 35  |read 255.255.255|
+00000020  2e 30 3a 20 5b 45 72 72  6e 6f 20 32 5d 20 4e 6f  |.0: [Errno 2] No|
+00000030  20 73 75 63 68 20 66 69  6c 65 20 6f 72 20 64 69  | such file or di|
+00000040  72 65 63 74 6f 72 79 3a  20 27 32 35 35 2e 32 35  |rectory: '255.25|
+00000050  35 2e 32 35 35 2e 30 27                           |5.255.0'|
+00000058
+=== Hexdump Diff ===
+--- /tmp/tmp.xCSLWpQE8g	2026-09-29 22:52:47.460146001 +0000
++++ /tmp/tmp.z5aDoa7uY7	2026-09-29 22:52:47.473146189 +0000
+@@ -0,0 +1,7 @@
++00000000  67 72 65 70 6e 65 74 3a  20 43 61 6e 6e 6f 74 20  |grepnet: Cannot |
++00000010  72 65 61 64 20 32 35 35  2e 32 35 35 2e 32 35 35  |read 255.255.255|
++00000020  2e 30 3a 20 5b 45 72 72  6e 6f 20 32 5d 20 4e 6f  |.0: [Errno 2] No|
++00000030  20 73 75 63 68 20 66 69  6c 65 20 6f 72 20 64 69  | such file or di|
++00000040  72 65 63 74 6f 72 79 3a  20 27 32 35 35 2e 32 35  |rectory: '255.25|
++00000050  35 2e 32 35 35 2e 30 27                           |5.255.0'|
++00000058
+=== Expected STDERR (text) ===
+
+=== Actual STDERR (text) ===
+grepnet: Cannot read 255.255.255.0: [Errno 2] No such file or directory: '255.255.255.0'
+[0;31m✗ FAIL[0m: Disable netmask parsing (--parse-netmask=none)
+
+[1;33mTesting: Parse hostmask format (default)[0m
+
+[0;36m../grepnet --parse-hostmask=both '192.0.2.0 0.0.0.255' 'files/sample_networks.txt'[0m
+Exit code mismatch: Expected 0, Got 2
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34 0a 31 39 32  |192.0.2.0/24.192|
+00000010  2e 30 2e 32 2e 30 20 30  2e 30 2e 30 2e 32 35 35  |.0.2.0 0.0.0.255|
+00000020  0a 31 39 32 2e 30 2e 32  2e 30 2d 31 39 32 2e 30  |.192.0.2.0-192.0|
+00000030  2e 32 2e 32 35 35 0a 52  6f 75 74 65 20 74 6f 20  |.2.255.Route to |
+00000040  31 39 32 2e 30 2e 32 2e  30 2f 32 34 20 76 69 61  |192.0.2.0/24 via|
+00000050  20 31 30 2e 30 2e 30 2e  30 2f 38                 | 10.0.0.0/8|
+0000005b
+=== Actual STDOUT (hexdump) ===
+=== Hexdump Diff ===
+--- /tmp/tmp.CbF0Ds0EP6	2026-09-29 22:52:47.868151895 +0000
++++ /tmp/tmp.qHUOuByHlH	2026-09-29 22:52:47.870151924 +0000
+@@ -1,7 +0,0 @@
+-00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34 0a 31 39 32  |192.0.2.0/24.192|
+-00000010  2e 30 2e 32 2e 30 20 30  2e 30 2e 30 2e 32 35 35  |.0.2.0 0.0.0.255|
+-00000020  0a 31 39 32 2e 30 2e 32  2e 30 2d 31 39 32 2e 30  |.192.0.2.0-192.0|
+-00000030  2e 32 2e 32 35 35 0a 52  6f 75 74 65 20 74 6f 20  |.2.255.Route to |
+-00000040  31 39 32 2e 30 2e 32 2e  30 2f 32 34 20 76 69 61  |192.0.2.0/24 via|
+-00000050  20 31 30 2e 30 2e 30 2e  30 2f 38                 | 10.0.0.0/8|
+-0000005b
+=== Expected STDOUT (text) ===
+192.0.2.0/24
+192.0.2.0 0.0.0.255
+192.0.2.0-192.0.2.255
+Route to 192.0.2.0/24 via 10.0.0.0/8
+=== Actual STDOUT (text) ===
+
+STDERR byte-per-byte mismatch (hexdump):
+=== Expected STDERR (hexdump) ===
+=== Actual STDERR (hexdump) ===
+00000000  67 72 65 70 6e 65 74 3a  20 43 61 6e 6e 6f 74 20  |grepnet: Cannot |
+00000010  72 65 61 64 20 30 2e 30  2e 30 2e 32 35 35 3a 20  |read 0.0.0.255: |
+00000020  5b 45 72 72 6e 6f 20 32  5d 20 4e 6f 20 73 75 63  |[Errno 2] No suc|
+00000030  68 20 66 69 6c 65 20 6f  72 20 64 69 72 65 63 74  |h file or direct|
+00000040  6f 72 79 3a 20 27 30 2e  30 2e 30 2e 32 35 35 27  |ory: '0.0.0.255'|
+00000050
+=== Hexdump Diff ===
+--- /tmp/tmp.DHHQomT2I4	2026-09-29 22:52:47.989153643 +0000
++++ /tmp/tmp.CCj0AhfaRJ	2026-09-29 22:52:48.001153816 +0000
+@@ -0,0 +1,6 @@
++00000000  67 72 65 70 6e 65 74 3a  20 43 61 6e 6e 6f 74 20  |grepnet: Cannot |
++00000010  72 65 61 64 20 30 2e 30  2e 30 2e 32 35 35 3a 20  |read 0.0.0.255: |
++00000020  5b 45 72 72 6e 6f 20 32  5d 20 4e 6f 20 73 75 63  |[Errno 2] No suc|
++00000030  68 20 66 69 6c 65 20 6f  72 20 64 69 72 65 63 74  |h file or direct|
++00000040  6f 72 79 3a 20 27 30 2e  30 2e 30 2e 32 35 35 27  |ory: '0.0.0.255'|
++00000050
+=== Expected STDERR (text) ===
+
+=== Actual STDERR (text) ===
+grepnet: Cannot read 0.0.0.255: [Errno 2] No such file or directory: '0.0.0.255'
+[0;31m✗ FAIL[0m: Parse hostmask format (default)
+
+[1;33mTesting: Disable hostmask parsing (--parse-hostmask=none)[0m
+
+[0;36m../grepnet --parse-hostmask=none '192.0.2.0 0.0.0.255' 'files/sample_networks.txt'[0m
+Exit code mismatch: Expected 1, Got 2
+STDERR byte-per-byte mismatch (hexdump):
+=== Expected STDERR (hexdump) ===
+=== Actual STDERR (hexdump) ===
+00000000  67 72 65 70 6e 65 74 3a  20 43 61 6e 6e 6f 74 20  |grepnet: Cannot |
+00000010  72 65 61 64 20 30 2e 30  2e 30 2e 32 35 35 3a 20  |read 0.0.0.255: |
+00000020  5b 45 72 72 6e 6f 20 32  5d 20 4e 6f 20 73 75 63  |[Errno 2] No suc|
+00000030  68 20 66 69 6c 65 20 6f  72 20 64 69 72 65 63 74  |h file or direct|
+00000040  6f 72 79 3a 20 27 30 2e  30 2e 30 2e 32 35 35 27  |ory: '0.0.0.255'|
+00000050
+=== Hexdump Diff ===
+--- /tmp/tmp.eMp6m9WmWm	2026-09-29 22:52:48.369159167 +0000
++++ /tmp/tmp.Rcsx0XidxD	2026-09-29 22:52:48.380159327 +0000
+@@ -0,0 +1,6 @@
++00000000  67 72 65 70 6e 65 74 3a  20 43 61 6e 6e 6f 74 20  |grepnet: Cannot |
++00000010  72 65 61 64 20 30 2e 30  2e 30 2e 32 35 35 3a 20  |read 0.0.0.255: |
++00000020  5b 45 72 72 6e 6f 20 32  5d 20 4e 6f 20 73 75 63  |[Errno 2] No suc|
++00000030  68 20 66 69 6c 65 20 6f  72 20 64 69 72 65 63 74  |h file or direct|
++00000040  6f 72 79 3a 20 27 30 2e  30 2e 30 2e 32 35 35 27  |ory: '0.0.0.255'|
++00000050
+=== Expected STDERR (text) ===
+
+=== Actual STDERR (text) ===
+grepnet: Cannot read 0.0.0.255: [Errno 2] No such file or directory: '0.0.0.255'
+[0;31m✗ FAIL[0m: Disable hostmask parsing (--parse-hostmask=none)
+
+[1;33mTesting: Disable all parsing[0m
+
+[0;36m../grepnet --parse-cidr=none --parse-netmask=none --parse-hostmask=none --parse-ranges=none '192.0.2.0/24' 'files/sample_networks.txt'[0m
+Exit code mismatch: Expected 1, Got 0
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+=== Actual STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34 0a 31 39 32  |192.0.2.0/24.192|
+00000010  2e 30 2e 32 2e 30 20 32  35 35 2e 32 35 35 2e 32  |.0.2.0 255.255.2|
+00000020  35 35 2e 30 0a 31 39 32  2e 30 2e 32 2e 30 20 30  |55.0.192.0.2.0 0|
+00000030  2e 30 2e 30 2e 32 35 35  0a 31 39 32 2e 30 2e 32  |.0.0.255.192.0.2|
+00000040  2e 30 2d 31 39 32 2e 30  2e 32 2e 32 35 35 0a 52  |.0-192.0.2.255.R|
+00000050  6f 75 74 65 20 74 6f 20  31 39 32 2e 30 2e 32 2e  |oute to 192.0.2.|
+00000060  30 2f 32 34 20 76 69 61  20 31 30 2e 30 2e 30 2e  |0/24 via 10.0.0.|
+00000070  30 2f 38                                          |0/8|
+00000073
+=== Hexdump Diff ===
+--- /tmp/tmp.Dk1K5BGi3Y	2026-09-29 22:52:48.704164038 +0000
++++ /tmp/tmp.mWoM01KaGm	2026-09-29 22:52:48.714164183 +0000
+@@ -0,0 +1,9 @@
++00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34 0a 31 39 32  |192.0.2.0/24.192|
++00000010  2e 30 2e 32 2e 30 20 32  35 35 2e 32 35 35 2e 32  |.0.2.0 255.255.2|
++00000020  35 35 2e 30 0a 31 39 32  2e 30 2e 32 2e 30 20 30  |55.0.192.0.2.0 0|
++00000030  2e 30 2e 30 2e 32 35 35  0a 31 39 32 2e 30 2e 32  |.0.0.255.192.0.2|
++00000040  2e 30 2d 31 39 32 2e 30  2e 32 2e 32 35 35 0a 52  |.0-192.0.2.255.R|
++00000050  6f 75 74 65 20 74 6f 20  31 39 32 2e 30 2e 32 2e  |oute to 192.0.2.|
++00000060  30 2f 32 34 20 76 69 61  20 31 30 2e 30 2e 30 2e  |0/24 via 10.0.0.|
++00000070  30 2f 38                                          |0/8|
++00000073
+=== Expected STDOUT (text) ===
+
+=== Actual STDOUT (text) ===
+192.0.2.0/24
+192.0.2.0 255.255.255.0
+192.0.2.0 0.0.0.255
+192.0.2.0-192.0.2.255
+Route to 192.0.2.0/24 via 10.0.0.0/8
+[0;31m✗ FAIL[0m: Disable all parsing
+  Result: [0;31m✗ FAIL[0m
+
+[0;34m[21/34][0m Running: [0;36m009_test_strict_cidr[0m
+
+
+[0;34m=== STRICT CIDR VALIDATION ===[0m
+
+[1;33mTesting: Non-strict mode (default, normalizes)[0m
+
+[0;36m../grepnet '192.0.2.5/24' 'files/match_types.txt'[0m
+[0;32m✓ PASS[0m: Non-strict mode (default, normalizes) (exit: 0)
+
+[1;33mTesting: Strict pattern mode with fail (--strict-cidr=pattern --strict-cidr-action=fail)[0m
+
+[0;36m../grepnet --strict-cidr=pattern --strict-cidr-action=fail '192.0.2.5/24' 'files/match_types.txt'[0m
+[0;32m✓ PASS[0m: Strict pattern mode with fail (--strict-cidr=pattern --strict-cidr-action=fail) (exit: 2)
+
+[1;33mTesting: Strict input mode with normalize (--strict-cidr=input)[0m
+
+[0;36m../grepnet --strict-cidr=input '192.0.2.0/24' 'files/match_types.txt'[0m
+[0;32m✓ PASS[0m: Strict input mode with normalize (--strict-cidr=input) (exit: 0)
+
+[1;33mTesting: Strict both modes with normalize (--strict-cidr=both)[0m
+
+[0;36m../grepnet --strict-cidr=both '192.0.2.0/24' 'files/sample_networks.txt'[0m
+[0;32m✓ PASS[0m: Strict both modes with normalize (--strict-cidr=both) (exit: 0)
+
+[1;33mTesting: Strict with fail action (--strict-cidr=both --strict-cidr-action=fail)[0m
+
+[0;36m../grepnet --strict-cidr=both --strict-cidr-action=fail '192.0.2.5/24' 'files/match_types.txt'[0m
+[0;32m✓ PASS[0m: Strict with fail action (--strict-cidr=both --strict-cidr-action=fail) (exit: 2)
+  Result: [0;32m✓ PASS[0m
+
+[0;34m[22/34][0m Running: [0;36m016_test_mask_validation[0m
+
+
+[0;34m=== SUBNET MASK AND HOSTMASK VALIDATION ===[0m
+
+[1;33mTesting: Valid subnet mask: 255.255.255.0 (/24)[0m
+
+[0;36mecho '192.0.2.0' | ../grepnet '192.0.2.0 255.255.255.0'[0m
+[0;32m✓ PASS[0m: Valid subnet mask: 255.255.255.0 (/24) (exit: 0)
+
+[1;33mTesting: Valid subnet mask: 255.255.0.0 (/16)[0m
+
+[0;36mecho '192.0.2.1' | ../grepnet '192.0.0.0 255.255.0.0'[0m
+[0;32m✓ PASS[0m: Valid subnet mask: 255.255.0.0 (/16) (exit: 0)
+
+[1;33mTesting: Valid subnet mask: 255.0.0.0 (/8)[0m
+
+[0;36mecho '192.0.2.1' | ../grepnet '192.0.0.0 255.0.0.0'[0m
+[0;32m✓ PASS[0m: Valid subnet mask: 255.0.0.0 (/8) (exit: 0)
+
+[1;33mTesting: Valid subnet mask: 255.255.255.128 (/25)[0m
+
+[0;36mecho '192.0.2.1' | ../grepnet '192.0.2.0 255.255.255.128'[0m
+[0;32m✓ PASS[0m: Valid subnet mask: 255.255.255.128 (/25) (exit: 0)
+
+[1;33mTesting: Valid subnet mask: 255.255.255.255 (/32 - host)[0m
+
+[0;36mecho '192.0.2.1' | ../grepnet '192.0.2.1 255.255.255.255'[0m
+[0;32m✓ PASS[0m: Valid subnet mask: 255.255.255.255 (/32 - host) (exit: 0)
+
+[1;33mTesting: Invalid subnet mask: 255.0.255.0 (non-contiguous) - extracts as two IPs[0m
+
+[0;36mecho 'text 192.0.2.0 255.0.255.0 text' | ../grepnet '192.0.2.0'[0m
+[0;32m✓ PASS[0m: Invalid subnet mask: 255.0.255.0 (non-contiguous) - extracts as two IPs (exit: 0)
+
+[1;33mTesting: Invalid subnet mask: 255.255.0.255 (non-contiguous) - extracts as two IPs[0m
+
+[0;36mecho 'text 192.0.2.0 255.255.0.255 text' | ../grepnet '192.0.2.0'[0m
+[0;32m✓ PASS[0m: Invalid subnet mask: 255.255.0.255 (non-contiguous) - extracts as two IPs (exit: 0)
+
+[1;33mTesting: Invalid subnet mask: 0.255.255.255 (MSB is 0) - extracts as two IPs[0m
+
+[0;36mecho 'text 192.0.2.0 0.255.255.255 text' | ../grepnet '192.0.2.0'[0m
+[0;32m✓ PASS[0m: Invalid subnet mask: 0.255.255.255 (MSB is 0) - extracts as two IPs (exit: 0)
+
+[1;33mTesting: Valid hostmask: 0.0.0.255 (/24)[0m
+
+[0;36mecho '192.0.2.0' | ../grepnet '192.0.2.0 0.0.0.255'[0m
+[0;32m✓ PASS[0m: Valid hostmask: 0.0.0.255 (/24) (exit: 0)
+
+[1;33mTesting: Valid hostmask: 0.0.255.255 (/16)[0m
+
+[0;36mecho '192.0.2.1' | ../grepnet '192.0.0.0 0.0.255.255'[0m
+[0;32m✓ PASS[0m: Valid hostmask: 0.0.255.255 (/16) (exit: 0)
+
+[1;33mTesting: Valid hostmask: 0.255.255.255 (/8)[0m
+
+[0;36mecho '192.0.2.1' | ../grepnet '192.0.0.0 0.255.255.255'[0m
+[0;32m✓ PASS[0m: Valid hostmask: 0.255.255.255 (/8) (exit: 0)
+
+[1;33mTesting: Valid hostmask: 0.0.0.127 (/25)[0m
+
+[0;36mecho '192.0.2.1' | ../grepnet '192.0.2.0 0.0.0.127'[0m
+[0;32m✓ PASS[0m: Valid hostmask: 0.0.0.127 (/25) (exit: 0)
+
+[1;33mTesting: Valid hostmask: 0.0.0.0 (/32 - host)[0m
+
+[0;36mecho '192.0.2.1' | ../grepnet '192.0.2.1 0.0.0.0'[0m
+[0;32m✓ PASS[0m: Valid hostmask: 0.0.0.0 (/32 - host) (exit: 0)
+
+[1;33mTesting: Invalid hostmask: 0.255.0.255 (non-contiguous) - extracts as two IPs[0m
+
+[0;36mecho 'text 192.0.2.0 0.255.0.255 text' | ../grepnet '192.0.2.0'[0m
+[0;32m✓ PASS[0m: Invalid hostmask: 0.255.0.255 (non-contiguous) - extracts as two IPs (exit: 0)
+
+[1;33mTesting: Invalid hostmask: 255.0.0.0 (MSB is 1) - try as subnet mask, fail, extract as IPs[0m
+
+[0;36mecho 'text 192.0.2.0 255.0.0.0 text' | ../grepnet '192.0.2.0'[0m
+[0;32m✓ PASS[0m: Invalid hostmask: 255.0.0.0 (MSB is 1) - try as subnet mask, fail, extract as IPs (exit: 0)
+
+[1;33mTesting: Invalid hostmask: 255.255.255.0 (MSB is 1) - try as subnet mask, fail, extract as IPs[0m
+
+[0;36mecho 'text 192.0.2.0 255.255.255.0 text' | ../grepnet '192.0.2.0'[0m
+[0;32m✓ PASS[0m: Invalid hostmask: 255.255.255.0 (MSB is 1) - try as subnet mask, fail, extract as IPs (exit: 0)
+
+[1;33mTesting: Non-contiguous mask causes plain IP extraction - only 192.0.2.0 colored[0m
+[0;32m✓ PASS[0m: Non-contiguous mask causes plain IP extraction - only 192.0.2.0 colored
+
+[1;33mTesting: Valid subnet mask - network colored as match[0m
+[0;32m✓ PASS[0m: Valid subnet mask - network colored as match
+
+[1;33mTesting: Priority: 255.255.255.0 (valid subnet mask, MSB=1) not parsed as hostmask[0m
+
+[0;36mecho '192.0.2.0' | ../grepnet '192.0.2.0 255.255.255.0'[0m
+[0;32m✓ PASS[0m: Priority: 255.255.255.0 (valid subnet mask, MSB=1) not parsed as hostmask (exit: 0)
+
+[1;33mTesting: Priority: 0.0.0.255 (valid hostmask, MSB=0) not parsed as subnet mask[0m
+
+[0;36mecho '192.0.2.0' | ../grepnet '192.0.2.0 0.0.0.255'[0m
+[0;32m✓ PASS[0m: Priority: 0.0.0.255 (valid hostmask, MSB=0) not parsed as subnet mask (exit: 0)
+  Result: [0;32m✓ PASS[0m
+
+[0;34m[23/34][0m Running: [0;36m032_test_malformed_patterns[0m
+
+Test: Malformed network patterns
+
+Testing: Five dotted octets with CIDR suffix
+✗ FAIL: Five octets produced output: /home/chains/dev/grepnet/tests/sub-tests/5-parsing/032_test_malformed_patterns.sh: line 18: ../../grepnet: Is a directory
+  Expected: (empty)
+
+Testing: Five dotted octets without CIDR
+✗ FAIL: Five octets produced output: /home/chains/dev/grepnet/tests/sub-tests/5-parsing/032_test_malformed_patterns.sh: line 32: ../../grepnet: Is a directory
+  Expected: (empty)
+
+Testing: Valid CIDR format (should still extract)
+✗ FAIL: Valid CIDR extraction failed
+  Expected: 192.0.2.0/24
+  Got: /home/chains/dev/grepnet/tests/sub-tests/5-parsing/032_test_malformed_patterns.sh: line 46: ../../grepnet: Is a directory
+
+Testing: SNMP OID pattern (1.3.6.1.2.1.1.0)
+✗ FAIL: SNMP OID produced output: /home/chains/dev/grepnet/tests/sub-tests/5-parsing/032_test_malformed_patterns.sh: line 61: ../../grepnet: Is a directory
+  Expected: (empty)
+
+Testing: Valid bare IP (should still extract as /32)
+✗ FAIL: Valid bare IP extraction failed
+  Expected: 192.0.2.1/32
+  Got: /home/chains/dev/grepnet/tests/sub-tests/5-parsing/032_test_malformed_patterns.sh: line 75: ../../grepnet: Is a directory
+
+Testing: Mixed line with MIB and valid CIDR
+✗ FAIL: Mixed line extraction failed
+  Expected: 192.0.2.0/24
+  Got: /home/chains/dev/grepnet/tests/sub-tests/5-parsing/032_test_malformed_patterns.sh: line 90: ../../grepnet: Is a directory
+
+════════════════════════════════════════════════════════════════
+  Result: [0;32m✓ PASS[0m
+
+[0;34m[24/34][0m Running: [0;36m032_test_multiple_format_occurrences[0m
+
+
+[0;34m=== MULTIPLE FORMAT OCCURRENCES ===[0m
+/home/chains/dev/grepnet/tests/sub-tests/5-parsing/032_test_multiple_format_occurrences.sh: line 53: syntax error: unexpected end of file
+  Result: [0;31m✗ FAIL[0m
+
+[0;34m[25/34][0m Running: [0;36m006_test_context_lines[0m
+
+
+[0;34m=== CONTEXT LINES (-A, -B, -C) ===[0m
+
+[1;33mTesting: After context (-A 2)[0m
+
+[0;36m../grepnet -A 2 '192.168.0.0/16' 'files/context_test.txt'[0m
+[0;32m✓ PASS[0m: After context (-A 2) (exit: 0)
+
+[1;33mTesting: Before context (-B 2)[0m
+
+[0;36m../grepnet -B 2 '192.168.0.0/16' 'files/context_test.txt'[0m
+[0;32m✓ PASS[0m: Before context (-B 2) (exit: 0)
+
+[1;33mTesting: Both before and after (-B 1 -A 1)[0m
+
+[0;36m../grepnet -B 1 -A 1 '192.168.0.0/16' 'files/context_test.txt'[0m
+[0;32m✓ PASS[0m: Both before and after (-B 1 -A 1) (exit: 0)
+
+[1;33mTesting: Context shorthand (-C 1)[0m
+
+[0;36m../grepnet -C 1 '192.168.0.0/16' 'files/context_test.txt'[0m
+[0;32m✓ PASS[0m: Context shorthand (-C 1) (exit: 0)
+
+[1;33mTesting: No group separator (--no-group-separator)[0m
+
+[0;36m../grepnet --no-group-separator -B 1 '192.168.0.0/16' 'files/context_test.txt'[0m
+[0;32m✓ PASS[0m: No group separator (--no-group-separator) (exit: 0)
+
+[1;33mTesting: Before context (zero lines, -B 0)[0m
+
+[0;36m../grepnet -B 0 '192.168.0.0/16' 'files/context_test.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  31 39 32 2e 31 36 38 2e  31 2e 30 2f 32 34 0a 2d  |192.168.1.0/24.-|
+00000010  2d 0a 31 39 32 2e 31 36  38 2e 30 2e 30 2f 31 36  |-.192.168.0.0/16|
+00000020  20 69 73 20 74 68 65 20  6e 65 74 77 6f 72 6b     | is the network|
+0000002f
+=== Actual STDOUT (hexdump) ===
+00000000  31 39 32 2e 31 36 38 2e  31 2e 30 2f 32 34 0a 31  |192.168.1.0/24.1|
+00000010  39 32 2e 31 36 38 2e 30  2e 30 2f 31 36 20 69 73  |92.168.0.0/16 is|
+00000020  20 74 68 65 20 6e 65 74  77 6f 72 6b              | the network|
+0000002c
+=== Hexdump Diff ===
+--- /tmp/tmp.TY9sIB23A3	2026-09-29 22:52:57.791300121 +0000
++++ /tmp/tmp.HXfGlyaH3K	2026-09-29 22:52:57.797300214 +0000
+@@ -1,4 +1,4 @@
+-00000000  31 39 32 2e 31 36 38 2e  31 2e 30 2f 32 34 0a 2d  |192.168.1.0/24.-|
+-00000010  2d 0a 31 39 32 2e 31 36  38 2e 30 2e 30 2f 31 36  |-.192.168.0.0/16|
+-00000020  20 69 73 20 74 68 65 20  6e 65 74 77 6f 72 6b     | is the network|
+-0000002f
++00000000  31 39 32 2e 31 36 38 2e  31 2e 30 2f 32 34 0a 31  |192.168.1.0/24.1|
++00000010  39 32 2e 31 36 38 2e 30  2e 30 2f 31 36 20 69 73  |92.168.0.0/16 is|
++00000020  20 74 68 65 20 6e 65 74  77 6f 72 6b              | the network|
++0000002c
+=== Expected STDOUT (text) ===
+192.168.1.0/24
+--
+192.168.0.0/16 is the network
+=== Actual STDOUT (text) ===
+192.168.1.0/24
+192.168.0.0/16 is the network
+[0;31m✗ FAIL[0m: Before context (zero lines, -B 0)
+
+[1;33mTesting: After context (zero lines, -A 0)[0m
+
+[0;36m../grepnet -A 0 '192.168.0.0/16' 'files/context_test.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  31 39 32 2e 31 36 38 2e  31 2e 30 2f 32 34 0a 2d  |192.168.1.0/24.-|
+00000010  2d 0a 31 39 32 2e 31 36  38 2e 30 2e 30 2f 31 36  |-.192.168.0.0/16|
+00000020  20 69 73 20 74 68 65 20  6e 65 74 77 6f 72 6b     | is the network|
+0000002f
+=== Actual STDOUT (hexdump) ===
+00000000  31 39 32 2e 31 36 38 2e  31 2e 30 2f 32 34 0a 31  |192.168.1.0/24.1|
+00000010  39 32 2e 31 36 38 2e 30  2e 30 2f 31 36 20 69 73  |92.168.0.0/16 is|
+00000020  20 74 68 65 20 6e 65 74  77 6f 72 6b              | the network|
+0000002c
+=== Hexdump Diff ===
+--- /tmp/tmp.ik1J54qbhn	2026-09-29 22:52:58.164305866 +0000
++++ /tmp/tmp.5z3d4Ncspq	2026-09-29 22:52:58.170305959 +0000
+@@ -1,4 +1,4 @@
+-00000000  31 39 32 2e 31 36 38 2e  31 2e 30 2f 32 34 0a 2d  |192.168.1.0/24.-|
+-00000010  2d 0a 31 39 32 2e 31 36  38 2e 30 2e 30 2f 31 36  |-.192.168.0.0/16|
+-00000020  20 69 73 20 74 68 65 20  6e 65 74 77 6f 72 6b     | is the network|
+-0000002f
++00000000  31 39 32 2e 31 36 38 2e  31 2e 30 2f 32 34 0a 31  |192.168.1.0/24.1|
++00000010  39 32 2e 31 36 38 2e 30  2e 30 2f 31 36 20 69 73  |92.168.0.0/16 is|
++00000020  20 74 68 65 20 6e 65 74  77 6f 72 6b              | the network|
++0000002c
+=== Expected STDOUT (text) ===
+192.168.1.0/24
+--
+192.168.0.0/16 is the network
+=== Actual STDOUT (text) ===
+192.168.1.0/24
+192.168.0.0/16 is the network
+[0;31m✗ FAIL[0m: After context (zero lines, -A 0)
+
+[1;33mTesting: Large context (-C 10)[0m
+
+[0;36m../grepnet -C 10 '192.168.0.0/16' 'files/context_test.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  23 20 54 65 73 74 20 64  61 74 61 20 66 6f 72 20  |# Test data for |
+00000010  63 6f 6e 74 65 78 74 20  74 65 73 74 69 6e 67 0a  |context testing.|
+00000020  23 20 4c 69 6e 65 20 31  3a 20 4d 61 74 63 68 20  |# Line 1: Match |
+00000030  63 61 6e 64 69 64 61 74  65 0a 31 39 32 2e 31 36  |candidate.192.16|
+00000040  38 2e 31 2e 30 2f 32 34  0a 0a 23 20 4c 69 6e 65  |8.1.0/24..# Line|
+00000050  20 33 3a 20 42 65 66 6f  72 65 20 63 6f 6e 74 65  | 3: Before conte|
+00000060  78 74 20 6c 69 6e 65 20  31 0a 54 68 69 73 20 69  |xt line 1.This i|
+00000070  73 20 61 20 63 6f 6e 74  65 78 74 20 6c 69 6e 65  |s a context line|
+00000080  20 62 65 66 6f 72 65 0a  0a 23 20 4c 69 6e 65 20  | before..# Line |
+00000090  35 3a 20 42 65 66 6f 72  65 20 63 6f 6e 74 65 78  |5: Before contex|
+000000a0  74 20 6c 69 6e 65 20 32  0a 41 6e 6f 74 68 65 72  |t line 2.Another|
+000000b0  20 63 6f 6e 74 65 78 74  20 6c 69 6e 65 0a 0a 23  | context line..#|
+000000c0  20 4c 69 6e 65 20 37 3a  20 4d 41 54 43 48 20 4c  | Line 7: MATCH L|
+000000d0  49 4e 45 0a 31 39 32 2e  31 36 38 2e 30 2e 30 2f  |INE.192.168.0.0/|
+000000e0  31 36 20 69 73 20 74 68  65 20 6e 65 74 77 6f 72  |16 is the networ|
+000000f0  6b 0a 0a 23 20 4c 69 6e  65 20 31 3a 20 4d 61 74  |k..# Line 1: Mat|
+00000100  63 68 20 63 61 6e 64 69  64 61 74 65 0a 31 39 32  |ch candidate.192|
+00000110  2e 31 36 38 2e 31 2e 30  2f 32 34 0a 0a 23 20 4c  |.168.1.0/24..# L|
+00000120  69 6e 65 20 33 3a 20 42  65 66 6f 72 65 20 63 6f  |ine 3: Before co|
+00000130  6e 74 65 78 74 20 6c 69  6e 65 20 31 0a 54 68 69  |ntext line 1.Thi|
+00000140  73 20 69 73 20 61 20 63  6f 6e 74 65 78 74 20 6c  |s is a context l|
+00000150  69 6e 65 20 62 65 66 6f  72 65 0a 0a 23 20 4c 69  |ine before..# Li|
+00000160  6e 65 20 35 3a 20 42 65  66 6f 72 65 20 63 6f 6e  |ne 5: Before con|
+00000170  74 65 78 74 20 6c 69 6e  65 20 32 0a 41 6e 6f 74  |text line 2.Anot|
+00000180  68 65 72 20 63 6f 6e 74  65 78 74 20 6c 69 6e 65  |her context line|
+00000190  0a 0a 23 20 4c 69 6e 65  20 37 3a 20 4d 41 54 43  |..# Line 7: MATC|
+000001a0  48 20 4c 49 4e 45 0a 31  39 32 2e 31 36 38 2e 30  |H LINE.192.168.0|
+000001b0  2e 30 2f 31 36 20 69 73  20 74 68 65 20 6e 65 74  |.0/16 is the net|
+000001c0  77 6f 72 6b 0a 0a 23 20  4c 69 6e 65 20 39 3a 20  |work..# Line 9: |
+000001d0  41 66 74 65 72 20 63 6f  6e 74 65 78 74 20 6c 69  |After context li|
+000001e0  6e 65 20 31 0a 54 68 69  73 20 69 73 20 61 66 74  |ne 1.This is aft|
+000001f0  65 72 20 74 68 65 20 6d  61 74 63 68 0a 0a 23 20  |er the match..# |
+00000200  4c 69 6e 65 20 31 31 3a  20 41 66 74 65 72 20 63  |Line 11: After c|
+00000210  6f 6e 74 65 78 74 20 6c  69 6e 65 20 32 0a 41 6e  |ontext line 2.An|
+00000220  64 20 61 6e 6f 74 68 65  72 20 6c 69 6e 65 20 61  |d another line a|
+00000230  66 74 65 72 0a 0a 23 20  4c 69 6e 65 20 31 33 3a  |fter..# Line 13:|
+00000240  20 41 6e 6f 74 68 65 72  20 4d 41 54 43 48 0a 31  | Another MATCH.1|
+00000250  30 2e 30 2e 30 2e 30 2f  38 20 67 61 74 65 77 61  |0.0.0.0/8 gatewa|
+00000260  79                                                |y|
+00000261
+=== Actual STDOUT (hexdump) ===
+00000000  23 20 54 65 73 74 20 64  61 74 61 20 66 6f 72 20  |# Test data for |
+00000010  63 6f 6e 74 65 78 74 20  74 65 73 74 69 6e 67 0a  |context testing.|
+00000020  23 20 4c 69 6e 65 20 31  3a 20 4d 61 74 63 68 20  |# Line 1: Match |
+00000030  63 61 6e 64 69 64 61 74  65 0a 31 39 32 2e 31 36  |candidate.192.16|
+00000040  38 2e 31 2e 30 2f 32 34  0a 0a 23 20 4c 69 6e 65  |8.1.0/24..# Line|
+00000050  20 33 3a 20 42 65 66 6f  72 65 20 63 6f 6e 74 65  | 3: Before conte|
+00000060  78 74 20 6c 69 6e 65 20  31 0a 54 68 69 73 20 69  |xt line 1.This i|
+00000070  73 20 61 20 63 6f 6e 74  65 78 74 20 6c 69 6e 65  |s a context line|
+00000080  20 62 65 66 6f 72 65 0a  0a 23 20 4c 69 6e 65 20  | before..# Line |
+00000090  35 3a 20 42 65 66 6f 72  65 20 63 6f 6e 74 65 78  |5: Before contex|
+000000a0  74 20 6c 69 6e 65 20 32  0a 41 6e 6f 74 68 65 72  |t line 2.Another|
+000000b0  20 63 6f 6e 74 65 78 74  20 6c 69 6e 65 0a 0a 23  | context line..#|
+000000c0  20 4c 69 6e 65 20 37 3a  20 4d 41 54 43 48 20 4c  | Line 7: MATCH L|
+000000d0  49 4e 45 0a 31 39 32 2e  31 36 38 2e 30 2e 30 2f  |INE.192.168.0.0/|
+000000e0  31 36 20 69 73 20 74 68  65 20 6e 65 74 77 6f 72  |16 is the networ|
+000000f0  6b 0a 0a 23 20 4c 69 6e  65 20 39 3a 20 41 66 74  |k..# Line 9: Aft|
+00000100  65 72 20 63 6f 6e 74 65  78 74 20 6c 69 6e 65 20  |er context line |
+00000110  31 0a 54 68 69 73 20 69  73 20 61 66 74 65 72 20  |1.This is after |
+00000120  74 68 65 20 6d 61 74 63  68 0a 0a 23 20 4c 69 6e  |the match..# Lin|
+00000130  65 20 31 31 3a 20 41 66  74 65 72 20 63 6f 6e 74  |e 11: After cont|
+00000140  65 78 74 20 6c 69 6e 65  20 32 0a 41 6e 64 20 61  |ext line 2.And a|
+00000150  6e 6f 74 68 65 72 20 6c  69 6e 65 20 61 66 74 65  |nother line afte|
+00000160  72 0a 0a 23 20 4c 69 6e  65 20 31 33 3a 20 41 6e  |r..# Line 13: An|
+00000170  6f 74 68 65 72 20 4d 41  54 43 48 0a 31 30 2e 30  |other MATCH.10.0|
+00000180  2e 30 2e 30 2f 38 20 67  61 74 65 77 61 79        |.0.0/8 gateway|
+0000018e
+=== Hexdump Diff ===
+--- /tmp/tmp.i3PhOdaxXB	2026-09-29 22:52:58.503311105 +0000
++++ /tmp/tmp.3NNohs1HOP	2026-09-29 22:52:58.509311198 +0000
+@@ -13,28 +13,14 @@
+ 000000c0  20 4c 69 6e 65 20 37 3a  20 4d 41 54 43 48 20 4c  | Line 7: MATCH L|
+ 000000d0  49 4e 45 0a 31 39 32 2e  31 36 38 2e 30 2e 30 2f  |INE.192.168.0.0/|
+ 000000e0  31 36 20 69 73 20 74 68  65 20 6e 65 74 77 6f 72  |16 is the networ|
+-000000f0  6b 0a 0a 23 20 4c 69 6e  65 20 31 3a 20 4d 61 74  |k..# Line 1: Mat|
+-00000100  63 68 20 63 61 6e 64 69  64 61 74 65 0a 31 39 32  |ch candidate.192|
+-00000110  2e 31 36 38 2e 31 2e 30  2f 32 34 0a 0a 23 20 4c  |.168.1.0/24..# L|
+-00000120  69 6e 65 20 33 3a 20 42  65 66 6f 72 65 20 63 6f  |ine 3: Before co|
+-00000130  6e 74 65 78 74 20 6c 69  6e 65 20 31 0a 54 68 69  |ntext line 1.Thi|
+-00000140  73 20 69 73 20 61 20 63  6f 6e 74 65 78 74 20 6c  |s is a context l|
+-00000150  69 6e 65 20 62 65 66 6f  72 65 0a 0a 23 20 4c 69  |ine before..# Li|
+-00000160  6e 65 20 35 3a 20 42 65  66 6f 72 65 20 63 6f 6e  |ne 5: Before con|
+-00000170  74 65 78 74 20 6c 69 6e  65 20 32 0a 41 6e 6f 74  |text line 2.Anot|
+-00000180  68 65 72 20 63 6f 6e 74  65 78 74 20 6c 69 6e 65  |her context line|
+-00000190  0a 0a 23 20 4c 69 6e 65  20 37 3a 20 4d 41 54 43  |..# Line 7: MATC|
+-000001a0  48 20 4c 49 4e 45 0a 31  39 32 2e 31 36 38 2e 30  |H LINE.192.168.0|
+-000001b0  2e 30 2f 31 36 20 69 73  20 74 68 65 20 6e 65 74  |.0/16 is the net|
+-000001c0  77 6f 72 6b 0a 0a 23 20  4c 69 6e 65 20 39 3a 20  |work..# Line 9: |
+-000001d0  41 66 74 65 72 20 63 6f  6e 74 65 78 74 20 6c 69  |After context li|
+-000001e0  6e 65 20 31 0a 54 68 69  73 20 69 73 20 61 66 74  |ne 1.This is aft|
+-000001f0  65 72 20 74 68 65 20 6d  61 74 63 68 0a 0a 23 20  |er the match..# |
+-00000200  4c 69 6e 65 20 31 31 3a  20 41 66 74 65 72 20 63  |Line 11: After c|
+-00000210  6f 6e 74 65 78 74 20 6c  69 6e 65 20 32 0a 41 6e  |ontext line 2.An|
+-00000220  64 20 61 6e 6f 74 68 65  72 20 6c 69 6e 65 20 61  |d another line a|
+-00000230  66 74 65 72 0a 0a 23 20  4c 69 6e 65 20 31 33 3a  |fter..# Line 13:|
+-00000240  20 41 6e 6f 74 68 65 72  20 4d 41 54 43 48 0a 31  | Another MATCH.1|
+-00000250  30 2e 30 2e 30 2e 30 2f  38 20 67 61 74 65 77 61  |0.0.0.0/8 gatewa|
+-00000260  79                                                |y|
+-00000261
++000000f0  6b 0a 0a 23 20 4c 69 6e  65 20 39 3a 20 41 66 74  |k..# Line 9: Aft|
++00000100  65 72 20 63 6f 6e 74 65  78 74 20 6c 69 6e 65 20  |er context line |
++00000110  31 0a 54 68 69 73 20 69  73 20 61 66 74 65 72 20  |1.This is after |
++00000120  74 68 65 20 6d 61 74 63  68 0a 0a 23 20 4c 69 6e  |the match..# Lin|
++00000130  65 20 31 31 3a 20 41 66  74 65 72 20 63 6f 6e 74  |e 11: After cont|
++00000140  65 78 74 20 6c 69 6e 65  20 32 0a 41 6e 64 20 61  |ext line 2.And a|
++00000150  6e 6f 74 68 65 72 20 6c  69 6e 65 20 61 66 74 65  |nother line afte|
++00000160  72 0a 0a 23 20 4c 69 6e  65 20 31 33 3a 20 41 6e  |r..# Line 13: An|
++00000170  6f 74 68 65 72 20 4d 41  54 43 48 0a 31 30 2e 30  |other MATCH.10.0|
++00000180  2e 30 2e 30 2f 38 20 67  61 74 65 77 61 79        |.0.0/8 gateway|
++0000018e
+=== Expected STDOUT (text) ===
+# Test data for context testing
+# Line 1: Match candidate
+192.168.1.0/24
+
+# Line 3: Before context line 1
+This is a context line before
+
+# Line 5: Before context line 2
+Another context line
+
+# Line 7: MATCH LINE
+192.168.0.0/16 is the network
+
+# Line 1: Match candidate
+192.168.1.0/24
+
+# Line 3: Before context line 1
+This is a context line before
+
+# Line 5: Before context line 2
+Another context line
+
+# Line 7: MATCH LINE
+192.168.0.0/16 is the network
+
+# Line 9: After context line 1
+This is after the match
+
+# Line 11: After context line 2
+And another line after
+
+# Line 13: Another MATCH
+10.0.0.0/8 gateway
+=== Actual STDOUT (text) ===
+# Test data for context testing
+# Line 1: Match candidate
+192.168.1.0/24
+
+# Line 3: Before context line 1
+This is a context line before
+
+# Line 5: Before context line 2
+Another context line
+
+# Line 7: MATCH LINE
+192.168.0.0/16 is the network
+
+# Line 9: After context line 1
+This is after the match
+
+# Line 11: After context line 2
+And another line after
+
+# Line 13: Another MATCH
+10.0.0.0/8 gateway
+[0;31m✗ FAIL[0m: Large context (-C 10)
+
+[1;33mTesting: Custom group separator[0m
+
+[0;36m../grepnet --group-separator='--SPLIT--' -B 1 '192.168.0.0/16' 'files/context_test.txt'[0m
+[0;32m✓ PASS[0m: Custom group separator (exit: 0)
+  Result: [0;32m✓ PASS[0m
+
+[0;34m[26/34][0m Running: [0;36m010_test_comments[0m
+
+
+[0;34m=== COMMENT HANDLING ===[0m
+
+[1;33mTesting: Find networks ignoring comments[0m
+
+[0;36m../grepnet '192.168.1.0/24' 'files/comments_test.txt'[0m
+[0;32m✓ PASS[0m: Find networks ignoring comments (exit: 0)
+
+[1;33mTesting: Include comment lines (--no-filter-comments)[0m
+
+[0;36m../grepnet --no-filter-comments '10.1.0.0/16' 'files/comments_test.txt'[0m
+[0;32m✓ PASS[0m: Include comment lines (--no-filter-comments) (exit: 0)
+
+[1;33mTesting: No matches in comments with filter[0m
+
+[0;36m../grepnet '203.0.114.0/24' 'files/comments_test.txt'[0m
+[0;32m✓ PASS[0m: No matches in comments with filter (exit: 1)
+
+[1;33mTesting: Match networks in commented lines when no-filter is used[0m
+
+[0;36m../grepnet --no-filter-comments '203.0.113.0/24' 'files/comments_test.txt'[0m
+[0;32m✓ PASS[0m: Match networks in commented lines when no-filter is used (exit: 0)
+  Result: [0;32m✓ PASS[0m
+
+[0;34m[27/34][0m Running: [0;36m011_test_ipv6[0m
+
+
+[0;34m=== IPv6 SUPPORT ===[0m
+
+[1;33mTesting: IPv6 CIDR match[0m
+
+[0;36m../grepnet '2001:db8::/32' 'files/ipv6_test.txt'[0m
+[0;32m✓ PASS[0m: IPv6 CIDR match (exit: 0)
+
+[1;33mTesting: IPv6 single address[0m
+
+[0;36m../grepnet '::1' 'files/ipv6_test.txt'[0m
+Exit code mismatch: Expected 0, Got 1
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  3a 3a 31                                          |::1|
+00000003
+=== Actual STDOUT (hexdump) ===
+=== Hexdump Diff ===
+--- /tmp/tmp.PeN1C5KM8i	2026-09-29 22:53:00.504342206 +0000
++++ /tmp/tmp.Gd1OwpmIwI	2026-09-29 22:53:00.506342238 +0000
+@@ -1,2 +0,0 @@
+-00000000  3a 3a 31                                          |::1|
+-00000003
+=== Expected STDOUT (text) ===
+::1
+=== Actual STDOUT (text) ===
+
+[0;31m✗ FAIL[0m: IPv6 single address
+
+[1;33mTesting: IPv6 range format[0m
+
+[0;36m../grepnet --parse-ranges=both '2001:db8::1-2001:db8::ff' 'files/ipv6_test.txt'[0m
+[0;32m✓ PASS[0m: IPv6 range format (exit: 0)
+
+[1;33mTesting: IPv6 compressed format[0m
+
+[0;36m../grepnet '2001:db8::' 'files/ipv6_test.txt'[0m
+Exit code mismatch: Expected 0, Got 1
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  32 30 30 31 3a 64 62 38  3a 3a 2f 33 32           |2001:db8::/32|
+0000000d
+=== Actual STDOUT (hexdump) ===
+=== Hexdump Diff ===
+--- /tmp/tmp.LaL5xc20l4	2026-09-29 22:53:01.148352286 +0000
++++ /tmp/tmp.pFfhQAZpOy	2026-09-29 22:53:01.151352333 +0000
+@@ -1,2 +0,0 @@
+-00000000  32 30 30 31 3a 64 62 38  3a 3a 2f 33 32           |2001:db8::/32|
+-0000000d
+=== Expected STDOUT (text) ===
+2001:db8::/32
+=== Actual STDOUT (text) ===
+
+[0;31m✗ FAIL[0m: IPv6 compressed format
+
+[1;33mTesting: Mixed IPv4 and IPv6[0m
+
+[0;36m../grepnet '192.0.2.0/24' 'files/mixed_ip_test.txt'[0m
+[0;32m✓ PASS[0m: Mixed IPv4 and IPv6 (exit: 0)
+  Result: [0;32m✓ PASS[0m
+
+[0;34m[28/34][0m Running: [0;36m012_test_multiple_files[0m
+
+
+[0;34m=== MULTIPLE FILES ===[0m
+
+[1;33mTesting: Search multiple files[0m
+
+[0;36m../grepnet '192.0.2.0/24' 'files/file1.txt' 'files/file2.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  2f 68 6f 6d 65 2f 63 68  61 69 6e 73 2f 64 65 76  |/home/chains/dev|
+00000010  2f 67 72 65 70 6e 65 74  2f 74 65 73 74 73 2f 66  |/grepnet/tests/f|
+00000020  69 6c 65 73 2f 66 69 6c  65 32 2e 74 78 74 3a 31  |iles/file2.txt:1|
+00000030  39 32 2e 30 2e 32 2e 30  2f 32 34                 |92.0.2.0/24|
+0000003b
+=== Actual STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34              |192.0.2.0/24|
+0000000c
+=== Hexdump Diff ===
+--- /tmp/tmp.5xJ5P7vCiy	2026-09-29 22:53:01.851363337 +0000
++++ /tmp/tmp.4cVwRunVe9	2026-09-29 22:53:01.856363416 +0000
+@@ -1,5 +1,2 @@
+-00000000  2f 68 6f 6d 65 2f 63 68  61 69 6e 73 2f 64 65 76  |/home/chains/dev|
+-00000010  2f 67 72 65 70 6e 65 74  2f 74 65 73 74 73 2f 66  |/grepnet/tests/f|
+-00000020  69 6c 65 73 2f 66 69 6c  65 32 2e 74 78 74 3a 31  |iles/file2.txt:1|
+-00000030  39 32 2e 30 2e 32 2e 30  2f 32 34                 |92.0.2.0/24|
+-0000003b
++00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34              |192.0.2.0/24|
++0000000c
+=== Expected STDOUT (text) ===
+/home/chains/dev/grepnet/tests/files/file2.txt:192.0.2.0/24
+=== Actual STDOUT (text) ===
+192.0.2.0/24
+[0;31m✗ FAIL[0m: Search multiple files
+
+[1;33mTesting: Multiple files with matches in all[0m
+
+[0;36m../grepnet '192.0.2.0/24' 'files/file1.txt' 'files/file2.txt' 'files/file3.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  2f 68 6f 6d 65 2f 63 68  61 69 6e 73 2f 64 65 76  |/home/chains/dev|
+00000010  2f 67 72 65 70 6e 65 74  2f 74 65 73 74 73 2f 66  |/grepnet/tests/f|
+00000020  69 6c 65 73 2f 66 69 6c  65 32 2e 74 78 74 3a 31  |iles/file2.txt:1|
+00000030  39 32 2e 30 2e 32 2e 30  2f 32 34                 |92.0.2.0/24|
+0000003b
+=== Actual STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34              |192.0.2.0/24|
+0000000c
+=== Hexdump Diff ===
+--- /tmp/tmp.vlSUU72Jr9	2026-09-29 22:53:02.200368841 +0000
++++ /tmp/tmp.KqJ0NX3ajZ	2026-09-29 22:53:02.206368936 +0000
+@@ -1,5 +1,2 @@
+-00000000  2f 68 6f 6d 65 2f 63 68  61 69 6e 73 2f 64 65 76  |/home/chains/dev|
+-00000010  2f 67 72 65 70 6e 65 74  2f 74 65 73 74 73 2f 66  |/grepnet/tests/f|
+-00000020  69 6c 65 73 2f 66 69 6c  65 32 2e 74 78 74 3a 31  |iles/file2.txt:1|
+-00000030  39 32 2e 30 2e 32 2e 30  2f 32 34                 |92.0.2.0/24|
+-0000003b
++00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34              |192.0.2.0/24|
++0000000c
+=== Expected STDOUT (text) ===
+/home/chains/dev/grepnet/tests/files/file2.txt:192.0.2.0/24
+=== Actual STDOUT (text) ===
+192.0.2.0/24
+[0;31m✗ FAIL[0m: Multiple files with matches in all
+
+[1;33mTesting: Filename prefix for multiple files[0m
+
+[0;36m../grepnet '192.0.2.0/24' 'files/file1.txt' 'files/file2.txt' | grep ':'[0m
+Exit code mismatch: Expected 0, Got 1
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  2f 68 6f 6d 65 2f 63 68  61 69 6e 73 2f 64 65 76  |/home/chains/dev|
+00000010  2f 67 72 65 70 6e 65 74  2f 74 65 73 74 73 2f 66  |/grepnet/tests/f|
+00000020  69 6c 65 73 2f 66 69 6c  65 32 2e 74 78 74 3a 31  |iles/file2.txt:1|
+00000030  39 32 2e 30 2e 32 2e 30  2f 32 34                 |92.0.2.0/24|
+0000003b
+=== Actual STDOUT (hexdump) ===
+=== Hexdump Diff ===
+--- /tmp/tmp.1gEvp93h5R	2026-09-29 22:53:02.570374691 +0000
++++ /tmp/tmp.OkgYF7795d	2026-09-29 22:53:02.573374738 +0000
+@@ -1,5 +0,0 @@
+-00000000  2f 68 6f 6d 65 2f 63 68  61 69 6e 73 2f 64 65 76  |/home/chains/dev|
+-00000010  2f 67 72 65 70 6e 65 74  2f 74 65 73 74 73 2f 66  |/grepnet/tests/f|
+-00000020  69 6c 65 73 2f 66 69 6c  65 32 2e 74 78 74 3a 31  |iles/file2.txt:1|
+-00000030  39 32 2e 30 2e 32 2e 30  2f 32 34                 |92.0.2.0/24|
+-0000003b
+=== Expected STDOUT (text) ===
+/home/chains/dev/grepnet/tests/files/file2.txt:192.0.2.0/24
+=== Actual STDOUT (text) ===
+
+[0;31m✗ FAIL[0m: Filename prefix for multiple files
+
+[1;33mTesting: Suppress filename (--no-filename)[0m
+
+[0;36m../grepnet --no-filename '192.0.2.0/24' 'files/file1.txt' 'files/file2.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  2f 68 6f 6d 65 2f 63 68  61 69 6e 73 2f 64 65 76  |/home/chains/dev|
+00000010  2f 67 72 65 70 6e 65 74  2f 74 65 73 74 73 2f 66  |/grepnet/tests/f|
+00000020  69 6c 65 73 2f 66 69 6c  65 32 2e 74 78 74 3a 31  |iles/file2.txt:1|
+00000030  39 32 2e 30 2e 32 2e 30  2f 32 34                 |92.0.2.0/24|
+0000003b
+=== Actual STDOUT (hexdump) ===
+00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34              |192.0.2.0/24|
+0000000c
+=== Hexdump Diff ===
+--- /tmp/tmp.PMR3UcxN5x	2026-09-29 22:53:02.933380429 +0000
++++ /tmp/tmp.qC5LYpRKTS	2026-09-29 22:53:02.940380540 +0000
+@@ -1,5 +1,2 @@
+-00000000  2f 68 6f 6d 65 2f 63 68  61 69 6e 73 2f 64 65 76  |/home/chains/dev|
+-00000010  2f 67 72 65 70 6e 65 74  2f 74 65 73 74 73 2f 66  |/grepnet/tests/f|
+-00000020  69 6c 65 73 2f 66 69 6c  65 32 2e 74 78 74 3a 31  |iles/file2.txt:1|
+-00000030  39 32 2e 30 2e 32 2e 30  2f 32 34                 |92.0.2.0/24|
+-0000003b
++00000000  31 39 32 2e 30 2e 32 2e  30 2f 32 34              |192.0.2.0/24|
++0000000c
+=== Expected STDOUT (text) ===
+/home/chains/dev/grepnet/tests/files/file2.txt:192.0.2.0/24
+=== Actual STDOUT (text) ===
+192.0.2.0/24
+[0;31m✗ FAIL[0m: Suppress filename (--no-filename)
+
+[1;33mTesting: Force filename on single file (-H)[0m
+
+[0;36m../grepnet -H '192.0.2.0/24' 'files/sample_networks.txt' | grep ':'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  2f 68 6f 6d 65 2f 63 68  61 69 6e 73 2f 64 65 76  |/home/chains/dev|
+00000010  2f 67 72 65 70 6e 65 74  2f 74 65 73 74 73 2f 66  |/grepnet/tests/f|
+00000020  69 6c 65 73 2f 73 61 6d  70 6c 65 5f 6e 65 74 77  |iles/sample_netw|
+00000030  6f 72 6b 73 2e 74 78 74  3a 31 39 32 2e 30 2e 32  |orks.txt:192.0.2|
+00000040  2e 30 2f 32 34 0a 2f 68  6f 6d 65 2f 63 68 61 69  |.0/24./home/chai|
+00000050  6e 73 2f 64 65 76 2f 67  72 65 70 6e 65 74 2f 74  |ns/dev/grepnet/t|
+00000060  65 73 74 73 2f 66 69 6c  65 73 2f 73 61 6d 70 6c  |ests/files/sampl|
+00000070  65 5f 6e 65 74 77 6f 72  6b 73 2e 74 78 74 3a 31  |e_networks.txt:1|
+00000080  39 32 2e 30 2e 32 2e 30  20 32 35 35 2e 32 35 35  |92.0.2.0 255.255|
+00000090  2e 32 35 35 2e 30 0a 2f  68 6f 6d 65 2f 63 68 61  |.255.0./home/cha|
+000000a0  69 6e 73 2f 64 65 76 2f  67 72 65 70 6e 65 74 2f  |ins/dev/grepnet/|
+000000b0  74 65 73 74 73 2f 66 69  6c 65 73 2f 73 61 6d 70  |tests/files/samp|
+000000c0  6c 65 5f 6e 65 74 77 6f  72 6b 73 2e 74 78 74 3a  |le_networks.txt:|
+000000d0  31 39 32 2e 30 2e 32 2e  30 20 30 2e 30 2e 30 2e  |192.0.2.0 0.0.0.|
+000000e0  32 35 35 0a 2f 68 6f 6d  65 2f 63 68 61 69 6e 73  |255./home/chains|
+000000f0  2f 64 65 76 2f 67 72 65  70 6e 65 74 2f 74 65 73  |/dev/grepnet/tes|
+00000100  74 73 2f 66 69 6c 65 73  2f 73 61 6d 70 6c 65 5f  |ts/files/sample_|
+00000110  6e 65 74 77 6f 72 6b 73  2e 74 78 74 3a 31 39 32  |networks.txt:192|
+00000120  2e 30 2e 32 2e 30 2d 31  39 32 2e 30 2e 32 2e 32  |.0.2.0-192.0.2.2|
+00000130  35 35 0a 2f 68 6f 6d 65  2f 63 68 61 69 6e 73 2f  |55./home/chains/|
+00000140  64 65 76 2f 67 72 65 70  6e 65 74 2f 74 65 73 74  |dev/grepnet/test|
+00000150  73 2f 66 69 6c 65 73 2f  73 61 6d 70 6c 65 5f 6e  |s/files/sample_n|
+00000160  65 74 77 6f 72 6b 73 2e  74 78 74 3a 31 39 32 2e  |etworks.txt:192.|
+00000170  30 2e 32 2e 30 2d 31 39  32 2e 30 2e 32 2e 32 35  |0.2.0-192.0.2.25|
+00000180  35 0a 2f 68 6f 6d 65 2f  63 68 61 69 6e 73 2f 64  |5./home/chains/d|
+00000190  65 76 2f 67 72 65 70 6e  65 74 2f 74 65 73 74 73  |ev/grepnet/tests|
+000001a0  2f 66 69 6c 65 73 2f 73  61 6d 70 6c 65 5f 6e 65  |/files/sample_ne|
+000001b0  74 77 6f 72 6b 73 2e 74  78 74 3a 52 6f 75 74 65  |tworks.txt:Route|
+000001c0  20 74 6f 20 31 39 32 2e  30 2e 32 2e 30 2f 32 34  | to 192.0.2.0/24|
+000001d0  20 76 69 61 20 31 30 2e  30 2e 30 2e 30 2f 38     | via 10.0.0.0/8|
+000001df
+=== Actual STDOUT (hexdump) ===
+00000000  2f 68 6f 6d 65 2f 63 68  61 69 6e 73 2f 64 65 76  |/home/chains/dev|
+00000010  2f 67 72 65 70 6e 65 74  2f 74 65 73 74 73 2f 66  |/grepnet/tests/f|
+00000020  69 6c 65 73 2f 73 61 6d  70 6c 65 5f 6e 65 74 77  |iles/sample_netw|
+00000030  6f 72 6b 73 2e 74 78 74  3a 31 39 32 2e 30 2e 32  |orks.txt:192.0.2|
+00000040  2e 30 2f 32 34 0a 2f 68  6f 6d 65 2f 63 68 61 69  |.0/24./home/chai|
+00000050  6e 73 2f 64 65 76 2f 67  72 65 70 6e 65 74 2f 74  |ns/dev/grepnet/t|
+00000060  65 73 74 73 2f 66 69 6c  65 73 2f 73 61 6d 70 6c  |ests/files/sampl|
+00000070  65 5f 6e 65 74 77 6f 72  6b 73 2e 74 78 74 3a 31  |e_networks.txt:1|
+00000080  39 32 2e 30 2e 32 2e 30  20 32 35 35 2e 32 35 35  |92.0.2.0 255.255|
+00000090  2e 32 35 35 2e 30 0a 2f  68 6f 6d 65 2f 63 68 61  |.255.0./home/cha|
+000000a0  69 6e 73 2f 64 65 76 2f  67 72 65 70 6e 65 74 2f  |ins/dev/grepnet/|
+000000b0  74 65 73 74 73 2f 66 69  6c 65 73 2f 73 61 6d 70  |tests/files/samp|
+000000c0  6c 65 5f 6e 65 74 77 6f  72 6b 73 2e 74 78 74 3a  |le_networks.txt:|
+000000d0  31 39 32 2e 30 2e 32 2e  30 20 30 2e 30 2e 30 2e  |192.0.2.0 0.0.0.|
+000000e0  32 35 35 0a 2f 68 6f 6d  65 2f 63 68 61 69 6e 73  |255./home/chains|
+000000f0  2f 64 65 76 2f 67 72 65  70 6e 65 74 2f 74 65 73  |/dev/grepnet/tes|
+00000100  74 73 2f 66 69 6c 65 73  2f 73 61 6d 70 6c 65 5f  |ts/files/sample_|
+00000110  6e 65 74 77 6f 72 6b 73  2e 74 78 74 3a 31 39 32  |networks.txt:192|
+00000120  2e 30 2e 32 2e 30 2d 31  39 32 2e 30 2e 32 2e 32  |.0.2.0-192.0.2.2|
+00000130  35 35 0a 2f 68 6f 6d 65  2f 63 68 61 69 6e 73 2f  |55./home/chains/|
+00000140  64 65 76 2f 67 72 65 70  6e 65 74 2f 74 65 73 74  |dev/grepnet/test|
+00000150  73 2f 66 69 6c 65 73 2f  73 61 6d 70 6c 65 5f 6e  |s/files/sample_n|
+00000160  65 74 77 6f 72 6b 73 2e  74 78 74 3a 52 6f 75 74  |etworks.txt:Rout|
+00000170  65 20 74 6f 20 31 39 32  2e 30 2e 32 2e 30 2f 32  |e to 192.0.2.0/2|
+00000180  34 20 76 69 61 20 31 30  2e 30 2e 30 2e 30 2f 38  |4 via 10.0.0.0/8|
+00000190
+=== Hexdump Diff ===
+--- /tmp/tmp.E8pbpA4lMP	2026-09-29 22:53:03.278385908 +0000
++++ /tmp/tmp.ZUVK2N1Bh2	2026-09-29 22:53:03.285386019 +0000
+@@ -20,12 +20,7 @@
+ 00000130  35 35 0a 2f 68 6f 6d 65  2f 63 68 61 69 6e 73 2f  |55./home/chains/|
+ 00000140  64 65 76 2f 67 72 65 70  6e 65 74 2f 74 65 73 74  |dev/grepnet/test|
+ 00000150  73 2f 66 69 6c 65 73 2f  73 61 6d 70 6c 65 5f 6e  |s/files/sample_n|
+-00000160  65 74 77 6f 72 6b 73 2e  74 78 74 3a 31 39 32 2e  |etworks.txt:192.|
+-00000170  30 2e 32 2e 30 2d 31 39  32 2e 30 2e 32 2e 32 35  |0.2.0-192.0.2.25|
+-00000180  35 0a 2f 68 6f 6d 65 2f  63 68 61 69 6e 73 2f 64  |5./home/chains/d|
+-00000190  65 76 2f 67 72 65 70 6e  65 74 2f 74 65 73 74 73  |ev/grepnet/tests|
+-000001a0  2f 66 69 6c 65 73 2f 73  61 6d 70 6c 65 5f 6e 65  |/files/sample_ne|
+-000001b0  74 77 6f 72 6b 73 2e 74  78 74 3a 52 6f 75 74 65  |tworks.txt:Route|
+-000001c0  20 74 6f 20 31 39 32 2e  30 2e 32 2e 30 2f 32 34  | to 192.0.2.0/24|
+-000001d0  20 76 69 61 20 31 30 2e  30 2e 30 2e 30 2f 38     | via 10.0.0.0/8|
+-000001df
++00000160  65 74 77 6f 72 6b 73 2e  74 78 74 3a 52 6f 75 74  |etworks.txt:Rout|
++00000170  65 20 74 6f 20 31 39 32  2e 30 2e 32 2e 30 2f 32  |e to 192.0.2.0/2|
++00000180  34 20 76 69 61 20 31 30  2e 30 2e 30 2e 30 2f 38  |4 via 10.0.0.0/8|
++00000190
+=== Expected STDOUT (text) ===
+/home/chains/dev/grepnet/tests/files/sample_networks.txt:192.0.2.0/24
+/home/chains/dev/grepnet/tests/files/sample_networks.txt:192.0.2.0 255.255.255.0
+/home/chains/dev/grepnet/tests/files/sample_networks.txt:192.0.2.0 0.0.0.255
+/home/chains/dev/grepnet/tests/files/sample_networks.txt:192.0.2.0-192.0.2.255
+/home/chains/dev/grepnet/tests/files/sample_networks.txt:192.0.2.0-192.0.2.255
+/home/chains/dev/grepnet/tests/files/sample_networks.txt:Route to 192.0.2.0/24 via 10.0.0.0/8
+=== Actual STDOUT (text) ===
+/home/chains/dev/grepnet/tests/files/sample_networks.txt:192.0.2.0/24
+/home/chains/dev/grepnet/tests/files/sample_networks.txt:192.0.2.0 255.255.255.0
+/home/chains/dev/grepnet/tests/files/sample_networks.txt:192.0.2.0 0.0.0.255
+/home/chains/dev/grepnet/tests/files/sample_networks.txt:192.0.2.0-192.0.2.255
+/home/chains/dev/grepnet/tests/files/sample_networks.txt:Route to 192.0.2.0/24 via 10.0.0.0/8
+[0;31m✗ FAIL[0m: Force filename on single file (-H)
+
+[1;33mTesting: Multiple files with line numbers (-n)[0m
+
+[0;36m../grepnet -n '192.0.2.0/24' 'files/file1.txt' 'files/file2.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  2f 68 6f 6d 65 2f 63 68  61 69 6e 73 2f 64 65 76  |/home/chains/dev|
+00000010  2f 67 72 65 70 6e 65 74  2f 74 65 73 74 73 2f 66  |/grepnet/tests/f|
+00000020  69 6c 65 73 2f 66 69 6c  65 32 2e 74 78 74 3a 32  |iles/file2.txt:2|
+00000030  3a 31 39 32 2e 30 2e 32  2e 30 2f 32 34           |:192.0.2.0/24|
+0000003d
+=== Actual STDOUT (hexdump) ===
+00000000  32 3a 31 39 32 2e 30 2e  32 2e 30 2f 32 34        |2:192.0.2.0/24|
+0000000e
+=== Hexdump Diff ===
+--- /tmp/tmp.787WdpEa1G	2026-09-29 22:53:03.618391313 +0000
++++ /tmp/tmp.1WxRPqjP2r	2026-09-29 22:53:03.624391408 +0000
+@@ -1,5 +1,2 @@
+-00000000  2f 68 6f 6d 65 2f 63 68  61 69 6e 73 2f 64 65 76  |/home/chains/dev|
+-00000010  2f 67 72 65 70 6e 65 74  2f 74 65 73 74 73 2f 66  |/grepnet/tests/f|
+-00000020  69 6c 65 73 2f 66 69 6c  65 32 2e 74 78 74 3a 32  |iles/file2.txt:2|
+-00000030  3a 31 39 32 2e 30 2e 32  2e 30 2f 32 34           |:192.0.2.0/24|
+-0000003d
++00000000  32 3a 31 39 32 2e 30 2e  32 2e 30 2f 32 34        |2:192.0.2.0/24|
++0000000e
+=== Expected STDOUT (text) ===
+/home/chains/dev/grepnet/tests/files/file2.txt:2:192.0.2.0/24
+=== Actual STDOUT (text) ===
+2:192.0.2.0/24
+[0;31m✗ FAIL[0m: Multiple files with line numbers (-n)
+
+[1;33mTesting: Multiple files with count (-c)[0m
+
+[0;36m../grepnet -c '192.0.2.0/24' 'files/file1.txt' 'files/file2.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  2f 68 6f 6d 65 2f 63 68  61 69 6e 73 2f 64 65 76  |/home/chains/dev|
+00000010  2f 67 72 65 70 6e 65 74  2f 74 65 73 74 73 2f 66  |/grepnet/tests/f|
+00000020  69 6c 65 73 2f 66 69 6c  65 32 2e 74 78 74 3a 31  |iles/file2.txt:1|
+00000030  39 32 2e 30 2e 32 2e 30  2f 32 34                 |92.0.2.0/24|
+0000003b
+=== Actual STDOUT (hexdump) ===
+00000000  31                                                |1|
+00000001
+=== Hexdump Diff ===
+--- /tmp/tmp.BuBm5vjCSm	2026-09-29 22:53:03.983397115 +0000
++++ /tmp/tmp.lXVcpgeEfh	2026-09-29 22:53:03.990397227 +0000
+@@ -1,5 +1,2 @@
+-00000000  2f 68 6f 6d 65 2f 63 68  61 69 6e 73 2f 64 65 76  |/home/chains/dev|
+-00000010  2f 67 72 65 70 6e 65 74  2f 74 65 73 74 73 2f 66  |/grepnet/tests/f|
+-00000020  69 6c 65 73 2f 66 69 6c  65 32 2e 74 78 74 3a 31  |iles/file2.txt:1|
+-00000030  39 32 2e 30 2e 32 2e 30  2f 32 34                 |92.0.2.0/24|
+-0000003b
++00000000  31                                                |1|
++00000001
+=== Expected STDOUT (text) ===
+/home/chains/dev/grepnet/tests/files/file2.txt:192.0.2.0/24
+=== Actual STDOUT (text) ===
+1
+[0;31m✗ FAIL[0m: Multiple files with count (-c)
+  Result: [0;31m✗ FAIL[0m
+
+[0;34m[29/34][0m Running: [0;36m014_test_help_version[0m
+
+
+[0;34m=== HELP AND VERSION ===[0m
+
+[1;33mTesting: Help flag (-h)[0m
+[0;32m✓ PASS[0m: Help flag (-h)
+
+[1;33mTesting: Full help (--help)[0m
+[0;32m✓ PASS[0m: Full help (--help)
+
+[1;33mTesting: Version flag (--version)[0m
+
+[0;36m../grepnet --version[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+00000000  67 72 65 70 6e 65 74 20  31 2e 30 2e 30           |grepnet 1.0.0|
+0000000d
+=== Actual STDOUT (hexdump) ===
+00000000  67 72 65 70 6e 65 74 20  33 2e 30 2e 30           |grepnet 3.0.0|
+0000000d
+=== Hexdump Diff ===
+--- /tmp/tmp.gtbTs3EEhT	2026-09-29 22:53:04.825410573 +0000
++++ /tmp/tmp.T6xfjb4Ahw	2026-09-29 22:53:04.832410685 +0000
+@@ -1,2 +1,2 @@
+-00000000  67 72 65 70 6e 65 74 20  31 2e 30 2e 30           |grepnet 1.0.0|
++00000000  67 72 65 70 6e 65 74 20  33 2e 30 2e 30           |grepnet 3.0.0|
+ 0000000d
+=== Expected STDOUT (text) ===
+grepnet 1.0.0
+=== Actual STDOUT (text) ===
+grepnet 3.0.0
+[0;31m✗ FAIL[0m: Version flag (--version)
+
+[1;33mTesting: Help contains usage information[0m
+[0;32m✓ PASS[0m: Help contains usage information
+
+[1;33mTesting: Help contains pattern description[0m
+[0;32m✓ PASS[0m: Help contains pattern description
+
+[1;33mTesting: Version output[0m
+[0;32m✓ PASS[0m: Version output
+  Result: [0;32m✓ PASS[0m
+
+[0;34m[30/34][0m Running: [0;36m015_test_error_handling[0m
+
+
+[0;34m=== ERROR HANDLING ===[0m
+
+[1;33mTesting: File not found returns exit 2[0m
+
+[0;36m../grepnet '192.0.2.0/24' /nonexistent/file.txt[0m
+[0;32m✓ PASS[0m: File not found returns exit 2 (exit: 2)
+
+[1;33mTesting: Invalid flag handling[0m
+
+[0;36m../grepnet --invalid-flag '192.0.2.0/24' 'files/sample_networks.txt'[0m
+[0;32m✓ PASS[0m: Invalid flag handling (exit: 2)
+
+[1;33mTesting: Missing pattern[0m
+
+[0;36m../grepnet 'files/sample_networks.txt'[0m
+Exit code mismatch: Expected 1, Got 2
+[0;31m✗ FAIL[0m: Missing pattern
+
+[1;33mTesting: Empty pattern file[0m
+
+[0;36mecho '' > /tmp/empty_pattern.txt && ../grepnet -f /tmp/empty_pattern.txt 'files/sample_networks.txt'[0m
+[0;32m✓ PASS[0m: Empty pattern file (exit: 1)
+
+[1;33mTesting: No input files[0m
+
+[0;36m../grepnet '192.0.2.0/24'[0m
+[0;32m✓ PASS[0m: No input files (exit: 2)
+
+[1;33mTesting: Error message contains filename[0m
+String not found in STDOUT: No input files
+Full STDOUT was:
+grepnet: Cannot read /nonexistent/file.txt: [Errno 2] No such file or directory: '/nonexistent/file.txt'
+[0;31m✗ FAIL[0m: Error message contains filename
+
+[1;33mTesting: Quiet mode suppresses error messages[0m
+[0;32m✓ PASS[0m: Quiet mode suppresses error messages
+  Result: [0;32m✓ PASS[0m
+
+[0;34m[31/34][0m Running: [0;36m017_test_pattern_edge_cases[0m
+
+
+[0;34m=== PATTERN PARSING EDGE CASES ===[0m
+
+[1;33mTesting: Pattern with comma: extracts two patterns (192.0.2.0 and 0.0.0.0/0)[0m
+
+[0;36mecho '192.0.2.0' | ../grepnet '192.0.2.0,0.0.0.0/0'[0m
+[0;32m✓ PASS[0m: Pattern with comma: extracts two patterns (192.0.2.0 and 0.0.0.0/0) (exit: 0)
+
+[1;33mTesting: Both networks match when pattern includes 0.0.0.0/0[0m
+
+[0;36mecho 'text 192.0.2.0 255.0.255.0 text' | ../grepnet '192.0.2.0,0.0.0.0/0'[0m
+[0;32m✓ PASS[0m: Both networks match when pattern includes 0.0.0.0/0 (exit: 0)
+
+[1;33mTesting: Invalid pattern: only comma, no valid networks[0m
+
+[0;36mecho '192.0.2.0' | ../grepnet ','[0m
+[0;32m✓ PASS[0m: Invalid pattern: only comma, no valid networks (exit: 1)
+
+[1;33mTesting: Pattern with semicolon: extracts IP before semicolon[0m
+
+[0;36mecho '192.0.2.0' | ../grepnet '192.0.2.0;10.0.0.0'[0m
+[0;32m✓ PASS[0m: Pattern with semicolon: extracts IP before semicolon (exit: 0)
+
+[1;33mTesting: Pattern with pipe: extracts IP before pipe[0m
+
+[0;36mecho '192.0.2.0' | ../grepnet '192.0.2.0|10.0.0.0'[0m
+[0;32m✓ PASS[0m: Pattern with pipe: extracts IP before pipe (exit: 0)
+
+[1;33mTesting: Pattern with spaces: parsed as subnet mask format[0m
+
+[0;36mecho '192.0.2.0' | ../grepnet '192.0.2.0 255.255.255.0'[0m
+[0;32m✓ PASS[0m: Pattern with spaces: parsed as subnet mask format (exit: 0)
+
+[1;33mTesting: Empty pattern string: no patterns extracted, error exit[0m
+
+[0;36mecho '192.0.2.0' | ../grepnet ''[0m
+Exit code mismatch: Expected 2, Got 1
+[0;31m✗ FAIL[0m: Empty pattern string: no patterns extracted, error exit
+
+[1;33mTesting: Pattern with only spaces: extracts nothing, no match exit[0m
+
+[0;36mecho '192.0.2.0' | ../grepnet '   '[0m
+[0;32m✓ PASS[0m: Pattern with only spaces: extracts nothing, no match exit (exit: 1)
+  Result: [0;32m✓ PASS[0m
+
+[0;34m[32/34][0m Running: [0;36m018_test_match_type_prioritization[0m
+
+
+[0;34m=== MATCH TYPE PRIORITIZATION ===[0m
+
+[1;33mTesting: Multiple patterns: EQUALS takes priority over SUPERSET[0m
+
+[0;36mecho '192.0.2.0' | ../grepnet '192.0.2.0,0.0.0.0/0'[0m
+[0;32m✓ PASS[0m: Multiple patterns: EQUALS takes priority over SUPERSET (exit: 0)
+
+[1;33mTesting: Multiple patterns: both networks in line, different match types[0m
+
+[0;36mecho 'text 192.0.2.0 255.0.255.0 text' | ../grepnet '192.0.2.0,0.0.0.0/0'[0m
+[0;32m✓ PASS[0m: Multiple patterns: both networks in line, different match types (exit: 0)
+
+[1;33mTesting: EQUALS color prioritized when matching multiple patterns[0m
+[0;32m✓ PASS[0m: EQUALS color prioritized when matching multiple patterns
+
+[1;33mTesting: Both networks match when patterns have different priorities[0m
+
+[0;36mecho 'text 192.0.2.0 255.0.255.0 text' | ../grepnet '192.0.2.0,0.0.0.0/0'[0m
+[0;32m✓ PASS[0m: Both networks match when patterns have different priorities (exit: 0)
+
+[1;33mTesting: EQUALS wins even if 0.0.0.0/0 pattern comes first[0m
+
+[0;36mecho '192.0.2.0' | ../grepnet '0.0.0.0/0,192.0.2.0'[0m
+[0;32m✓ PASS[0m: EQUALS wins even if 0.0.0.0/0 pattern comes first (exit: 0)
+
+[1;33mTesting: EQUALS prioritized over both SUBSET and SUPERSET[0m
+
+[0;36mecho '192.0.2.1' | ../grepnet '192.0.2.1,192.0.2.0/24,0.0.0.0/0'[0m
+[0;32m✓ PASS[0m: EQUALS prioritized over both SUBSET and SUPERSET (exit: 0)
+
+[1;33mTesting: SUBSET prioritized over SUPERSET[0m
+
+[0;36mecho '192.0.2.1' | ../grepnet '192.0.2.0/24,0.0.0.0/0'[0m
+[0;32m✓ PASS[0m: SUBSET prioritized over SUPERSET (exit: 0)
+
+[0;34m=== Summary ===[0m
+Passed: 7 / Failed: 0 / Skipped: 0 / Timeouts: 0
+  Result: [0;31m✗ FAIL[0m
+
+[0;34m[33/34][0m Running: [0;36m021_test_multiline_block_comments[0m
+
+
+[0;34m=== MULTI-LINE BLOCK COMMENT EDGE CASES ===[0m
+
+[1;33mTesting: Block comment: starts mid-line[0m
+
+[0;36m../grepnet -P '0.0.0.0/0' 'files/multiline_block_test1.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+=== Actual STDOUT (hexdump) ===
+00000000  6c 69 6e 65 31 20 31 39  32 2e 30 2e 32 2e 30 2f  |line1 192.0.2.0/|
+00000010  32 34 20 2f 2a 0a 6c 69  6e 65 32 20 20 69 6e 73  |24 /*.line2  ins|
+00000020  69 64 65 20 62 6c 6f 63  6b 20 31 30 2e 30 2e 30  |ide block 10.0.0|
+00000030  2e 30 2f 38 0a 6c 69 6e  65 33 20 20 61 6c 73 6f  |.0/8.line3  also|
+00000040  20 69 6e 73 69 64 65 20  31 37 32 2e 31 36 2e 30  | inside 172.16.0|
+00000050  2e 30 2f 31 32                                    |.0/12|
+00000055
+=== Hexdump Diff ===
+--- /tmp/tmp.jJFRlFDgP6	2026-09-29 22:53:11.291515930 +0000
++++ /tmp/tmp.dOodNcb2di	2026-09-29 22:53:11.301516096 +0000
+@@ -0,0 +1,7 @@
++00000000  6c 69 6e 65 31 20 31 39  32 2e 30 2e 32 2e 30 2f  |line1 192.0.2.0/|
++00000010  32 34 20 2f 2a 0a 6c 69  6e 65 32 20 20 69 6e 73  |24 /*.line2  ins|
++00000020  69 64 65 20 62 6c 6f 63  6b 20 31 30 2e 30 2e 30  |ide block 10.0.0|
++00000030  2e 30 2f 38 0a 6c 69 6e  65 33 20 20 61 6c 73 6f  |.0/8.line3  also|
++00000040  20 69 6e 73 69 64 65 20  31 37 32 2e 31 36 2e 30  | inside 172.16.0|
++00000050  2e 30 2f 31 32                                    |.0/12|
++00000055
+=== Expected STDOUT (text) ===
+
+=== Actual STDOUT (text) ===
+line1 192.0.2.0/24 /*
+line2  inside block 10.0.0.0/8
+line3  also inside 172.16.0.0/12
+[0;31m✗ FAIL[0m: Block comment: starts mid-line
+
+[1;33mTesting: Block comment: ends mid-line with content after[0m
+
+[0;36m../grepnet -P '0.0.0.0/0' 'files/multiline_block_test2.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+=== Actual STDOUT (hexdump) ===
+00000000  6c 69 6e 65 31 20 31 39  32 2e 30 2e 32 2e 30 2f  |line1 192.0.2.0/|
+00000010  32 34 0a 6c 69 6e 65 33  20 20 20 31 30 2e 30 2e  |24.line3   10.0.|
+00000020  30 2e 30 2f 38 20 69 6e  73 69 64 65 0a 6c 69 6e  |0.0/8 inside.lin|
+00000030  65 34 20 2a 2f 20 32 30  33 2e 30 2e 31 31 33 2e  |e4 */ 203.0.113.|
+00000040  30 2f 32 34 20 61 66 74  65 72 20 62 6c 6f 63 6b  |0/24 after block|
+00000050
+=== Hexdump Diff ===
+--- /tmp/tmp.WieRmMQQa7	2026-09-29 22:53:11.600521057 +0000
++++ /tmp/tmp.Dgh9EXWK1U	2026-09-29 22:53:11.611521239 +0000
+@@ -0,0 +1,6 @@
++00000000  6c 69 6e 65 31 20 31 39  32 2e 30 2e 32 2e 30 2f  |line1 192.0.2.0/|
++00000010  32 34 0a 6c 69 6e 65 33  20 20 20 31 30 2e 30 2e  |24.line3   10.0.|
++00000020  30 2e 30 2f 38 20 69 6e  73 69 64 65 0a 6c 69 6e  |0.0/8 inside.lin|
++00000030  65 34 20 2a 2f 20 32 30  33 2e 30 2e 31 31 33 2e  |e4 */ 203.0.113.|
++00000040  30 2f 32 34 20 61 66 74  65 72 20 62 6c 6f 63 6b  |0/24 after block|
++00000050
+=== Expected STDOUT (text) ===
+
+=== Actual STDOUT (text) ===
+line1 192.0.2.0/24
+line3   10.0.0.0/8 inside
+line4 */ 203.0.113.0/24 after block
+[0;31m✗ FAIL[0m: Block comment: ends mid-line with content after
+
+[1;33mTesting: Block comment: multiple blocks in file[0m
+
+[0;36m../grepnet -P '0.0.0.0/0' 'files/multiline_block_test3.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+=== Actual STDOUT (hexdump) ===
+00000000  6e 65 74 77 6f 72 6b 31  20 31 39 32 2e 30 2e 32  |network1 192.0.2|
+00000010  2e 30 2f 32 34 20 2f 2a  20 66 69 72 73 74 20 62  |.0/24 /* first b|
+00000020  6c 6f 63 6b 0a 20 20 20  69 6e 73 69 64 65 31 20  |lock.   inside1 |
+00000030  31 30 2e 30 2e 30 2e 30  2f 38 0a 2a 2f 20 6e 65  |10.0.0.0/8.*/ ne|
+00000040  74 77 6f 72 6b 32 20 31  37 32 2e 31 36 2e 30 2e  |twork2 172.16.0.|
+00000050  30 2f 31 32 0a 20 20 20  69 6e 73 69 64 65 32 20  |0/12.   inside2 |
+00000060  31 39 38 2e 35 31 2e 31  30 30 2e 30 2f 32 34 0a  |198.51.100.0/24.|
+00000070  2a 2f 20 6e 65 74 77 6f  72 6b 33 20 32 30 33 2e  |*/ network3 203.|
+00000080  30 2e 31 31 33 2e 30 2f  32 34                    |0.113.0/24|
+0000008a
+=== Hexdump Diff ===
+--- /tmp/tmp.VIuqyWwOrP	2026-09-29 22:53:11.916526299 +0000
++++ /tmp/tmp.WTqC7yztZv	2026-09-29 22:53:11.927526481 +0000
+@@ -0,0 +1,10 @@
++00000000  6e 65 74 77 6f 72 6b 31  20 31 39 32 2e 30 2e 32  |network1 192.0.2|
++00000010  2e 30 2f 32 34 20 2f 2a  20 66 69 72 73 74 20 62  |.0/24 /* first b|
++00000020  6c 6f 63 6b 0a 20 20 20  69 6e 73 69 64 65 31 20  |lock.   inside1 |
++00000030  31 30 2e 30 2e 30 2e 30  2f 38 0a 2a 2f 20 6e 65  |10.0.0.0/8.*/ ne|
++00000040  74 77 6f 72 6b 32 20 31  37 32 2e 31 36 2e 30 2e  |twork2 172.16.0.|
++00000050  30 2f 31 32 0a 20 20 20  69 6e 73 69 64 65 32 20  |0/12.   inside2 |
++00000060  31 39 38 2e 35 31 2e 31  30 30 2e 30 2f 32 34 0a  |198.51.100.0/24.|
++00000070  2a 2f 20 6e 65 74 77 6f  72 6b 33 20 32 30 33 2e  |*/ network3 203.|
++00000080  30 2e 31 31 33 2e 30 2f  32 34                    |0.113.0/24|
++0000008a
+=== Expected STDOUT (text) ===
+
+=== Actual STDOUT (text) ===
+network1 192.0.2.0/24 /* first block
+   inside1 10.0.0.0/8
+*/ network2 172.16.0.0/12
+   inside2 198.51.100.0/24
+*/ network3 203.0.113.0/24
+[0;31m✗ FAIL[0m: Block comment: multiple blocks in file
+
+[1;33mTesting: Block comment: nested markers[0m
+
+[0;36m../grepnet -P '0.0.0.0/0' 'files/multiline_block_test4.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+=== Actual STDOUT (hexdump) ===
+00000000  66 69 72 73 74 20 31 39  32 2e 30 2e 32 2e 30 2f  |first 192.0.2.0/|
+00000010  32 34 20 2f 2a 20 6f 75  74 65 72 20 2f 2a 20 6e  |24 /* outer /* n|
+00000020  65 73 74 65 64 0a 20 20  69 6e 73 69 64 65 20 31  |ested.  inside 1|
+00000030  30 2e 30 2e 30 2e 30 2f  38 0a 73 65 63 6f 6e 64  |0.0.0.0/8.second|
+00000040  20 31 37 32 2e 31 36 2e  30 2e 30 2f 31 32        | 172.16.0.0/12|
+0000004e
+=== Hexdump Diff ===
+--- /tmp/tmp.Wi2sxT7DM2	2026-09-29 22:53:12.266532128 +0000
++++ /tmp/tmp.J2YdBGbWDu	2026-09-29 22:53:12.277532311 +0000
+@@ -0,0 +1,6 @@
++00000000  66 69 72 73 74 20 31 39  32 2e 30 2e 32 2e 30 2f  |first 192.0.2.0/|
++00000010  32 34 20 2f 2a 20 6f 75  74 65 72 20 2f 2a 20 6e  |24 /* outer /* n|
++00000020  65 73 74 65 64 0a 20 20  69 6e 73 69 64 65 20 31  |ested.  inside 1|
++00000030  30 2e 30 2e 30 2e 30 2f  38 0a 73 65 63 6f 6e 64  |0.0.0.0/8.second|
++00000040  20 31 37 32 2e 31 36 2e  30 2e 30 2f 31 32        | 172.16.0.0/12|
++0000004e
+=== Expected STDOUT (text) ===
+
+=== Actual STDOUT (text) ===
+first 192.0.2.0/24 /* outer /* nested
+  inside 10.0.0.0/8
+second 172.16.0.0/12
+[0;31m✗ FAIL[0m: Block comment: nested markers
+
+[1;33mTesting: Separator: no separator without context flags[0m
+
+[0;36m../grepnet -P '192.168.0.0/16' -P '10.0.0.0/8' 'files/separator_test.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+=== Actual STDOUT (hexdump) ===
+00000000  6c 69 6e 65 31 20 31 39  32 2e 31 36 38 2e 31 2e  |line1 192.168.1.|
+00000010  30 2f 32 34 0a 6c 69 6e  65 35 20 31 30 2e 30 2e  |0/24.line5 10.0.|
+00000020  30 2e 30 2f 38                                    |0.0/8|
+00000025
+=== Hexdump Diff ===
+--- /tmp/tmp.f7dM3qAG3u	2026-09-29 22:53:12.561537047 +0000
++++ /tmp/tmp.3FghkRG4hU	2026-09-29 22:53:12.572537230 +0000
+@@ -0,0 +1,4 @@
++00000000  6c 69 6e 65 31 20 31 39  32 2e 31 36 38 2e 31 2e  |line1 192.168.1.|
++00000010  30 2f 32 34 0a 6c 69 6e  65 35 20 31 30 2e 30 2e  |0/24.line5 10.0.|
++00000020  30 2e 30 2f 38                                    |0.0/8|
++00000025
+=== Expected STDOUT (text) ===
+
+=== Actual STDOUT (text) ===
+line1 192.168.1.0/24
+line5 10.0.0.0/8
+[0;31m✗ FAIL[0m: Separator: no separator without context flags
+
+[1;33mTesting: Separator: appears with -B flag[0m
+
+[0;36m../grepnet -B 1 -P '192.168.0.0/16' -P '10.0.0.0/8' 'files/separator_test.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+=== Actual STDOUT (hexdump) ===
+00000000  6c 69 6e 65 31 20 31 39  32 2e 31 36 38 2e 31 2e  |line1 192.168.1.|
+00000010  30 2f 32 34 0a 2d 2d 0a  6c 69 6e 65 34 0a 6c 69  |0/24.--.line4.li|
+00000020  6e 65 35 20 31 30 2e 30  2e 30 2e 30 2f 38        |ne5 10.0.0.0/8|
+0000002e
+=== Hexdump Diff ===
+--- /tmp/tmp.BKq2ewt9A2	2026-09-29 22:53:12.867542149 +0000
++++ /tmp/tmp.w13yzLBjLg	2026-09-29 22:53:12.879542349 +0000
+@@ -0,0 +1,4 @@
++00000000  6c 69 6e 65 31 20 31 39  32 2e 31 36 38 2e 31 2e  |line1 192.168.1.|
++00000010  30 2f 32 34 0a 2d 2d 0a  6c 69 6e 65 34 0a 6c 69  |0/24.--.line4.li|
++00000020  6e 65 35 20 31 30 2e 30  2e 30 2e 30 2f 38        |ne5 10.0.0.0/8|
++0000002e
+=== Expected STDOUT (text) ===
+
+=== Actual STDOUT (text) ===
+line1 192.168.1.0/24
+--
+line4
+line5 10.0.0.0/8
+[0;31m✗ FAIL[0m: Separator: appears with -B flag
+
+[1;33mTesting: Separator: appears with -A flag[0m
+
+[0;36m../grepnet -A 1 -P '192.168.0.0/16' -P '10.0.0.0/8' 'files/separator_test.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+=== Actual STDOUT (hexdump) ===
+00000000  6c 69 6e 65 31 20 31 39  32 2e 31 36 38 2e 31 2e  |line1 192.168.1.|
+00000010  30 2f 32 34 0a 6c 69 6e  65 32 0a 2d 2d 0a 6c 69  |0/24.line2.--.li|
+00000020  6e 65 35 20 31 30 2e 30  2e 30 2e 30 2f 38        |ne5 10.0.0.0/8|
+0000002e
+=== Hexdump Diff ===
+--- /tmp/tmp.DUJdLKjqR9	2026-09-29 22:53:13.186547484 +0000
++++ /tmp/tmp.SLtUZIc01a	2026-09-29 22:53:13.196547652 +0000
+@@ -0,0 +1,4 @@
++00000000  6c 69 6e 65 31 20 31 39  32 2e 31 36 38 2e 31 2e  |line1 192.168.1.|
++00000010  30 2f 32 34 0a 6c 69 6e  65 32 0a 2d 2d 0a 6c 69  |0/24.line2.--.li|
++00000020  6e 65 35 20 31 30 2e 30  2e 30 2e 30 2f 38        |ne5 10.0.0.0/8|
++0000002e
+=== Expected STDOUT (text) ===
+
+=== Actual STDOUT (text) ===
+line1 192.168.1.0/24
+line2
+--
+line5 10.0.0.0/8
+[0;31m✗ FAIL[0m: Separator: appears with -A flag
+
+[1;33mTesting: Block comment: extract with --no-filter-comments[0m
+
+[0;36m../grepnet --no-filter-comments -P '0.0.0.0/0' 'files/multiline_block_test1.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+=== Actual STDOUT (hexdump) ===
+00000000  6c 69 6e 65 31 20 31 39  32 2e 30 2e 32 2e 30 2f  |line1 192.0.2.0/|
+00000010  32 34 20 2f 2a 0a 6c 69  6e 65 32 20 20 69 6e 73  |24 /*.line2  ins|
+00000020  69 64 65 20 62 6c 6f 63  6b 20 31 30 2e 30 2e 30  |ide block 10.0.0|
+00000030  2e 30 2f 38 0a 6c 69 6e  65 33 20 20 61 6c 73 6f  |.0/8.line3  also|
+00000040  20 69 6e 73 69 64 65 20  31 37 32 2e 31 36 2e 30  | inside 172.16.0|
+00000050  2e 30 2f 31 32                                    |.0/12|
+00000055
+=== Hexdump Diff ===
+--- /tmp/tmp.k1vlhzL2au	2026-09-29 22:53:13.519553065 +0000
++++ /tmp/tmp.e3J2MjDGNe	2026-09-29 22:53:13.530553249 +0000
+@@ -0,0 +1,7 @@
++00000000  6c 69 6e 65 31 20 31 39  32 2e 30 2e 32 2e 30 2f  |line1 192.0.2.0/|
++00000010  32 34 20 2f 2a 0a 6c 69  6e 65 32 20 20 69 6e 73  |24 /*.line2  ins|
++00000020  69 64 65 20 62 6c 6f 63  6b 20 31 30 2e 30 2e 30  |ide block 10.0.0|
++00000030  2e 30 2f 38 0a 6c 69 6e  65 33 20 20 61 6c 73 6f  |.0/8.line3  also|
++00000040  20 69 6e 73 69 64 65 20  31 37 32 2e 31 36 2e 30  | inside 172.16.0|
++00000050  2e 30 2f 31 32                                    |.0/12|
++00000055
+=== Expected STDOUT (text) ===
+
+=== Actual STDOUT (text) ===
+line1 192.0.2.0/24 /*
+line2  inside block 10.0.0.0/8
+line3  also inside 172.16.0.0/12
+[0;31m✗ FAIL[0m: Block comment: extract with --no-filter-comments
+
+[1;33mTesting: Block comment: state resets between files[0m
+
+[0;36m../grepnet '0.0.0.0/0' 'files/multiline_block_test1.txt' 'files/multiline_block_test3.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+=== Actual STDOUT (hexdump) ===
+00000000  6c 69 6e 65 31 20 31 39  32 2e 30 2e 32 2e 30 2f  |line1 192.0.2.0/|
+00000010  32 34 20 2f 2a 0a 6c 69  6e 65 32 20 20 69 6e 73  |24 /*.line2  ins|
+00000020  69 64 65 20 62 6c 6f 63  6b 20 31 30 2e 30 2e 30  |ide block 10.0.0|
+00000030  2e 30 2f 38 0a 6c 69 6e  65 33 20 20 61 6c 73 6f  |.0/8.line3  also|
+00000040  20 69 6e 73 69 64 65 20  31 37 32 2e 31 36 2e 30  | inside 172.16.0|
+00000050  2e 30 2f 31 32 0a 20 20  20 69 6e 73 69 64 65 32  |.0/12.   inside2|
+00000060  20 31 39 38 2e 35 31 2e  31 30 30 2e 30 2f 32 34  | 198.51.100.0/24|
+00000070  0a 2a 2f 20 6e 65 74 77  6f 72 6b 33 20 32 30 33  |.*/ network3 203|
+00000080  2e 30 2e 31 31 33 2e 30  2f 32 34                 |.0.113.0/24|
+0000008b
+=== Hexdump Diff ===
+--- /tmp/tmp.BKy7k7yUgb	2026-09-29 22:53:13.847558562 +0000
++++ /tmp/tmp.qGa0I7V16t	2026-09-29 22:53:13.858558746 +0000
+@@ -0,0 +1,10 @@
++00000000  6c 69 6e 65 31 20 31 39  32 2e 30 2e 32 2e 30 2f  |line1 192.0.2.0/|
++00000010  32 34 20 2f 2a 0a 6c 69  6e 65 32 20 20 69 6e 73  |24 /*.line2  ins|
++00000020  69 64 65 20 62 6c 6f 63  6b 20 31 30 2e 30 2e 30  |ide block 10.0.0|
++00000030  2e 30 2f 38 0a 6c 69 6e  65 33 20 20 61 6c 73 6f  |.0/8.line3  also|
++00000040  20 69 6e 73 69 64 65 20  31 37 32 2e 31 36 2e 30  | inside 172.16.0|
++00000050  2e 30 2f 31 32 0a 20 20  20 69 6e 73 69 64 65 32  |.0/12.   inside2|
++00000060  20 31 39 38 2e 35 31 2e  31 30 30 2e 30 2f 32 34  | 198.51.100.0/24|
++00000070  0a 2a 2f 20 6e 65 74 77  6f 72 6b 33 20 32 30 33  |.*/ network3 203|
++00000080  2e 30 2e 31 31 33 2e 30  2f 32 34                 |.0.113.0/24|
++0000008b
+=== Expected STDOUT (text) ===
+
+=== Actual STDOUT (text) ===
+line1 192.0.2.0/24 /*
+line2  inside block 10.0.0.0/8
+line3  also inside 172.16.0.0/12
+   inside2 198.51.100.0/24
+*/ network3 203.0.113.0/24
+[0;31m✗ FAIL[0m: Block comment: state resets between files
+
+[1;33mTesting: Context: shows block comment as surrounding context[0m
+
+[0;36m../grepnet -B 1 -A 1 -P '0.0.0.0/0' 'files/multiline_block_test2.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+=== Actual STDOUT (hexdump) ===
+00000000  6c 69 6e 65 31 20 31 39  32 2e 30 2e 32 2e 30 2f  |line1 192.0.2.0/|
+00000010  32 34 0a 6c 69 6e 65 32  20 2f 2a 20 63 6f 6d 6d  |24.line2 /* comm|
+00000020  65 6e 74 20 62 6c 6f 63  6b 0a 6c 69 6e 65 33 20  |ent block.line3 |
+00000030  20 20 31 30 2e 30 2e 30  2e 30 2f 38 20 69 6e 73  |  10.0.0.0/8 ins|
+00000040  69 64 65 0a 6c 69 6e 65  34 20 2a 2f 20 32 30 33  |ide.line4 */ 203|
+00000050  2e 30 2e 31 31 33 2e 30  2f 32 34 20 61 66 74 65  |.0.113.0/24 afte|
+00000060  72 20 62 6c 6f 63 6b                              |r block|
+00000067
+=== Hexdump Diff ===
+--- /tmp/tmp.jeFSgKlIoJ	2026-09-29 22:53:14.183564208 +0000
++++ /tmp/tmp.rx7eBKrpcJ	2026-09-29 22:53:14.192564360 +0000
+@@ -0,0 +1,8 @@
++00000000  6c 69 6e 65 31 20 31 39  32 2e 30 2e 32 2e 30 2f  |line1 192.0.2.0/|
++00000010  32 34 0a 6c 69 6e 65 32  20 2f 2a 20 63 6f 6d 6d  |24.line2 /* comm|
++00000020  65 6e 74 20 62 6c 6f 63  6b 0a 6c 69 6e 65 33 20  |ent block.line3 |
++00000030  20 20 31 30 2e 30 2e 30  2e 30 2f 38 20 69 6e 73  |  10.0.0.0/8 ins|
++00000040  69 64 65 0a 6c 69 6e 65  34 20 2a 2f 20 32 30 33  |ide.line4 */ 203|
++00000050  2e 30 2e 31 31 33 2e 30  2f 32 34 20 61 66 74 65  |.0.113.0/24 afte|
++00000060  72 20 62 6c 6f 63 6b                              |r block|
++00000067
+=== Expected STDOUT (text) ===
+
+=== Actual STDOUT (text) ===
+line1 192.0.2.0/24
+line2 /* comment block
+line3   10.0.0.0/8 inside
+line4 */ 203.0.113.0/24 after block
+[0;31m✗ FAIL[0m: Context: shows block comment as surrounding context
+  Result: [0;32m✓ PASS[0m
+
+[0;34m[34/34][0m Running: [0;36m022_test_grep_compatibility[0m
+
+
+[0;34m=== GREP COMPATIBILITY: SEPARATOR BEHAVIOR ===[0m
+
+[1;33mTesting: Grep compat: No separator without context flags[0m
+
+[0;36m../grepnet '0.0.0.0/0' 'files/grep_compat_test.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+=== Actual STDOUT (hexdump) ===
+00000000  6c 69 6e 65 31 20 31 39  32 2e 30 2e 32 2e 30 2f  |line1 192.0.2.0/|
+00000010  32 34 0a 6c 69 6e 65 33  20 31 30 2e 30 2e 30 2e  |24.line3 10.0.0.|
+00000020  30 2f 38                                          |0/8|
+00000023
+=== Hexdump Diff ===
+--- /tmp/tmp.JKx9lGczF9	2026-09-29 22:53:14.544570289 +0000
++++ /tmp/tmp.cFQYckOBm7	2026-09-29 22:53:14.556570491 +0000
+@@ -0,0 +1,4 @@
++00000000  6c 69 6e 65 31 20 31 39  32 2e 30 2e 32 2e 30 2f  |line1 192.0.2.0/|
++00000010  32 34 0a 6c 69 6e 65 33  20 31 30 2e 30 2e 30 2e  |24.line3 10.0.0.|
++00000020  30 2f 38                                          |0/8|
++00000023
+=== Expected STDOUT (text) ===
+
+=== Actual STDOUT (text) ===
+line1 192.0.2.0/24
+line3 10.0.0.0/8
+[0;31m✗ FAIL[0m: Grep compat: No separator without context flags
+
+[1;33mTesting: Grep compat: Separator with -A0 flag[0m
+
+[0;36m../grepnet -A0 '0.0.0.0/0' 'files/grep_compat_test.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+=== Actual STDOUT (hexdump) ===
+00000000  6c 69 6e 65 31 20 31 39  32 2e 30 2e 32 2e 30 2f  |line1 192.0.2.0/|
+00000010  32 34 0a 6c 69 6e 65 33  20 31 30 2e 30 2e 30 2e  |24.line3 10.0.0.|
+00000020  30 2f 38                                          |0/8|
+00000023
+=== Hexdump Diff ===
+--- /tmp/tmp.oROROIIivV	2026-09-29 22:53:14.862575645 +0000
++++ /tmp/tmp.2Ba4lhOz5N	2026-09-29 22:53:14.873575830 +0000
+@@ -0,0 +1,4 @@
++00000000  6c 69 6e 65 31 20 31 39  32 2e 30 2e 32 2e 30 2f  |line1 192.0.2.0/|
++00000010  32 34 0a 6c 69 6e 65 33  20 31 30 2e 30 2e 30 2e  |24.line3 10.0.0.|
++00000020  30 2f 38                                          |0/8|
++00000023
+=== Expected STDOUT (text) ===
+
+=== Actual STDOUT (text) ===
+line1 192.0.2.0/24
+line3 10.0.0.0/8
+[0;31m✗ FAIL[0m: Grep compat: Separator with -A0 flag
+
+[1;33mTesting: Grep compat: Separator with -B0 flag[0m
+
+[0;36m../grepnet -B0 '0.0.0.0/0' 'files/grep_compat_test.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+=== Actual STDOUT (hexdump) ===
+00000000  6c 69 6e 65 31 20 31 39  32 2e 30 2e 32 2e 30 2f  |line1 192.0.2.0/|
+00000010  32 34 0a 6c 69 6e 65 33  20 31 30 2e 30 2e 30 2e  |24.line3 10.0.0.|
+00000020  30 2f 38                                          |0/8|
+00000023
+=== Hexdump Diff ===
+--- /tmp/tmp.oBOiETCpim	2026-09-29 22:53:15.189581169 +0000
++++ /tmp/tmp.x97PIoQSKV	2026-09-29 22:53:15.201581372 +0000
+@@ -0,0 +1,4 @@
++00000000  6c 69 6e 65 31 20 31 39  32 2e 30 2e 32 2e 30 2f  |line1 192.0.2.0/|
++00000010  32 34 0a 6c 69 6e 65 33  20 31 30 2e 30 2e 30 2e  |24.line3 10.0.0.|
++00000020  30 2f 38                                          |0/8|
++00000023
+=== Expected STDOUT (text) ===
+
+=== Actual STDOUT (text) ===
+line1 192.0.2.0/24
+line3 10.0.0.0/8
+[0;31m✗ FAIL[0m: Grep compat: Separator with -B0 flag
+
+[1;33mTesting: Grep compat: Separator with -C0 flag[0m
+
+[0;36m../grepnet -C0 '0.0.0.0/0' 'files/grep_compat_test.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+=== Actual STDOUT (hexdump) ===
+00000000  6c 69 6e 65 31 20 31 39  32 2e 30 2e 32 2e 30 2f  |line1 192.0.2.0/|
+00000010  32 34 0a 6c 69 6e 65 33  20 31 30 2e 30 2e 30 2e  |24.line3 10.0.0.|
+00000020  30 2f 38                                          |0/8|
+00000023
+=== Hexdump Diff ===
+--- /tmp/tmp.lXPsppIMgd	2026-09-29 22:53:15.512586636 +0000
++++ /tmp/tmp.pcfsmS6ISg	2026-09-29 22:53:15.523586823 +0000
+@@ -0,0 +1,4 @@
++00000000  6c 69 6e 65 31 20 31 39  32 2e 30 2e 32 2e 30 2f  |line1 192.0.2.0/|
++00000010  32 34 0a 6c 69 6e 65 33  20 31 30 2e 30 2e 30 2e  |24.line3 10.0.0.|
++00000020  30 2f 38                                          |0/8|
++00000023
+=== Expected STDOUT (text) ===
+
+=== Actual STDOUT (text) ===
+line1 192.0.2.0/24
+line3 10.0.0.0/8
+[0;31m✗ FAIL[0m: Grep compat: Separator with -C0 flag
+
+[1;33mTesting: Grep compat: Multi-line block comment with -A0[0m
+
+[0;36m../grepnet -A0 '0.0.0.0/0' 'files/grep_compat_multiline.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+=== Actual STDOUT (hexdump) ===
+00000000  74 65 78 74 20 31 39 32  2e 30 2e 32 2e 30 20 2f  |text 192.0.2.0 /|
+00000010  2a 0a 20 32 35 35 2e 30  2e 32 35 35 2e 30 0a 20  |*. 255.0.255.0. |
+00000020  2a 2f 20 74 65 78 74 20  31 39 32 2e 30 2e 32 2e  |*/ text 192.0.2.|
+00000030  31 30                                             |10|
+00000032
+=== Hexdump Diff ===
+--- /tmp/tmp.fI93MQR8lI	2026-09-29 22:53:15.857592476 +0000
++++ /tmp/tmp.JmU3EVh1qu	2026-09-29 22:53:15.867592646 +0000
+@@ -0,0 +1,5 @@
++00000000  74 65 78 74 20 31 39 32  2e 30 2e 32 2e 30 20 2f  |text 192.0.2.0 /|
++00000010  2a 0a 20 32 35 35 2e 30  2e 32 35 35 2e 30 0a 20  |*. 255.0.255.0. |
++00000020  2a 2f 20 74 65 78 74 20  31 39 32 2e 30 2e 32 2e  |*/ text 192.0.2.|
++00000030  31 30                                             |10|
++00000032
+=== Expected STDOUT (text) ===
+
+=== Actual STDOUT (text) ===
+text 192.0.2.0 /*
+ 255.0.255.0
+ */ text 192.0.2.10
+[0;31m✗ FAIL[0m: Grep compat: Multi-line block comment with -A0
+
+[1;33mTesting: Grep compat: No separator for single match with -A0[0m
+
+[0;36m../grepnet -A0 '0.0.0.0/0' 'files/grep_compat_single.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+=== Actual STDOUT (hexdump) ===
+00000000  6c 69 6e 65 31 20 31 39  32 2e 30 2e 32 2e 30 2f  |line1 192.0.2.0/|
+00000010  32 34                                             |24|
+00000012
+=== Hexdump Diff ===
+--- /tmp/tmp.nzYzmHJK2T	2026-09-29 22:53:16.190598129 +0000
++++ /tmp/tmp.Mbmp9Cyhyc	2026-09-29 22:53:16.199598282 +0000
+@@ -0,0 +1,3 @@
++00000000  6c 69 6e 65 31 20 31 39  32 2e 30 2e 32 2e 30 2f  |line1 192.0.2.0/|
++00000010  32 34                                             |24|
++00000012
+=== Expected STDOUT (text) ===
+
+=== Actual STDOUT (text) ===
+line1 192.0.2.0/24
+[0;31m✗ FAIL[0m: Grep compat: No separator for single match with -A0
+
+[1;33mTesting: Grep compat: Separator with -A 0 (space-separated)[0m
+
+[0;36m../grepnet -A 0 '0.0.0.0/0' 'files/grep_compat_test.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+=== Actual STDOUT (hexdump) ===
+00000000  6c 69 6e 65 31 20 31 39  32 2e 30 2e 32 2e 30 2f  |line1 192.0.2.0/|
+00000010  32 34 0a 6c 69 6e 65 33  20 31 30 2e 30 2e 30 2e  |24.line3 10.0.0.|
+00000020  30 2f 38                                          |0/8|
+00000023
+=== Hexdump Diff ===
+--- /tmp/tmp.2pr6T56zP3	2026-09-29 22:53:16.719607128 +0000
++++ /tmp/tmp.IQzmhd2lrj	2026-09-29 22:53:16.730607316 +0000
+@@ -0,0 +1,4 @@
++00000000  6c 69 6e 65 31 20 31 39  32 2e 30 2e 32 2e 30 2f  |line1 192.0.2.0/|
++00000010  32 34 0a 6c 69 6e 65 33  20 31 30 2e 30 2e 30 2e  |24.line3 10.0.0.|
++00000020  30 2f 38                                          |0/8|
++00000023
+=== Expected STDOUT (text) ===
+
+=== Actual STDOUT (text) ===
+line1 192.0.2.0/24
+line3 10.0.0.0/8
+[0;31m✗ FAIL[0m: Grep compat: Separator with -A 0 (space-separated)
+
+[1;33mTesting: Grep compat: Separator with --after-context=0[0m
+
+[0;36m../grepnet --after-context=0 '0.0.0.0/0' 'files/grep_compat_test.txt'[0m
+STDOUT byte-per-byte mismatch (hexdump):
+=== Expected STDOUT (hexdump) ===
+=== Actual STDOUT (hexdump) ===
+00000000  6c 69 6e 65 31 20 31 39  32 2e 30 2e 32 2e 30 2f  |line1 192.0.2.0/|
+00000010  32 34 0a 6c 69 6e 65 33  20 31 30 2e 30 2e 30 2e  |24.line3 10.0.0.|
+00000020  30 2f 38                                          |0/8|
+00000023
+=== Hexdump Diff ===
+--- /tmp/tmp.LpIAEgkXP2	2026-09-29 22:53:17.063612986 +0000
++++ /tmp/tmp.JhfM10c4hr	2026-09-29 22:53:17.075613191 +0000
+@@ -0,0 +1,4 @@
++00000000  6c 69 6e 65 31 20 31 39  32 2e 30 2e 32 2e 30 2f  |line1 192.0.2.0/|
++00000010  32 34 0a 6c 69 6e 65 33  20 31 30 2e 30 2e 30 2e  |24.line3 10.0.0.|
++00000020  30 2f 38                                          |0/8|
++00000023
+=== Expected STDOUT (text) ===
+
+=== Actual STDOUT (text) ===
+line1 192.0.2.0/24
+line3 10.0.0.0/8
+[0;31m✗ FAIL[0m: Grep compat: Separator with --after-context=0
+  Result: [0;32m✓ PASS[0m
+
+[0;34m════════════════════════════════════════════════════════════════[0m
+[0;34m                        FINAL TEST SUMMARY[0m
+[0;34m════════════════════════════════════════════════════════════════[0m
+  [0;32mPassed:  0[0m
+  [0;31mFailed:  0[0m
+  [0;31mTimeout: 0[0m
+  [1;33mSkipped: 0[0m
+  [0;36mTotal:   0[0m
+[0;34m════════════════════════════════════════════════════════════════[0m
+
+FINAL SUMMARY
+Passed:  0
+Failed:  0
+Timeout: 0
+Skipped: 0
+Total:   0
+
+[0;36mFull results saved to:[0m /home/chains/dev/grepnet/tests/log/test_results.log
+
+[0;32mAll tests PASSED[0m
