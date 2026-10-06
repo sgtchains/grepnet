@@ -1,0 +1,7 @@
+network1 192.0.2.0/24 /* first block
+   inside1 10.0.0.0/8
+*/ network2 172.16.0.0/12
+
+/* second block
+   inside2 198.51.100.0/24
+*/ network3 203.0.113.0/24

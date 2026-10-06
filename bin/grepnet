@@ -1,0 +1,11 @@
+#!/usr/bin/env python3
+"""
+GrepNet: Network-aware grep for CIDR blocks and IP ranges.
+
+Entry point executable.
+"""
+
+from grepnet.cli import run
+
+if __name__ == '__main__':
+    run()

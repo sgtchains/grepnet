@@ -1,0 +1,4 @@
+This file has no network addresses
+Just plain text with no CIDR notation
+Or subnet masks like 255.255.255.0
+But no actual networks to find

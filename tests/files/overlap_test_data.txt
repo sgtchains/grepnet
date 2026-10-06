@@ -1,0 +1,32 @@
+# Test data for OVERLAP match type testing
+# Pattern: 192.0.2.0/24 (covers 192.0.2.0 to 192.0.2.255)
+
+# Exact match - EQUALS
+192.0.2.0/24
+
+# Subset - contained by pattern
+192.0.2.0/25
+
+# Superset - contains pattern
+192.0.0.0/16
+
+# OVERLAP - starts before, ends inside pattern
+192.0.1.0-192.0.2.100
+
+# OVERLAP - starts inside, ends after pattern
+192.0.2.100-192.0.3.0
+
+# OVERLAP - partially overlaps from left
+192.0.1.200-192.0.2.50
+
+# OVERLAP - partially overlaps from right
+192.0.2.200-192.0.3.100
+
+# No match - completely before
+192.0.0.0-192.0.1.255
+
+# No match - completely after
+192.0.3.0-192.0.4.255
+
+# OVERLAP - IPv6 example that overlaps with IPv4 pattern (if we had IPv6 pattern)
+2001:db8::/32
