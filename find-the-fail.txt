@@ -23,4 +23,9 @@ grepnet: error: unrecognized arguments: --doesnotexist
 
 ^^^ error/usage out of order
 
+chains@ubuntu-dev:~/git/grepnet$ echo '! Version1 192.0.2.2' | ./grepnet 0.0.0.0/0
+! Version1 192.0.2.2
+chains@ubuntu-dev:~/git/grepnet$ echo '# Version1 192.0.2.2' | ./grepnet 0.0.0.0/0
+chains@ubuntu-dev:~/git/grepnet$
 
+Add to spec '20 remark 192.0.2.0'
