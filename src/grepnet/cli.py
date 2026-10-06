@@ -40,7 +40,7 @@ def run():
     )
     parser.add_argument(
         '-f',
-        '--file-patterns',
+        '--patterns-file',
         action='store',
         dest='pattern_file',
         help='Read patterns from file (one per line)',
@@ -49,9 +49,9 @@ def run():
     # Matching options
     parser.add_argument(
         '-e',
-        '--equals',
+        '--equal',
         action='store_true',
-        help='Match only EQUALS',
+        help='Match equal networks',
     )
     parser.add_argument(
         '-s',
@@ -88,6 +88,12 @@ def run():
         '--quiet',
         action='store_true',
         help='Suppress output (exit code only)',
+    )
+    parser.add_argument(
+        '--silent',
+        action='store_true',
+        dest='quiet',
+        help='Alias for --quiet',
     )
     parser.add_argument(
         '--no-messages',
@@ -145,11 +151,25 @@ def run():
         help='Display stdin as LABEL instead of (standard input)',
     )
     parser.add_argument(
-        '-T',
-        '--tab',
+        '-Z',
+        '--null',
         action='store_true',
-        dest='tab_prefix',
-        help='Prepend tab character to each output line',
+        dest='null_output',
+        help='Output NUL byte instead of newline after filename',
+    )
+    parser.add_argument(
+        '-z',
+        '--null-data',
+        action='store_true',
+        dest='null_data',
+        help='Treat input/output data as NUL-terminated records',
+    )
+    parser.add_argument(
+        '-T',
+        '--initial-tab',
+        action='store_true',
+        dest='initial_tab',
+        help='Insert tab after prefixes for alignment',
     )
     parser.add_argument(
         '-l',
@@ -159,16 +179,33 @@ def run():
     )
     parser.add_argument(
         '-L',
-        '--files-without-matches',
+        '--files-without-match',
         action='store_true',
         help='Print only files without matches',
+    )
+    parser.add_argument(
+        '-a',
+        '--text',
+        action='store_true',
+        dest='text_mode',
+        help='Process binary files as text (equivalent to --binary-files=text)',
+    )
+    parser.add_argument(
+        '-I',
+        action='store_true',
+        dest='no_binary_match',
+        help='Binary files are treated as non-matching (equivalent to --binary-files=without-match)',
     )
     
     # Comment handling
     parser.add_argument(
         '--no-filter-comments',
-        action='store_true',
-        help='Do not remove comments before parsing',
+        nargs='?',
+        const='both',
+        choices=['pattern', 'input', 'both', 'none'],
+        default=None,
+        metavar='SCOPE',
+        help='Do not filter comments. Use --no-filter-comments (default: both) or --no-filter-comments=SCOPE where SCOPE is pattern, input, both, or none',
     )
     
     # Parse control flags
@@ -294,10 +331,10 @@ def run():
     )
     parser.add_argument(
         '-F',
-        '--file',
+        '--input-file',
         action='append',
         dest='input_files_explicit',
-        help='Specify input file explicitly (can be used multiple times)',
+        help='Specify input file explicitly (repeatable)',
     )
     
     # Exclusion filters
@@ -440,15 +477,25 @@ def run():
         arg.startswith('--after-context') or arg.startswith('--before-context') or arg.startswith('--context')
         for arg in sys.argv[1:]  # Skip program name
     )
-    if context_flags_provided and (args.files_with_matches or args.files_without_matches or args.extract or args.consolidate):
+    if context_flags_provided and (args.files_with_matches or args.files_without_match or args.extract or args.consolidate):
         if not args.no_messages:
             print('grepnet: error: context flags (-B/-A/-C) cannot be used with -l, -L, --extract, or --consolidate', file=sys.stderr)
         sys.exit(2)
     
+    # Handle binary file flags: -a (--text), -I, and --binary-files
+    # Precedence: explicit binary flags override --binary-files
+    if args.text_mode:
+        # -a, --text: process binary files as text
+        args.binary_files = 'text'
+    elif args.no_binary_match:
+        # -I: treat binary files as non-matching
+        args.binary_files = 'without-match'
+    # else: use the default or explicitly set --binary-files value
+    
     # If no patterns found from any source (args.pattern_flags or positional), error
     # But allow it if pattern file was provided (even if empty), or if --extract/--consolidate
     # Only error if user provided NO pattern source at all in normal grep mode
-    has_pattern_source = args.pattern_file or args.pattern_flags or (args.positional_args and not args.extract and not args.consolidate and not (args.files_with_matches or args.files_without_matches))
+    has_pattern_source = args.pattern_file or args.pattern_flags or (args.positional_args and not args.extract and not args.consolidate and not (args.files_with_matches or args.files_without_match))
     
     if not patterns and not has_pattern_source and not args.extract and not args.consolidate:
         if not args.no_messages:
@@ -459,7 +506,7 @@ def run():
     match_type_filter = []
     has_explicit_match_type = False
     
-    if args.equals:
+    if args.equal:
         match_type_filter.append(MatchType.EQUALS)
         has_explicit_match_type = True
     if args.subset:
@@ -537,9 +584,33 @@ def run():
         else:
             grepnet_patterns = patterns
         
+        # Determine comment filtering behavior based on --no-filter-comments scope
+        # Default (None): filter comments in both patterns and input
+        # 'both': don't filter comments anywhere
+        # 'input': don't filter input comments (but filter patterns)
+        # 'pattern': don't filter pattern comments (but filter input)
+        # 'none': filter comments everywhere (same as default)
+        if args.no_filter_comments is None or args.no_filter_comments == 'none':
+            # Default behavior: filter comments
+            filter_comments_enabled = True
+        elif args.no_filter_comments == 'both':
+            # Don't filter comments anywhere
+            filter_comments_enabled = False
+        elif args.no_filter_comments == 'input':
+            # Don't filter input comments (filter patterns instead)
+            # TODO: This requires passing separate flags to GrepNet
+            filter_comments_enabled = False
+        elif args.no_filter_comments == 'pattern':
+            # Don't filter pattern comments (filter input instead)
+            # TODO: This requires passing separate flags to GrepNet
+            filter_comments_enabled = True
+        else:
+            # Fallback to filtering enabled
+            filter_comments_enabled = True
+        
         grepnet = GrepNet(
             patterns=grepnet_patterns,
-            filter_comments=not args.no_filter_comments,
+            filter_comments=filter_comments_enabled,
             strict_mode=(args.strict_cidr in ['pattern', 'both']),
             strict_cidr_action=args.strict_cidr_action,
             strict_cidr_mode=args.strict_cidr,
@@ -620,7 +691,7 @@ def run():
     # Auto-enable filename prefix for multiple files (unless --no-filename is set)
     # Count non-stdin files in input_sources
     file_count = len([s for s in input_sources if s.display_name is not None])
-    if file_count > 1 and not args.files_without_matches and not args.no_filename:
+    if file_count > 1 and not args.files_without_match and not args.no_filename:
         args.with_filename = True
     
     if not input_sources:
@@ -784,7 +855,7 @@ def run():
                                 prefix_parts.append(str(ctx_line_num))
                         
                         # Choose separator: tab for -T, colon for normal
-                        if args.tab_prefix and prefix_parts:
+                        if args.initial_tab and prefix_parts:
                             sep = '\t'
                         elif enable_colors:
                             sep = grepnet.colorizer.colorize_separator(':')
@@ -800,7 +871,7 @@ def run():
                                 ctx_prefix_count += 1
                             if args.line_number:
                                 ctx_prefix_count += 1
-                            if args.tab_prefix and ctx_prefix_count == 1:
+                            if args.initial_tab and ctx_prefix_count == 1:
                                 output = f'{prefix}\t{ctx_content}'
                             else:
                                 output = f'{prefix}:{ctx_content}'
@@ -838,7 +909,7 @@ def run():
                                          if enable_colors else str(result.byte_offset))
                     
                     # Build prefix in the correct order for -T or normal mode
-                    if args.tab_prefix:
+                    if args.initial_tab:
                         # For -T mode: byte, line, filename order with tab separators
                         if byte_offset_str:
                             prefix_parts.append(byte_offset_str)
@@ -876,7 +947,7 @@ def run():
                                     output_text = grepnet.colorizer.finalize_markup(marked_block.group(0), enable_colors=True)
                             if prefix:
                                 # Use tab as separator if -T and single prefix, colon if multiple
-                                if args.tab_prefix and len(prefix_parts) == 1:
+                                if args.initial_tab and len(prefix_parts) == 1:
                                     output = f'{prefix}\t{output_text}'
                                 else:
                                     output = f'{prefix}:{output_text}'
@@ -892,7 +963,7 @@ def run():
                         line_output = result.content_colored if enable_colors else result.line_content
                         if prefix:
                             # Use tab as separator if -T and single prefix, colon if multiple
-                            if args.tab_prefix and len(prefix_parts) == 1:
+                            if args.initial_tab and len(prefix_parts) == 1:
                                 output = f'{prefix}\t{line_output}'
                             else:
                                 output = f'{prefix}:{line_output}'
@@ -916,7 +987,7 @@ def run():
                         prefix_parts.append(str(current_line))
                     
                     # Choose separator: tab for -T, colon for normal
-                    if args.tab_prefix and prefix_parts:
+                    if args.initial_tab and prefix_parts:
                         sep = '\t'
                     else:
                         sep = ':'
@@ -926,7 +997,7 @@ def run():
                     line_output = result.line_content.rstrip('\n')
                     if prefix:
                         # Use tab as separator if -T and single prefix, colon if multiple
-                        if args.tab_prefix and len(prefix_parts) == 1:
+                        if args.initial_tab and len(prefix_parts) == 1:
                             output = f'{prefix}\t{line_output}'
                         else:
                             output = f'{prefix}:{line_output}'
@@ -982,7 +1053,7 @@ def run():
                     filename, first_result = line_results[0]
                     
                     # Skip output for -l and -L (handled at end)
-                    if args.files_with_matches or args.files_without_matches:
+                    if args.files_with_matches or args.files_without_match:
                         continue
                     
                     # For -c (count), just count and skip output
@@ -1007,7 +1078,7 @@ def run():
                                          if enable_colors else str(first_result.byte_offset))
                     
                     # Build prefix in the correct order for -T or normal mode
-                    if args.tab_prefix:
+                    if args.initial_tab:
                         # For -T mode: byte, line, filename order with tab separators
                         if byte_offset_str:
                             prefix_parts.append(byte_offset_str)
@@ -1051,7 +1122,7 @@ def run():
                             # Add prefix
                             if prefix:
                                 # Use tab as separator if -T and single prefix, colon if multiple
-                                if args.tab_prefix and len(prefix_parts) == 1:
+                                if args.initial_tab and len(prefix_parts) == 1:
                                     output = f'{prefix}\t{output_text}'
                                 else:
                                     output = f'{prefix}:{output_text}'
@@ -1074,7 +1145,7 @@ def run():
                             
                             if prefix:
                                 # Use tab as separator if -T and single prefix, colon if multiple
-                                if args.tab_prefix and len(prefix_parts) == 1:
+                                if args.initial_tab and len(prefix_parts) == 1:
                                     output = f'{prefix}\t{line_output}'
                                 else:
                                     output = f'{prefix}:{line_output}'
@@ -1099,17 +1170,19 @@ def run():
         
         # Handle -l (files-with-matches): print only filenames with matches
         if args.files_with_matches:
+            end_char = '\0' if args.null_output else '\n'
             for filename in sorted(file_matches.keys()):
                 if file_matches[filename]:  # Has matches
                     if enable_colors:
                         output = grepnet.colorizer.colorize_filename(filename)
                     else:
                         output = filename
-                    print(output)
+                    if not args.quiet:
+                        print(output, end=end_char)
             if not file_matches or not any(file_matches.values()):
                 sys.exit(1)
         # Handle -L (files-without-matches): print only filenames without matches
-        elif args.files_without_matches:
+        elif args.files_without_match:
             matched_files = set(f for f, lines in file_matches.items() if lines)
             # Extract filenames from input_sources (display_name is None for stdin without --label)
             all_files = set()
@@ -1118,12 +1191,14 @@ def run():
             unmatched = all_files - matched_files
             # Filter out None (stdin without --label) from output
             unmatched = {f for f in unmatched if f is not None}
+            end_char = '\0' if args.null_output else '\n'
             for filename in sorted(unmatched):
                 if enable_colors:
                     output = grepnet.colorizer.colorize_filename(filename)
                 else:
                     output = filename
-                print(output)
+                if not args.quiet:
+                    print(output, end=end_char)
             if not unmatched:
                 sys.exit(1)
         # Handle -c (count): print count

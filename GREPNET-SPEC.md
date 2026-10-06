@@ -600,11 +600,41 @@ Comments are recognized and separated from searchable content BEFORE extraction 
 
 ### Comment Filtering
 
-By default, comment lines are filtered (excluded from search). Override with `--no-filter-comments`.
+By default, comment lines are filtered (excluded from search). Control comment filtering scope with `--no-filter-comments`.
+
+**Supported comment prefixes**:
+- `#` - Standard Unix/Linux comment (shell, Python, YAML, Terraform, Ansible, INI)
+- `!` - Cisco IOS comment
+- `--` - SQL, Lua, Ada comment
+- `//` - C-style comment (Terraform, PHP, Go, Java, JavaScript, etc.)
+- `;` - INI file, Lisp, assembly comment
+- `remark` or `rem` (abbreviated) - Cisco configuration description (case-insensitive)
+- `description` or `desc` (abbreviated) - Cisco interface/object description (case-insensitive)
+- `<!-- ... -->` - HTML/XML block comment
+- `/* ... */` - C-style block comment (multi-line)
+
+**Filtering control**:
+
+The `--no-filter-comments` flag accepts optional arguments to control which scopes have filtering disabled:
+
+- `--no-filter-comments` (no argument) → Defaults to `both`, disables filtering in patterns AND input lines
+- `--no-filter-comments=pattern` → Disable filtering for patterns only (comments in input are still filtered)
+- `--no-filter-comments=input` → Disable filtering for input lines only (patterns are still filtered)
+- `--no-filter-comments=both` → Disable filtering in both patterns and input lines
+- `--no-filter-comments=none` → Explicitly enable filtering everywhere (same as default, no flag)
+
+**Default behavior** (no flag):
+- Comment filtering is applied to both patterns and input (`filter-comments=both`)
+- Comment-only lines are excluded from input processing
+- Comment lines do not contribute to network extraction
 
 **Behavior**:
 - Comment-only lines are skipped entirely (not added to file entries)
-- Lines with inline comments: the comment is stripped before extraction, but the comment is restored in output
+- Comment detection is case-insensitive for Cisco keywords (`REMARK`, `REM`, `DESCRIPTION`, `DESC` all recognized)
+- Prefix must be at start of line after optional leading whitespace
+- Single-line comments: Lines starting with comment prefix (`#`, `!`, `--`, `//`, `;`) after optional whitespace are filtered
+- Inline comments: Comments preceded by marker + space (e.g., `192.0.2.1# comment`, `value -- note`) are stripped before extraction. The full original line is output by default; use `-o/--only-matching` to see only extracted networks
+- Block comments: Multi-line blocks (`/* ... */` and `<!-- ... -->`) are removed entirely. Content inside block comments is not extracted
 
 ### CIDR Notation Parsing
 
@@ -791,6 +821,28 @@ Two formats supported, with no spaces around the dash:
 - `--parse-ranges-long`: Long form only (compact only)
 - `--parse-ranges-short`: Short form only (compact only)
 - Default: ranges disabled (for backward compatibility)
+
+### Unsupported Network Formats
+
+The following formats are explicitly NOT supported and will not be recognized:
+
+**Short-form CIDR notation** (e.g., `192.0.2/24`, `10/8`, `0/0`):
+- These abbreviated CIDR expressions omit the final octet
+- NOT recognized by grepnet
+- Will be treated as plain text/patterns, not network objects
+- Reason: Ambiguous in some contexts; canonical CIDR (`192.0.2.0/24`) is unambiguous and recommended
+
+**IP ranges with spaces** (e.g., `192.0.2.0 - 192.0.2.255`):
+- Spaces around the dash are NOT supported
+- The compact format `192.0.2.0-192.0.2.255` (no spaces) IS supported
+- If spaces are present, parsing fails and falls through to plain IP extraction
+- Example: `192.0.2.0 - 192.0.2.255` extracts two separate IPs: `192.0.2.0/32` and `192.0.2.1/32`
+- Reason: Spaces introduce parsing ambiguity; compact format is more reliable
+
+**IPv6 with zone identifiers** (e.g., `fe80::1%eth0`, `fe80::1%1`):
+- Zone IDs (the `%` suffix) are NOT supported
+- Only standard RFC 4291 IPv6 formats (compressed and uncompressed) are recognized
+- Zone IDs are non-routable and context-specific; excluded from network matching
 
 ### Plain IP Address Parsing
 
@@ -1701,8 +1753,8 @@ Or just:
 
 #### Output Control Flags
 
-- `-l` (`--list`): Output only filenames containing matches (one per line)
-- `-L` (`--files-without`): Output only filenames with NO matches
+- `-l` (`--files-with-matches`): Output only filenames containing matches (one per line)
+- `-L` (`--files-without-match`): Output only filenames with NO matches
 - `-q` (`--quiet`): Suppress all output, exit code only
 - `--no-messages`: Suppress error/warning messages to stderr
 - `--show-content`: Include line content in extract/consolidate modes
@@ -1844,7 +1896,7 @@ pattern                          CIDR pattern (optional if -P/-f specified)
 file                             Files to search (repeatable positional)
 -F, --input-file FILE            Input file (repeatable: -F f1 -F f2)
 -P, --pattern PATTERN            Additional pattern (repeatable)
--f, --cidrfile FILE              Pattern file (repeatable)
+-f, --patterns-file FILE         Pattern file (repeatable)
 ```
 
 #### Match Type Flags (can be combined)
@@ -1914,8 +1966,8 @@ grepnet --extract --format original file.txt       # Output in original parsed f
 ```
 -H, --with-filename              Show filename:content
 --no-filename                    Suppress filename prefix
--l, --list                       Show only files with matches
--L, --files-without              Show only files without matches
+-l, --files-with-matches         Show only files with matches
+-L, --files-without-match       Show only files without matches
 -q, --quiet, --silent            Suppress output (exit code only)
 -v, --invert-match               Show non-matching lines (inverts based on current match type set)
 ```
@@ -1927,6 +1979,26 @@ grepnet --extract --format original file.txt       # Output in original parsed f
 -T, --initial-tab                Insert tab after prefixes
 -Z, --null                       NUL separator after filename
 --label LABEL                    Display stdin as LABEL
+```
+
+#### Line Termination
+```
+-z, --null-data                  Treat input/output as NUL-terminated records
+```
+
+**-z, --null-data**: Treat input and output data as sequences of lines, each terminated by a zero byte (NUL character, ASCII 0x00) instead of newline (LF, ASCII 0x0A).
+
+Behavior:
+- Input: Lines are read as NUL-terminated records instead of newline-terminated
+- Output: Lines are output with NUL terminators instead of newlines
+- Usage: For processing filenames or data that may contain newlines (use with `sort -z`, `xargs -0`, etc.)
+- Encoding: Null bytes in the middle of data are treated as line separators
+- Pattern matching: Network patterns and file content matching work normally; only line termination changes
+
+Example:
+```bash
+grepnet -z '192.0.2.0/24' file.txt | xargs -0 process.sh    # Process matches with null-separated output
+find . -print0 | grepnet -z -Z '192.0.2.0/24'               # NUL-separated input and output
 ```
 
 #### Context Lines
@@ -1974,10 +2046,18 @@ grepnet -A2 -m 3 '192.0.2.0/24' file.txt      # 3 matches + trailing context
 --consolidate                    Consolidate overlapping networks
 -o, --only-matching              Print only matched networks
 --show-content                   Show line content in extract mode
---no-filter-comments             Include commented lines in search
+--no-filter-comments [scope]     Do not filter comments (pattern|input|both|none; default: both)
 ```
 
-**-o, --only-matching**: Print ONLY matched networks from each line, not full line content.
+**--no-filter-comments [scope]**: Control which scopes have comment filtering disabled.
+
+Arguments (optional):
+- `pattern` - Comments in patterns are not filtered (but input lines are)
+- `input` - Comments in input lines are not filtered (but patterns are)
+- `both` - Comments in neither patterns nor input lines are filtered (default if flag with no arg)
+- `none` - Comments everywhere are filtered (same as no flag; explicit override)
+
+If flag is used without argument, defaults to `both`.
 
 Behavior in normal search mode:
 - Output only the matched networks found on each line, not the full line content
@@ -2208,6 +2288,30 @@ Critical behaviors to test:
 - Use `sync.Map` or channel-based concurrency for parallel file scanning
 - Use `filepath.Walk` for directory traversal
 - Keep goroutines under control (worker pool pattern)
+
+---
+
+## Future Improvements (Post v5.0)
+
+### Output Handling Refactoring
+
+**Recommended for Next Major Release**: Centralize all output through a single unified function that accepts:
+- `mode` (extract, consolidate, normal, count, list, silent)
+- `content` (text to output)
+- `flags` (null_output, null_data, color, quiet)
+
+**Current State (v5.0)**: Output handling is scattered across ~15 separate `print()` statements throughout the CLI layer, making it difficult to:
+- Add new output features consistently
+- Ensure all modes respect output flags uniformly
+- Maintain feature parity when adding new flags
+
+**Refactoring Benefits**:
+- Single point of control for all stdout output
+- Easier to add new flags (like `-Z` for NUL-terminated filenames)
+- Reduced code duplication
+- Better testability of output formatting
+
+**Implementation Note**: This refactoring is backward-compatible and does not affect the API contract. It is purely an internal architectural improvement.
 
 ---
 

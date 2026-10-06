@@ -9,7 +9,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='grepnet',
-    version='3.0.0',
+    version='5.0.0',
     description='Network-aware grep for CIDR blocks and IP ranges',
     long_description=open('README.md').read() if open('README.md', 'r').read() else '',
     long_description_content_type='text/markdown',
