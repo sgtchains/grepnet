@@ -107,29 +107,36 @@ for test_file in "${test_files[@]}"; do
     echo -e "${BLUE}[${test_num}/${#test_files[@]}]${NC} Running: ${CYAN}$test_name${NC}"
     echo "" | tee -a "$RESULTS_FILE"
     
-    # Reset counters for this test file
-    PASSED_TESTS=0
-    FAILED_TESTS=0
-    SKIPPED_TESTS=0
-    TIMEOUT_TESTS=0
-    
-    # Run test file in subshell
-    if bash "$test_file"; then
+    # Run test file (sourced in subshell to isolate environment)
+    if (source "$test_file"); then
         file_status="${GREEN}✓ PASS${NC}"
     else
         file_status="${RED}✗ FAIL${NC}"
     fi
     
-    # Aggregate counters (note: these are set by the test scripts)
-    TOTAL_PASSED=$((TOTAL_PASSED + PASSED_TESTS))
-    TOTAL_FAILED=$((TOTAL_FAILED + FAILED_TESTS))
-    TOTAL_SKIPPED=$((TOTAL_SKIPPED + SKIPPED_TESTS))
-    TOTAL_TIMEOUT=$((TOTAL_TIMEOUT + TIMEOUT_TESTS))
-    
     echo -e "  Result: $file_status"
     
     ((test_num++))
 done
+
+# Parse results from log file (test functions write ✓ PASS and ✗ FAIL to log)
+# Use printf to ensure clean numeric values
+TOTAL_PASSED=$(grep -c "✓ PASS" "$RESULTS_FILE" 2>/dev/null | tr -d ' ')
+TOTAL_FAILED=$(grep -c "✗ FAIL" "$RESULTS_FILE" 2>/dev/null | tr -d ' ')
+TOTAL_SKIPPED=$(grep -c "⊘ SKIP" "$RESULTS_FILE" 2>/dev/null | tr -d ' ')
+TOTAL_TIMEOUT=$(grep -c "⏱ TIMEOUT" "$RESULTS_FILE" 2>/dev/null | tr -d ' ')
+
+# Ensure variables are numeric (default to 0 if empty)
+TOTAL_PASSED=${TOTAL_PASSED:-0}
+TOTAL_FAILED=${TOTAL_FAILED:-0}
+TOTAL_SKIPPED=${TOTAL_SKIPPED:-0}
+TOTAL_TIMEOUT=${TOTAL_TIMEOUT:-0}
+
+# Convert to integers
+TOTAL_PASSED=$((TOTAL_PASSED + 0))
+TOTAL_FAILED=$((TOTAL_FAILED + 0))
+TOTAL_SKIPPED=$((TOTAL_SKIPPED + 0))
+TOTAL_TIMEOUT=$((TOTAL_TIMEOUT + 0))
 
 #############################################################################
 # Summary Report
