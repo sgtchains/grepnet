@@ -35,6 +35,7 @@ class InputSource:
         file_path: Optional[str] = None,
         fd: Optional[int] = None,
         label: Optional[str] = None,
+        null_delimited: bool = False,
     ):
         """
         Initialize InputSource.
@@ -44,6 +45,7 @@ class InputSource:
             file_path: Path to file (required if source_type='file')
             fd: File descriptor number (required if source_type='fd')
             label: Custom display label (from --label flag, used with stdin or fd)
+            null_delimited: If True, split on NUL byte instead of newline (for -z flag)
         """
         if source_type not in ('file', 'stdin', 'fd'):
             raise ValueError(f"Invalid source_type: {source_type}")
@@ -52,6 +54,8 @@ class InputSource:
         self.file_path = file_path
         self.fd = fd
         self._label = label
+        self.null_delimited = null_delimited
+        self.record_delimiter = b'\0' if null_delimited else b'\n'
         self._is_binary = None  # Cache binary status
         self._file_handle = None
         self._peek_buffer = None  # First 8KB cached for binary detection (stdin/fd only)
@@ -129,122 +133,229 @@ class InputSource:
             self.close()
     
     def _lines_from_file(self) -> Iterator[Tuple[int, str, int]]:
-        """Read lines from file with byte offset tracking."""
+        """Read lines/records from file with byte offset tracking."""
         try:
             self._file_handle = open(self.file_path, 'rb')
-            line_num = 1
-            byte_offset = 0
-            for line_bytes in self._file_handle:
-                # Decode line
-                try:
-                    line = line_bytes.decode('utf-8', errors='replace')
-                except:
-                    line = line_bytes.decode('latin-1', errors='replace')
+            
+            if self.null_delimited:
+                # Read entire file for NUL-delimited records
+                content = self._file_handle.read()
+                records = content.split(b'\0')
                 
-                # Remove trailing newline
-                line_content = line.rstrip('\n\r')
+                line_num = 1
+                byte_offset = 0
                 
-                # Yield with byte offset of this line
-                yield line_num, line_content, byte_offset
-                
-                # Update byte offset for next line
-                byte_offset += len(line_bytes)
-                line_num += 1
+                for i, record_bytes in enumerate(records):
+                    # Skip empty records except if it's the last one and file doesn't end with NUL
+                    if not record_bytes and i < len(records) - 1:
+                        byte_offset += 1  # Account for the NUL delimiter
+                        continue
+                    
+                    # Decode record
+                    try:
+                        record_str = record_bytes.decode('utf-8', errors='replace')
+                    except:
+                        record_str = record_bytes.decode('latin-1', errors='replace')
+                    
+                    # Yield with byte offset of this record
+                    if record_str or i == len(records) - 1:  # Yield empty last record only if file doesn't end with NUL
+                        yield line_num, record_str, byte_offset
+                        line_num += 1
+                    
+                    # Update byte offset for next record
+                    byte_offset += len(record_bytes) + 1  # +1 for NUL delimiter
+            else:
+                # Original newline-delimited logic
+                line_num = 1
+                byte_offset = 0
+                for line_bytes in self._file_handle:
+                    # Decode line
+                    try:
+                        line = line_bytes.decode('utf-8', errors='replace')
+                    except:
+                        line = line_bytes.decode('latin-1', errors='replace')
+                    
+                    # Remove trailing newline
+                    line_content = line.rstrip('\n\r')
+                    
+                    # Yield with byte offset of this line
+                    yield line_num, line_content, byte_offset
+                    
+                    # Update byte offset for next line
+                    byte_offset += len(line_bytes)
+                    line_num += 1
         except IOError as e:
             raise IOError(f"Cannot read {self.file_path}: {e}")
     
     def _lines_from_stdin(self) -> Iterator[Tuple[int, str, int]]:
-        """Read lines from stdin, using cached peek buffer if available."""
+        """Read lines/records from stdin, using cached peek buffer if available."""
         line_num = 1
         partial_line = None
         
-        # If peek buffer exists (from binary detection), process it first
-        if self._peek_buffer:
-            buffer_lines = self._peek_buffer.split(b'\n')
-            # Process all lines except the last (split artifact)
-            for line_bytes in buffer_lines[:-1]:
-                line = line_bytes.decode('utf-8', errors='replace')
-                line_content = line.rstrip('\r')
-                yield line_num, line_content, 0
-                line_num += 1
+        if self.null_delimited:
+            # NUL-delimited record processing with chunked reading
+            chunk_size = 8192
             
-            # Last line from buffer: if non-empty, it was incomplete (no trailing \n)
-            if buffer_lines[-1]:
-                partial_line = buffer_lines[-1]
-        
-        # Read remaining lines from stdin, combining with partial line if needed
-        try:
-            for line_bytes in sys.stdin.buffer:
-                # If we have a partial line from peek buffer, prepend it to first chunk
-                if partial_line:
-                    line_bytes = partial_line + line_bytes
-                    partial_line = None
-                
-                line = line_bytes.decode('utf-8', errors='replace')
-                line_content = line.rstrip('\n\r')
-                yield line_num, line_content, 0  # byte_offset always 0 for stdin
-                line_num += 1
-        except (UnicodeDecodeError, AttributeError):
-            # If sys.stdin.buffer is not available, fall back to text mode
+            # Start with peek buffer if available
+            if self._peek_buffer:
+                buffer = self._peek_buffer
+            else:
+                buffer = b''
+            
             try:
-                for line in sys.stdin:
-                    line_content = line.rstrip('\n\r')
-                    yield line_num, line_content, 0
-                    line_num += 1
-            except UnicodeDecodeError:
+                while True:
+                    # Read next chunk
+                    chunk = sys.stdin.buffer.read(chunk_size)
+                    if not chunk:
+                        # Handle final partial record
+                        if buffer:
+                            record_str = buffer.decode('utf-8', errors='replace')
+                            yield line_num, record_str, 0
+                        break
+                    
+                    # Combine with buffer
+                    buffer += chunk
+                    records = buffer.split(b'\0')
+                    
+                    # Last element might be incomplete - save for next iteration
+                    buffer = records[-1]
+                    
+                    # Process complete records
+                    for record_bytes in records[:-1]:
+                        record_str = record_bytes.decode('utf-8', errors='replace')
+                        yield line_num, record_str, 0
+                        line_num += 1
+            except (UnicodeDecodeError, AttributeError):
                 print('grepnet: error: stdin contains invalid UTF-8 data', file=sys.stderr)
                 raise
+        else:
+            # Original newline-delimited logic
+            # If peek buffer exists (from binary detection), process it first
+            if self._peek_buffer:
+                buffer_lines = self._peek_buffer.split(b'\n')
+                # Process all lines except the last (split artifact)
+                for line_bytes in buffer_lines[:-1]:
+                    line = line_bytes.decode('utf-8', errors='replace')
+                    line_content = line.rstrip('\r')
+                    yield line_num, line_content, 0
+                    line_num += 1
+                
+                # Last line from buffer: if non-empty, it was incomplete (no trailing \n)
+                if buffer_lines[-1]:
+                    partial_line = buffer_lines[-1]
+            
+            # Read remaining lines from stdin, combining with partial line if needed
+            try:
+                for line_bytes in sys.stdin.buffer:
+                    # If we have a partial line from peek buffer, prepend it to first chunk
+                    if partial_line:
+                        line_bytes = partial_line + line_bytes
+                        partial_line = None
+                    
+                    line = line_bytes.decode('utf-8', errors='replace')
+                    line_content = line.rstrip('\n\r')
+                    yield line_num, line_content, 0  # byte_offset always 0 for stdin
+                    line_num += 1
+            except (UnicodeDecodeError, AttributeError):
+                # If sys.stdin.buffer is not available, fall back to text mode
+                try:
+                    for line in sys.stdin:
+                        line_content = line.rstrip('\n\r')
+                        yield line_num, line_content, 0
+                        line_num += 1
+                except UnicodeDecodeError:
+                    print('grepnet: error: stdin contains invalid UTF-8 data', file=sys.stderr)
+                    raise
+                finally:
+                    # If partial_line still exists, yield it
+                    if partial_line:
+                        line = partial_line.decode('utf-8', errors='replace')
+                        line_content = line.rstrip('\r')
+                        yield line_num, line_content, 0
+                        line_num += 1
             finally:
-                # If partial_line still exists, yield it
+                # If partial_line still exists after all reads, yield it
                 if partial_line:
                     line = partial_line.decode('utf-8', errors='replace')
                     line_content = line.rstrip('\r')
                     yield line_num, line_content, 0
-                    line_num += 1
-        finally:
-            # If partial_line still exists after all reads, yield it
-            if partial_line:
-                line = partial_line.decode('utf-8', errors='replace')
-                line_content = line.rstrip('\r')
-                yield line_num, line_content, 0
     
     def _lines_from_fd(self) -> Iterator[Tuple[int, str, int]]:
-        """Read lines from file descriptor, using cached peek buffer if available."""
+        """Read lines/records from file descriptor, using cached peek buffer if available."""
         line_num = 1
         partial_line = None
         
-        # If peek buffer exists (from binary detection), process it first
-        if self._peek_buffer:
-            buffer_lines = self._peek_buffer.split(b'\n')
-            # Process all lines except the last (split artifact)
-            for line_bytes in buffer_lines[:-1]:
-                line = line_bytes.decode('utf-8', errors='replace')
-                line_content = line.rstrip('\r')
-                yield line_num, line_content, 0
-                line_num += 1
-            
-            # Handle last line from buffer: if non-empty, it was incomplete
-            if buffer_lines[-1]:
-                partial_line = buffer_lines[-1]
-        
         try:
             self._file_handle = os.fdopen(self.fd, 'rb')
-            for line_bytes in self._file_handle:
-                # If we have a partial line, prepend it to first chunk
-                if partial_line:
-                    line_bytes = partial_line + line_bytes
-                    partial_line = None
-                
-                line = line_bytes.decode('utf-8', errors='replace')
-                line_content = line.rstrip('\n\r')
-                yield line_num, line_content, 0  # byte_offset always 0 for FD
-                line_num += 1
             
-            # If partial_line still exists after all reads, yield it
-            if partial_line:
-                line = partial_line.decode('utf-8', errors='replace')
-                line_content = line.rstrip('\r')
-                yield line_num, line_content, 0
+            if self.null_delimited:
+                # NUL-delimited record processing with chunked reading
+                chunk_size = 8192
+                
+                # Start with peek buffer if available
+                if self._peek_buffer:
+                    buffer = self._peek_buffer
+                else:
+                    buffer = b''
+                
+                try:
+                    while True:
+                        # Read next chunk
+                        chunk = self._file_handle.read(chunk_size)
+                        if not chunk:
+                            # Handle final partial record
+                            if buffer:
+                                record_str = buffer.decode('utf-8', errors='replace')
+                                yield line_num, record_str, 0
+                            break
+                        
+                        # Combine with buffer
+                        buffer += chunk
+                        records = buffer.split(b'\0')
+                        
+                        # Last element might be incomplete - save for next iteration
+                        buffer = records[-1]
+                        
+                        # Process complete records
+                        for record_bytes in records[:-1]:
+                            record_str = record_bytes.decode('utf-8', errors='replace')
+                            yield line_num, record_str, 0
+                            line_num += 1
+                except (UnicodeDecodeError, AttributeError):
+                    print('grepnet: error: FD contains invalid UTF-8 data', file=sys.stderr)
+                    raise
+            else:
+                # Original newline-delimited logic
+                # If peek buffer exists (from binary detection), process it first
+                if self._peek_buffer:
+                    buffer_lines = self._peek_buffer.split(b'\n')
+                    # Process all lines except the last (split artifact)
+                    for line_bytes in buffer_lines[:-1]:
+                        line = line_bytes.decode('utf-8', errors='replace')
+                        line_content = line.rstrip('\r')
+                        yield line_num, line_content, 0
+                        line_num += 1
+                    
+                    # Handle last line from buffer: if non-empty, it was incomplete
+                    if buffer_lines[-1]:
+                        partial_line = buffer_lines[-1]
+                
+                for line_bytes in self._file_handle:
+                    # If we have a partial line, prepend it to first chunk
+                    if partial_line:
+                        line_bytes = partial_line + line_bytes
+                        partial_line = None
+                    
+                    line = line_bytes.decode('utf-8', errors='replace')
+                    line_content = line.rstrip('\n\r')
+                    yield line_num, line_content, 0  # byte_offset always 0 for FD
+                    line_num += 1
+                
+                # If partial_line still exists after all reads, yield it
+                if partial_line:
+                    line = partial_line.decode('utf-8', errors='replace')
+                    line_content = line.rstrip('\r')
+                    yield line_num, line_content, 0
         except IOError as e:
             raise IOError(f"Cannot read from FD {self.fd}: {e}")
     
@@ -278,6 +389,7 @@ class InputDiscovery:
         exclude_patterns: Optional[list] = None,
         exclude_dirs: Optional[list] = None,
         stdin_label: Optional[str] = None,
+        null_delimited: bool = False,
     ) -> list:
         """
         Get list of input sources.
@@ -291,6 +403,7 @@ class InputDiscovery:
             exclude_patterns: List of glob patterns to exclude
             exclude_dirs: List of glob patterns for directories to exclude
             stdin_label: Optional custom label for stdin input (from --label flag)
+            null_delimited: If True, split records on NUL byte instead of newline (for -z flag)
         
         Returns:
             List of InputSource instances
@@ -313,7 +426,7 @@ class InputDiscovery:
             return any(fnmatch.fnmatch(dir_name, p) for p in exclude_dirs)
         
         if use_stdin:
-            sources.append(InputSource('stdin', label=stdin_label))
+            sources.append(InputSource('stdin', label=stdin_label, null_delimited=null_delimited))
         elif files:
             for file_path in files:
                 if os.path.isdir(file_path) and (recursive or dereference_recursive):
@@ -333,17 +446,17 @@ class InputDiscovery:
                             if exclude_patterns and matches_patterns(rel_path, exclude_patterns):
                                 continue
                             
-                            sources.append(InputSource('file', file_path=full_path))
+                            sources.append(InputSource('file', file_path=full_path, null_delimited=null_delimited))
                 else:
                     # Single file - check if it matches patterns
                     if not matches_patterns(file_path, include_patterns):
                         continue
                     if exclude_patterns and matches_patterns(file_path, exclude_patterns):
                         continue
-                    sources.append(InputSource('file', file_path=file_path))
+                    sources.append(InputSource('file', file_path=file_path, null_delimited=null_delimited))
         else:
             # Default: stdin if not a terminal
             if not sys.stdin.isatty():
-                sources.append(InputSource('stdin', label=stdin_label))
+                sources.append(InputSource('stdin', label=stdin_label, null_delimited=null_delimited))
         
         return sources

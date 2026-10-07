@@ -9,14 +9,39 @@ results in 0.0.0.0/0 (if parse-inverse has not been set to false)
 
 Add --fill-pct for --consolidate
 
-Add --ipv4-sorter-than and --ipv6-sorter-than
+Do we need to add a --parse-bare-ip?
 
-Add --exclude-cidr-behaviour={subset,superset,equals,related,cut}
+Add --ipv4-sorter-than, --ipv4-longer-than, --ipv6-sorter-than,
+and --ipv6-longer-than
+For use with --extract and --consolidate 
+
+$ echo "192.0.2.0/25 192.0.2.0/29 192.0.2.1 10.0.0.0/8" | \
+  ./grepnet --extract --ipv4-shorter-than=29 192.0.2.0/24
+192.0.2.0/25
+$ echo "192.0.2.0/25 192.0.2.1 10.0.0.0/8" | \
+  ./grepnet --extract --ipv4-shorter-than=29
+192.0.2.0/25
+10.0.0.0/8
+$ 
+
+Add --exclude-cidr-behaviour={subset,superset,equal,related,cut}
     with sanity chechs, cut and related can are not cumilative 
-    
- 
 
-Add args to --no-filter-comments {pattern,input,both,none} 
+Cut only relates to --extract and --consolidate; and should error if 
+used without those.
+
+$ echo 192.0.2.0/24 | ./grepnet --extract \
+  --exclude-cidr=192.0.2.0/30             \
+  --exclude-cidr-behaviour=cut
+192.0.2.4/30 
+192.0.2.8/29 
+192.0.2.16/28 
+192.0.2.32/27 
+192.0.2.64/26 
+192.0.2.128/25 
+$
+
+Add args to --no-filter-comments={pattern,input,both,none} 
     default to "both" if --no-filter-comments used without
     additional args. default to "none" if not used.
 

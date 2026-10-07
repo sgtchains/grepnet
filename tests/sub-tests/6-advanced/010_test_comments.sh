@@ -17,7 +17,7 @@ test_case "Find networks ignoring comments" \
 # SPEC: --no-filter-comments includes comment lines in search results; comments are not stripped
 # SPEC-REF: GREPNET-SPEC.md - Comment Handling: "Override with --no-filter-comments to include comment lines"
 test_case "Include comment lines (--no-filter-comments)" \
-    "$GREPNET --no-filter-comments '10.1.0.0/16' '$TESTS_DIR/comments_test.txt'" 0 \
+    "$GREPNET --no-filter-comments=both '10.1.0.0/16' '$TESTS_DIR/comments_test.txt'" 0 \
     $'Route: 10.0.0.0/8  # inline comment with 172.16.0.0/12\n10.1.0.0/16 ! internal network' ""
 
 # SPEC: Networks appearing only in comments are not matched when comment filtering is enabled (default)
@@ -28,5 +28,5 @@ test_case "No matches in comments with filter" \
 # SPEC: With --no-filter-comments, networks in commented lines are matched and included in results
 # SPEC-REF: GREPNET-SPEC.md - Comment Handling: "Override with --no-filter-comments to match networks in comments"
 test_case "Match networks in commented lines when no-filter is used" \
-    "$GREPNET --no-filter-comments '203.0.113.0/24' '$TESTS_DIR/comments_test.txt'" 0 \
+    "$GREPNET --no-filter-comments=both '203.0.113.0/24' '$TESTS_DIR/comments_test.txt'" 0 \
     $'203.0.113.0/24' ""

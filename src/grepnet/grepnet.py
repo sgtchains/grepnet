@@ -599,10 +599,10 @@ class GrepNet:
         file_type = source.file_type
         is_binary = source.get_binary_status()
         
-        # Handle binary files based on binary_files mode
-        if is_binary and self.binary_files == 'binary':
-            # Skip binary files silently
-            return
+        # Note: Do NOT skip binary files here. Let the search proceed normally.
+        # The caller (CLI) will handle binary file suppression based on binary_files mode and output type.
+        # This allows modes like -l, -L, -c to work with binary files, and allows
+        # the default 'binary' mode to report "Binary file X matches" for content output.
         
         # For 'text' mode, treat binary files as text (is_binary stays False for output)
         if is_binary and self.binary_files == 'text':
@@ -943,23 +943,9 @@ class GrepNet:
                     if not match_found:
                         continue
                     
-                    # Deduplication: Convert ranges to CIDR for dict key compatibility
+                    # Deduplication: Keep ranges as ranges, CIDR as CIDR
+                    # (don't convert - this preserves the original format)
                     dedup_network = network_obj
-                    if isinstance(network_obj, tuple):
-                        # Range tuple: (start_int, end_int)
-                        # Convert to CIDR network object
-                        start_int, end_int = network_obj
-                        
-                        # Determine IP version
-                        if start_int > 0xFFFFFFFF:
-                            version = 6
-                        else:
-                            version = 4
-                        
-                        # Convert to CIDR (use first block as dedup key)
-                        cidr_strings = self._range_to_cidrs(start_int, end_int, version)
-                        if cidr_strings:
-                            dedup_network = ip_network(cidr_strings[0])
                     
                     # Store deduplicated (only first occurrence of each network is kept)
                     if dedup_network not in networks_dict:
@@ -994,9 +980,26 @@ class GrepNet:
         if not networks_dict:
             return {}
         
+        # Step 1b: Convert ranges to CIDR blocks for consolidation
+        # (ranges cannot be directly consolidated, must expand to CIDR)
+        expanded_networks = {}
+        for net_obj, (parsed_ext, line_content) in networks_dict.items():
+            if isinstance(net_obj, tuple):
+                # Range: convert to CIDR blocks
+                start_int, end_int = net_obj
+                version = 6 if start_int > 0xFFFFFFFF else 4
+                cidr_strings = self._range_to_cidrs(start_int, end_int, version)
+                # Add each CIDR block (using same ParsedExtraction/line)
+                for cidr_str in cidr_strings:
+                    cidr_net = ip_network(cidr_str)
+                    expanded_networks[cidr_net] = (parsed_ext, line_content)
+            else:
+                # Already CIDR - keep as-is
+                expanded_networks[net_obj] = (parsed_ext, line_content)
+        
         # Step 2: Sort networks for consolidation
         # Sort by (version, start_address) for consistent merge order
-        networks_list = list(networks_dict.items())
+        networks_list = list(expanded_networks.items())
         
         def _sort_key(item):
             network_obj, _ = item
@@ -1012,51 +1015,77 @@ class GrepNet:
         
         networks_list.sort(key=_sort_key)
         
-        # Step 3: Merge overlapping and adjacent networks
-        consolidated = []  # List of (network_obj, (parsed_ext, line_content))
+        # Step 3: Merge overlapping and adjacent networks using iterative approach
+        # Keep merging until no more changes occur
+        consolidated = [(net, val) for net, val in networks_list]
         
-        for network_obj, value_tuple in networks_list:
-            parsed_ext, content = value_tuple
+        changed = True
+        while changed:
+            changed = False
+            new_consolidated = []
+            i = 0
             
-            if not consolidated:
-                # First network
-                consolidated.append((network_obj, value_tuple))
-            else:
-                last_net, last_value = consolidated[-1]
+            while i < len(consolidated):
+                current_net, current_val = consolidated[i]
+                merged = False
                 
-                # Check if both are CIDR networks
-                is_cidr_net = isinstance(network_obj, (IPv4Network, IPv6Network))
-                is_cidr_last = isinstance(last_net, (IPv4Network, IPv6Network))
-                
-                if is_cidr_net and is_cidr_last:
-                    # Try to merge
-                    merged = False
+                # Try to merge with all remaining networks
+                for j in range(i + 1, len(consolidated)):
+                    next_net, next_val = consolidated[j]
                     
-                    # Check for overlap or containment
-                    if network_obj.subnet_of(last_net):
-                        # Current is subset of last - keep last (superset)
-                        merged = True
-                    elif last_net.subnet_of(network_obj):
-                        # Last is subset of current - replace with current (superset)
-                        consolidated[-1] = (network_obj, value_tuple)
-                        merged = True
-                    elif network_obj.network_address == last_net.broadcast_address + 1:
-                        # Adjacent networks - merge into supernet
-                        # Create supernet (one level larger)
+                    # Only merge CIDR networks
+                    if not isinstance(current_net, (IPv4Network, IPv6Network)) or \
+                       not isinstance(next_net, (IPv4Network, IPv6Network)):
+                        continue
+                    
+                    # Different versions - can't merge
+                    if current_net.version != next_net.version:
+                        continue
+                    
+                    # Try various merge conditions
+                    merged_net = None
+                    
+                    # Check if one is subset of the other
+                    if next_net.subnet_of(current_net):
+                        # next is subset of current - keep current
+                        merged_net = current_net
+                    elif current_net.subnet_of(next_net):
+                        # current is subset of next - use next
+                        merged_net = next_net
+                        current_val = next_val
+                    elif current_net.network_address == next_net.broadcast_address + 1:
+                        # next is directly before current - try to merge
                         try:
-                            supernet = last_net.supernet(new_prefix=last_net.prefixlen - 1)
-                            consolidated[-1] = (supernet, last_value)
-                            merged = True
+                            # Supernet at next's prefix level
+                            supernet = next_net.supernet(new_prefix=next_net.prefixlen - 1)
+                            # Check if both networks fit in this supernet
+                            if current_net.subnet_of(supernet):
+                                merged_net = supernet
+                                current_val = next_val
                         except:
-                            # If supernet creation fails, keep separate
+                            pass
+                    elif next_net.network_address == current_net.broadcast_address + 1:
+                        # current is directly before next - try to merge
+                        try:
+                            # Supernet at current's prefix level
+                            supernet = current_net.supernet(new_prefix=current_net.prefixlen - 1)
+                            # Check if both networks fit in this supernet
+                            if next_net.subnet_of(supernet):
+                                merged_net = supernet
+                        except:
                             pass
                     
-                    if not merged:
-                        # No overlap or adjacency - append as separate
-                        consolidated.append((network_obj, value_tuple))
-                else:
-                    # Can't merge ranges, just append
-                    consolidated.append((network_obj, value_tuple))
+                    if merged_net:
+                        # Merge successful - remove both networks and insert merged
+                        current_net = merged_net
+                        consolidated.pop(j)
+                        changed = True
+                        break
+                
+                new_consolidated.append((current_net, current_val))
+                i += 1
+            
+            consolidated = new_consolidated
         
         # Convert back to dict format
         consolidated_dict = {}

@@ -10,6 +10,7 @@ Handles:
 
 from typing import List, Optional, Set
 import re
+from ipaddress import IPv4Address
 from .comment_handler import CommentHandler
 from .extractors import (
     CIDRExtractor,
@@ -198,6 +199,116 @@ class NetworkParser:
                 extraction = extractor.extract(working_line)
                 if extraction is None:
                     break
+                
+                # Helper functions for mask detection
+                def _is_valid_netmask(ip_str: str) -> bool:
+                    """Check if IP is a valid netmask (contiguous 1s followed by 0s)"""
+                    try:
+                        ip_addr = IPv4Address(ip_str)
+                        binary = bin(int(ip_addr))[2:].zfill(32)
+                        return bool(re.match(r'^1+0*$', binary))
+                    except:
+                        return False
+                
+                def _is_valid_hostmask(ip_str: str) -> bool:
+                    """Check if IP is a valid hostmask (contiguous 0s followed by 1s)"""
+                    try:
+                        ip_addr = IPv4Address(ip_str)
+                        binary = bin(int(ip_addr))[2:].zfill(32)
+                        return bool(re.match(r'^0+1*$', binary))
+                    except:
+                        return False
+                
+                # Validate extraction against parse control settings
+                skip_extraction = False
+                
+                if extraction.format_type == 'ip_only' and idx == 4:
+                    # Find position in ORIGINAL line to detect format context
+                    orig_pos = original_line.find(extraction.matched_text)
+                    
+                    if orig_pos >= 0:
+                        match_end_pos = orig_pos + len(extraction.matched_text)
+                        if match_end_pos < len(original_line):
+                            next_char = original_line[match_end_pos]
+                            
+                            # If followed by /, validate CIDR parse control
+                            if next_char == '/':
+                                if self.parse_cidr == 'none':
+                                    skip_extraction = True
+                                elif self.parse_cidr == 'pattern' and context != 'pattern':
+                                    skip_extraction = True
+                                elif self.parse_cidr == 'input' and context == 'pattern':
+                                    skip_extraction = True
+                            
+                            # If followed by -, validate range parse control
+                            elif next_char == '-':
+                                if self.parse_ranges == 'none':
+                                    skip_extraction = True
+                                elif self.parse_ranges == 'pattern' and context != 'pattern':
+                                    skip_extraction = True
+                                elif self.parse_ranges == 'input' and context == 'pattern':
+                                    skip_extraction = True
+                            
+                            # If followed by space, check for space-separated pair formats (netmask/hostmask)
+                            elif next_char == ' ':
+                                lookahead = original_line[match_end_pos:]
+                                space_match = re.match(r' +([0-9.]+|[\da-fA-F:]+)(?:\s|$)', lookahead)
+                                if space_match:
+                                    second_ip = space_match.group(1)
+                                    # Determine if it's a netmask or hostmask
+                                    is_netmask = _is_valid_netmask(second_ip)
+                                    is_hostmask = _is_valid_hostmask(second_ip)
+                                    
+                                    if is_netmask:
+                                        # It's netmask format (space-separated pair)
+                                        if self.parse_netmask == 'none':
+                                            skip_extraction = True
+                                        elif self.parse_netmask == 'pattern' and context != 'pattern':
+                                            skip_extraction = True
+                                        elif self.parse_netmask == 'input' and context == 'pattern':
+                                            skip_extraction = True
+                                    elif is_hostmask:
+                                        # It's hostmask format (space-separated pair)
+                                        if self.parse_hostmask == 'none':
+                                            skip_extraction = True
+                                        elif self.parse_hostmask == 'pattern' and context != 'pattern':
+                                            skip_extraction = True
+                                        elif self.parse_hostmask == 'input' and context == 'pattern':
+                                            skip_extraction = True
+                        
+                        # Check what comes BEFORE the matched IP (for 2nd part of space-separated pairs)
+                        if not skip_extraction and orig_pos > 0:
+                            before_context = original_line[:orig_pos]
+                            
+                            # Check for "IP space" pattern before (2nd part of space-separated pair)
+                            before_match = re.search(r'(\d+\.\d+\.\d+\.\d+)\s+$', before_context)
+                            if before_match:
+                                # This IP appears to be the 2nd part of a space-separated pair
+                                is_netmask = _is_valid_netmask(extraction.matched_text)
+                                is_hostmask = _is_valid_hostmask(extraction.matched_text)
+                                
+                                if is_netmask:
+                                    # It's the netmask part (space-separated pair)
+                                    if self.parse_netmask == 'none':
+                                        skip_extraction = True
+                                    elif self.parse_netmask == 'pattern' and context != 'pattern':
+                                        skip_extraction = True
+                                    elif self.parse_netmask == 'input' and context == 'pattern':
+                                        skip_extraction = True
+                                elif is_hostmask:
+                                    # It's the hostmask part (space-separated pair)
+                                    if self.parse_hostmask == 'none':
+                                        skip_extraction = True
+                                    elif self.parse_hostmask == 'pattern' and context != 'pattern':
+                                        skip_extraction = True
+                                    elif self.parse_hostmask == 'input' and context == 'pattern':
+                                        skip_extraction = True
+                
+                if skip_extraction:
+                    # Remove the matched text to prevent re-extraction by other extractors
+                    working_line = working_line.replace(extraction.matched_text, '', 1)
+                    continue
+                
                 raw_extractions.append(extraction)
                 # Remove the matched text to prevent re-extraction by lower-priority extractors
                 working_line = working_line.replace(extraction.matched_text, '', 1)

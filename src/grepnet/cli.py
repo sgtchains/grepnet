@@ -7,6 +7,7 @@ from collections import deque
 
 import grepnet as grepnet_module
 from grepnet import GrepNet, InputDiscovery, MatchType
+from grepnet.input import InputSource
 
 
 def run():
@@ -200,12 +201,9 @@ def run():
     # Comment handling
     parser.add_argument(
         '--no-filter-comments',
-        nargs='?',
-        const='both',
         choices=['pattern', 'input', 'both', 'none'],
         default=None,
-        metavar='SCOPE',
-        help='Do not filter comments. Use --no-filter-comments (default: both) or --no-filter-comments=SCOPE where SCOPE is pattern, input, both, or none',
+        help='Do not filter comments (pattern, input, both, or none)',
     )
     
     # Parse control flags
@@ -412,8 +410,6 @@ def run():
     )
     
     args = parser.parse_args()
-    
-    # Handle -C (context) flag which sets both -A and -B
     if args.context > 0:
         args.after_context = args.context
         args.before_context = args.context
@@ -429,22 +425,18 @@ def run():
     # From -f file
     if args.pattern_file:
         try:
-            # Handle special case: -f - means read from stdin
+            # Use InputSource for pattern files - exact same extraction process as input files
+            # This ensures pattern files respect -z (null-delimited) and binary file handling
             if args.pattern_file == '-':
-                f = sys.stdin
+                pattern_source = InputSource('stdin', null_delimited=args.null_data)
             else:
-                f = open(args.pattern_file, 'r')
+                pattern_source = InputSource('file', file_path=args.pattern_file, null_delimited=args.null_data)
             
-            for line in f:
-                line = line.rstrip('\n\r')
+            for line_num, line_content, byte_offset in pattern_source.lines():
                 # Add all non-empty lines to patterns list (without pre-filtering)
                 # Comment handling is done by the extraction pipeline in GrepNet.parser
-                if line:
-                    patterns.append(line)
-            
-            # Close file if we opened it (not stdin)
-            if args.pattern_file != '-':
-                f.close()
+                if line_content:
+                    patterns.append(line_content)
             
             # Empty pattern file is allowed - will match nothing (or extract all in extract mode)
         except IOError as e:
@@ -491,6 +483,11 @@ def run():
         # -I: treat binary files as non-matching
         args.binary_files = 'without-match'
     # else: use the default or explicitly set --binary-files value
+    
+    # Force text mode for -z flag: NUL-delimited files are detected as binary due to NUL bytes,
+    # but -z means the user explicitly wants to treat them as text records separated by NUL
+    if args.null_data:
+        args.binary_files = 'text'
     
     # If no patterns found from any source (args.pattern_flags or positional), error
     # But allow it if pattern file was provided (even if empty), or if --extract/--consolidate
@@ -540,16 +537,19 @@ def run():
     else:  # auto
         enable_colors = sys.stdout.isatty()
     
+    # Set output record delimiter based on -z flag
+    output_delimiter = '\0' if args.null_data else '\n'
+    
     # Load exclude strings from file if provided (BEFORE creating GrepNet instance)
     if args.exclude_strings_file:
         try:
-            with open(args.exclude_strings_file, 'r') as f:
-                for line in f:
-                    line = line.rstrip('\n\r')
-                    if line and not line.lstrip().startswith('#'):
-                        if args.exclude_strings is None:
-                            args.exclude_strings = []
-                        args.exclude_strings.append(line)
+            # Use InputSource for exclude files - exact same extraction process as input files
+            exclude_source = InputSource('file', file_path=args.exclude_strings_file, null_delimited=args.null_data)
+            for line_num, line_content, byte_offset in exclude_source.lines():
+                if line_content and not line_content.lstrip().startswith('#'):
+                    if args.exclude_strings is None:
+                        args.exclude_strings = []
+                    args.exclude_strings.append(line_content)
         except IOError as e:
             if not args.no_messages:
                 print(f'grepnet: Cannot read exclude strings file {args.exclude_strings_file}: {e}', file=sys.stderr)
@@ -558,13 +558,13 @@ def run():
     # Load exclude CIDR patterns from file if provided (BEFORE creating GrepNet instance)
     if args.exclude_cidrs_file:
         try:
-            with open(args.exclude_cidrs_file, 'r') as f:
-                for line in f:
-                    line = line.rstrip('\n\r')
-                    if line and not line.lstrip().startswith('#'):
-                        if args.exclude_cidrs is None:
-                            args.exclude_cidrs = []
-                        args.exclude_cidrs.append(line)
+            # Use InputSource for exclude files - exact same extraction process as input files
+            exclude_source = InputSource('file', file_path=args.exclude_cidrs_file, null_delimited=args.null_data)
+            for line_num, line_content, byte_offset in exclude_source.lines():
+                if line_content and not line_content.lstrip().startswith('#'):
+                    if args.exclude_cidrs is None:
+                        args.exclude_cidrs = []
+                    args.exclude_cidrs.append(line_content)
         except IOError as e:
             if not args.no_messages:
                 print(f'grepnet: Cannot read exclude CIDR file {args.exclude_cidrs_file}: {e}', file=sys.stderr)
@@ -645,13 +645,13 @@ def run():
         # Load exclude patterns from file if provided (for --exclude-from)
         if args.exclude_from_file:
             try:
-                with open(args.exclude_from_file, 'r') as f:
-                    for line in f:
-                        line = line.rstrip('\n\r')
-                        if line and not line.lstrip().startswith('#'):
-                            if args.exclude_patterns is None:
-                                args.exclude_patterns = []
-                            args.exclude_patterns.append(line)
+                # Use InputSource for exclude files - exact same extraction process as input files
+                exclude_source = InputSource('file', file_path=args.exclude_from_file, null_delimited=args.null_data)
+                for line_num, line_content, byte_offset in exclude_source.lines():
+                    if line_content and not line_content.lstrip().startswith('#'):
+                        if args.exclude_patterns is None:
+                            args.exclude_patterns = []
+                        args.exclude_patterns.append(line_content)
             except IOError as e:
                 if not args.no_messages:
                     print(f'grepnet: Cannot read exclude patterns file {args.exclude_from_file}: {e}', file=sys.stderr)
@@ -683,6 +683,7 @@ def run():
         exclude_patterns=args.exclude_patterns,
         exclude_dirs=args.exclude_dirs,
         stdin_label=args.label,
+        null_delimited=args.null_data,
     )
     
     if not input_sources:
@@ -751,9 +752,9 @@ def run():
                         
                         formatted_net = grepnet.format_network(parsed_extraction)
                         if args.show_content and line_content:
-                            print(f'{formatted_net} {line_content}')
+                            print(f'{formatted_net} {line_content}', end=output_delimiter)
                         else:
-                            print(formatted_net)
+                            print(formatted_net, end=output_delimiter)
                     
                     sys.exit(0)
                 
@@ -786,7 +787,7 @@ def run():
                         
                         # format_network() handles output format conversion
                         formatted_net = grepnet.format_network(temp_extraction)
-                        print(formatted_net)
+                        print(formatted_net, end=output_delimiter)
                     
                     sys.exit(0)
             
@@ -838,7 +839,7 @@ def run():
                         
                         # Gap exists if there's space between them (ranges don't overlap)
                         if prev_context_end < curr_context_start and not args.quiet and not args.no_group_separator:
-                            print(args.group_separator)
+                            print(args.group_separator, end=output_delimiter)
                     
                     # Output before-context buffer
                     for ctx_filename, ctx_line_num, ctx_content in before_buf:
@@ -878,7 +879,7 @@ def run():
                         else:
                             output = ctx_content
                         if not args.quiet:
-                            print(output)
+                            print(output, end=output_delimiter)
                     
                     before_buf.clear()
                     
@@ -954,7 +955,7 @@ def run():
                             else:
                                 output = output_text
                             if not args.quiet:
-                                print(output)
+                                print(output, end=output_delimiter)
                             match_count += 1
                             if args.max_count > 0 and match_count >= args.max_count:
                                 break
@@ -970,7 +971,7 @@ def run():
                         else:
                             output = line_output
                         if not args.quiet:
-                            print(output)
+                            print(output, end=output_delimiter)
                         match_count += 1
                     
                     # Track this line and match for next iteration's gap check
@@ -1004,7 +1005,7 @@ def run():
                     else:
                         output = line_output
                     if not args.quiet:
-                        print(output)
+                        print(output, end=output_delimiter)
                     
                     after_count -= 1
                 
@@ -1033,17 +1034,28 @@ def run():
         
         # Skip output phase if context mode already output all results
         if not use_context:
-            # For "without-match" mode, output binary file messages instead of normal output
-            if args.binary_files == 'without-match' and binary_files_matched:
-                for filename in sorted(binary_files_matched.keys()):
-                    if not args.quiet:
-                        print(f'Binary file {filename} matches')
-                # Still set match_count for -c (count) mode
-                for lines in file_matches.values():
-                    match_count += len(lines)
+            # Handle binary files based on binary_files mode
+            # For 'binary' mode (default): output "Binary file X matches" for normal output only
+            # For 'without-match' mode (-I): same suppression
+            # For 'text' mode (-a): output normally
             
-            # Output normal results (only if NOT in without-match mode or no binary matches)
-            elif not (args.binary_files == 'without-match' and binary_files_matched):
+            binary_files_with_output = set()  # Track which binary files we've already reported
+            
+            # For "binary" or "without-match" mode, output binary file messages for NORMAL OUTPUT ONLY
+            # (not for -c, -l, -L which have their own output handling)
+            if (args.binary_files in ['binary', 'without-match']) and binary_files_matched:
+                # Only output "Binary file X matches" if NOT in count/list mode
+                if not (args.count or args.files_with_matches or args.files_without_match):
+                    for filename in sorted(binary_files_matched.keys()):
+                        if not args.quiet:
+                            print(f'Binary file {filename} matches', end=output_delimiter)
+                        binary_files_with_output.add(filename)
+                # Count matches for all modes
+                for filename in binary_files_matched.keys():
+                    match_count += len(file_matches.get(filename, []))
+            
+            # Output normal results (skipping binary files if already handled)
+            if not (args.binary_files == 'without-match' and binary_files_matched):
                 for line_number in sorted(results_by_line.keys()):
                     # Check max_count before outputting this line
                     if args.max_count > 0 and match_count >= args.max_count:
@@ -1054,6 +1066,13 @@ def run():
                     
                     # Skip output for -l and -L (handled at end)
                     if args.files_with_matches or args.files_without_match:
+                        continue
+                    
+                    # Skip line output for binary files in 'binary' mode (they were already reported as "Binary file X matches")
+                    if first_result.is_binary_file and args.binary_files == 'binary':
+                        # Only count the matches, don't output line content
+                        if not args.count:  # -c mode already counted above
+                            match_count += len(line_results)
                         continue
                     
                     # For -c (count), just count and skip output
@@ -1130,7 +1149,7 @@ def run():
                                 output = output_text
                             
                             if not args.quiet:
-                                print(output)
+                                print(output, end=output_delimiter)
                             match_count += 1
                             
                             # Check max_count after each match in -o mode
@@ -1159,7 +1178,7 @@ def run():
                                 print('=== OUTPUT ===', file=sys.stderr)
                             
                             if not args.quiet:
-                                print(output)
+                                print(output, end=output_delimiter)
                             
                             seen_output.add(output_key)
                             match_count += 1
@@ -1214,12 +1233,12 @@ def run():
                             count = len(file_matches[filename])
                             if enable_colors:
                                 colored_filename = grepnet.colorizer.colorize_filename(filename)
-                                print(f"{colored_filename}:{count}")
+                                print(f"{colored_filename}:{count}", end=output_delimiter)
                             else:
-                                print(f"{filename}:{count}")
+                                print(f"{filename}:{count}", end=output_delimiter)
                 else:
                     # Single file or stdin - just print count
-                    print(match_count)
+                    print(match_count, end=output_delimiter)
             if match_count == 0:
                 sys.exit(1)
         else:

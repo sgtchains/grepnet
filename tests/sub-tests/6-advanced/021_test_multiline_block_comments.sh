@@ -22,7 +22,7 @@ test_case "Block comment: multiple blocks in file"     "$GREPNET -P '0.0.0.0/0' 
 test_case "Block comment: nested markers"     "$GREPNET -P '0.0.0.0/0' '$TESTS_DIR/multiline_block_test4.txt'" 0     $'first 192.0.2.0/24 /* outer /* nested\nsecond 172.16.0.0/12'
 
 # Test 5: Extract with --no-filter-comments
-test_case "Block comment: extract with --no-filter-comments"     "$GREPNET --no-filter-comments -P '0.0.0.0/0' '$TESTS_DIR/multiline_block_test1.txt'" 0     $'line1 192.0.2.0/24 /*\nline2  inside block 10.0.0.0/8\nline3  also inside 172.16.0.0/12'
+test_case "Block comment: extract with --no-filter-comments"     "$GREPNET --no-filter-comments=both -P '0.0.0.0/0' '$TESTS_DIR/multiline_block_test1.txt'" 0     $'line1 192.0.2.0/24 /*\nline2  inside block 10.0.0.0/8\nline3  also inside 172.16.0.0/12'
 
 # Test 6: State resets between files
 test_case "Block comment: state resets between files"     "$GREPNET --no-filename '0.0.0.0/0' '$TESTS_DIR/multiline_block_test1.txt' '$TESTS_DIR/multiline_block_test3.txt'" 0     $'line1 192.0.2.0/24 /*\n*/ network2 172.16.0.0/12\n*/ network3 203.0.113.0/24'

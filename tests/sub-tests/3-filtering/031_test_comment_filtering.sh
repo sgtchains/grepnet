@@ -112,7 +112,7 @@ echo "--- Comment Filtering Disabled (--no-filter-comments) ---"
 
 # Test 6: All lines with flag
 echo -n "Test 6 - All lines included: "
-result=$("$GREPNET" --no-filter-comments '0.0.0.0/0' "$COMMENT_TEST_FILE" 2>/dev/null | wc -l) || result=999
+result=$("$GREPNET" --no-filter-comments=both '0.0.0.0/0' "$COMMENT_TEST_FILE" 2>/dev/null | wc -l) || result=999
 if [[ "$result" -eq 26 ]]; then
     echo "✓ PASS (26 lines)"
     ((PASSED++))
@@ -173,8 +173,8 @@ else
 fi
 
 # Test 9: Mixed case with flag
-echo -n "Test 9 - Mixed case with --no-filter-comments: "
-result=$("$GREPNET" --no-filter-comments '0.0.0.0/0' "$MIXED_CASE_FILE" 2>/dev/null | wc -l) || result=999
+echo -n "Test 9 - Mixed case with --no-filter-comments=both: "
+result=$("$GREPNET" --no-filter-comments=both '0.0.0.0/0' "$MIXED_CASE_FILE" 2>/dev/null | wc -l) || result=999
 if [[ "$result" -eq 13 ]]; then
     echo "✓ PASS (13 lines)"
     ((PASSED++))

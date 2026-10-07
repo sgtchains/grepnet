@@ -820,7 +820,6 @@ Two formats supported, with no spaces around the dash:
 - `--parse-ranges`: Enable both forms (compact only)
 - `--parse-ranges-long`: Long form only (compact only)
 - `--parse-ranges-short`: Short form only (compact only)
-- Default: ranges disabled (for backward compatibility)
 
 ### Unsupported Network Formats
 
@@ -934,16 +933,31 @@ Before scanning a file, detect if it is binary:
 - High percentage of non-printable control characters (>30%)
 
 **VTY Protection**: grepnet applies VTY (Virtual Terminal) protection for binary input, similar to grep:
-- When binary data is detected, the output stream is protected from garbage characters that could corrupt the terminal
-- Binary files are not output unless the `-a` (`--text`) flag is used
+- Binary files are **always searched** to find matches (this matches grep's default behavior)
+- When binary data (null bytes or improperly encoded data) is detected, **line output is suppressed** to prevent terminal corruption
+- Instead of showing line content, report "Binary file <filename> matches" to indicate matches were found
 - This prevents terminal state corruption from unexpected control characters or binary sequences
 
 **Handling modes** (controlled by `--binary-files`):
-- `binary` (default): Skip binary files silently
-- `text`: Process all files as text (equivalent to `-a` flag, disables VTY protection)
-- `without-match` (equivalent to `-I`): Report binary files as non-matching (show "Binary file X matches" if matches found)
+- `binary` (default): Search binary files normally. When null bytes or improperly encoded data is found, suppress line output and report "Binary file X matches". Note: this means `-l`, `-L`, `-c` modes will work (they don't output line content anyway).
+- `text`: Process all files as text, output line content normally regardless of null bytes (equivalent to `-a` flag)
+- `without-match` (equivalent to `-I`): When null bytes detected, treat the entire file as non-matching (don't report matches)
 
-**Implementation**: When binary is detected, do NOT attempt to print matched content from that file unless the text mode is explicitly enabled. Instead, show a message like `Binary file <filename> matches` if matches were found.
+**Why special modes work with binary files**:
+- `-l` / `--files-with-matches`: Works because it outputs filename, not line content
+- `-L` / `--files-without-match`: Works because it outputs filename, not line content  
+- `-c` / `--count`: Works because it outputs count, not line content
+- These modes benefit from the default binary-file search behavior
+
+**Null-data mode interaction** (`-z` / `--null-data`):
+- When `-z` is used, NUL bytes are intentional record delimiters, not binary corruption markers
+- NUL-delimited files should be processed as text, not skipped
+- Automatically sets `binary_files=text` mode to ensure proper processing
+
+**Implementation**: When binary is detected in default mode with normal output (not `-l`, `-L`, `-c`):
+1. Search the file for matches (iterate through lines)
+2. When matches are found but contain null bytes or improperly encoded data, suppress line output
+3. Report "Binary file <filename> matches" to indicate matches exist but output is suppressed
 
 ### Implementation Note: VTY Protection Strategy
 
@@ -954,7 +968,7 @@ Before scanning a file, detect if it is binary:
    - Single ~8KB chunk read is sufficient for detection
 
 2. **Mode-based handling**:
-   - **Mode `binary` (default)**: Skip file entirely, don't iterate lines, no output
+   - **Mode `binary` (default)**: Always search and iterate, but suppress line output when improperly-encoded data detected. Report "Binary file X matches" if matches found.
    - **Mode `text`**: Process normally, output as text (user accepts terminal risk)
    - **Mode `without-match`**: Iterate normally to find matches, but replace output with "Binary file X matches" if matches found
 
@@ -2080,7 +2094,7 @@ Examples:
 ```bash
 grepnet -o '192.0.2.0/24' file.txt                    # Just the matched networks
 grepnet -o -n '192.0.2.0/24' file.txt                 # Networks with line numbers
-grepnet -o -C1 '192.0.2' file.txt                     # Networks with -- separators, no context lines
+grepnet -o -C1 '192.0.2.0/24' file.txt                     # Networks with -- separators, no context lines
 grepnet 192.0.2.0/24 -o --extract file.txt            # Extract only matches (same as pattern filtering)
 grepnet 192.0.2.0/24 -o --consolidate file.txt        # Consolidate only matches
 ```
@@ -2091,14 +2105,15 @@ grepnet 192.0.2.0/24 -o --consolidate file.txt        # Consolidate only matches
 --parse-netmask={pattern|input|both|none}   Where to accept subnet masks (default: both)
 --parse-hostmask={pattern|input|both|none}  Where to accept hostmasks (default: both)
 --parse-ranges={pattern|input|both|none}    Where to accept IP ranges (default: both)
---range-format={long|short|both|none}       Range format preference (default: both)
+--parse-bare-ip={pattern|input|both|none}    Where to accept single IP address (default: both)
+--range-format={long|short}       Range format preference (default: both)
 ```
 
 **Options**:
-- `pattern` - Accept this format in patterns only
-- `input` - Accept this format in input files only
-- `both` - Accept this format in both patterns and input (default)
-- `none` - Don't accept this format anywhere
+- `pattern` - (parse-* only) Accept this format in patterns only
+- `input` - (parse-* only) Accept this format in input files only
+- `both` - (parse-* only) Accept this format in both patterns and input (default)
+- `none` - (parse-* only) Don't accept this format anywhere
 - `long` (range-format only) - Accept only long-form ranges (192.0.2.1-192.0.2.254)
 - `short` (range-format only) - Accept only short-form ranges (192.0.2.1-254)
 

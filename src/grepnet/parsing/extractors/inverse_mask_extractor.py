@@ -61,6 +61,23 @@ class InverseMaskExtractor(NetworkExtractor):
                 ip_addr = IPv4Address(ip_str)
                 hostmask_addr = IPv4Address(hostmask_str)
                 
+                # SPEC REQUIREMENT: Inverse mask MUST have MSB=0 (leading zero bit)
+                # This distinguishes hostmask (0s from MSB) from netmask (1s from MSB)
+                hostmask_int = int(hostmask_addr)
+                if hostmask_int & 0x80000000:  # Check if MSB is 1
+                    # MSB=1 means this is netmask format, not hostmask
+                    # Reject and try next pattern
+                    pos = match.start(2)  # Advance to second IP
+                    continue
+                
+                # SPEC REQUIREMENT: Hostmask must be contiguous (all 0s from MSB, then all 1s)
+                # Check if it matches pattern: 0+1* (zero or more 0s, then zero or more 1s)
+                binary = bin(hostmask_int)[2:].zfill(32)
+                if not (binary == '0' * 32 or bool(re.match(r'^0+1+$', binary))):
+                    # Not a contiguous hostmask
+                    pos = match.start(2)
+                    continue
+                
                 # Convert hostmask to netmask: inverse of hostmask
                 netmask_int = (~hostmask_addr._ip) & 0xffffffff
                 netmask_ip = IPv4Address(netmask_int)
@@ -68,8 +85,6 @@ class InverseMaskExtractor(NetworkExtractor):
                 # Create network with IP and netmask
                 network = IPv4Network(f'{ip_addr}/{netmask_ip}', strict=False)
                 
-                # Check if this looks like an inverse mask (hostmask is non-zero)
-                # Note: This is a best-effort heuristic to distinguish from subnet mask format
                 was_normalized = False
                 
                 return _RawExtraction(
