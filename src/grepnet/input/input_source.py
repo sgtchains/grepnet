@@ -429,7 +429,10 @@ class InputDiscovery:
             sources.append(InputSource('stdin', label=stdin_label, null_delimited=null_delimited))
         elif files:
             for file_path in files:
-                if os.path.isdir(file_path) and (recursive or dereference_recursive):
+                # Support '-' as stdin
+                if file_path == '-':
+                    sources.append(InputSource('stdin', label=stdin_label, null_delimited=null_delimited))
+                elif os.path.isdir(file_path) and (recursive or dereference_recursive):
                     # Recursively discover files
                     follow_symlinks = dereference_recursive
                     for root, dirs, filenames in os.walk(file_path, followlinks=follow_symlinks):
