@@ -490,6 +490,8 @@ def run():
             if not args.no_messages:
                 print(f'grepnet: Cannot read pattern file {args.pattern_file}: {e}', file=sys.stderr)
             sys.exit(2)
+        except KeyboardInterrupt:
+            sys.exit(130)
         # All positional args are files when using -f
         files = args.positional_args
     elif args.pattern_flags:
@@ -600,6 +602,8 @@ def run():
             if not args.no_messages:
                 print(f'grepnet: Cannot read exclude strings file {args.exclude_strings_file}: {e}', file=sys.stderr)
             sys.exit(2)
+        except KeyboardInterrupt:
+            sys.exit(130)
     
     # Load exclude CIDR patterns from file if provided (BEFORE creating GrepNet instance)
     if args.exclude_cidrs_file:
@@ -615,7 +619,8 @@ def run():
             if not args.no_messages:
                 print(f'grepnet: Cannot read exclude CIDR file {args.exclude_cidrs_file}: {e}', file=sys.stderr)
             sys.exit(2)
-    
+        except KeyboardInterrupt:
+            sys.exit(130)
     # Create GrepNet instance
     try:
         # For extract/consolidate, use default patterns if none provided
