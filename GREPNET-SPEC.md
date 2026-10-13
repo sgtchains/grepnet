@@ -941,6 +941,14 @@ The following formats are explicitly NOT supported and will not be recognized:
 
 **Treatment**: Convert to /32 (IPv4) or /128 (IPv6) network object.
 
+**Gating control**: The `--parse-bare-ip` option controls whether plain IP addresses (bare IPs without explicit prefix notation) are extracted. When disabled, only IP addresses with explicit prefix notation (e.g., `192.0.2.0/32` or `::1/128`) are accepted.
+
+**Examples**:
+- If `--parse-bare-ip=both` (default): Both `192.0.2.0` and `192.0.2.0/32` are parsed, both treated as /32 networks
+- If `--parse-bare-ip=pattern`: Only bare IPs in patterns are parsed, bare IPs in input files are skipped
+- If `--parse-bare-ip=input`: Only bare IPs in input files are parsed, bare IPs in patterns are treated as literals
+- If `--parse-bare-ip=none`: Neither `192.0.2.0` nor `::1` are parsed (skipped entirely); only explicit notation like `192.0.2.0/32` or `::1/128` can be used to specify single addresses
+
 ### False-Positive Filters
 
 The parser contains semantic filters to avoid matching things that look like IP addresses but are not:
