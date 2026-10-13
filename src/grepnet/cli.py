@@ -10,9 +10,50 @@ from grepnet import GrepNet, InputDiscovery, MatchType
 from grepnet.input import InputSource
 
 
+def error(message, exit_code=2):
+    """Standard error handler - prints message to stderr and exits."""
+    print(f"grepnet: error: {message}", file=sys.stderr)
+    sys.exit(exit_code)
+
+
+class GrepNetArgumentParser(argparse.ArgumentParser):
+    """Custom ArgumentParser that adds help hint to all error messages."""
+    
+    def error(self, message):
+        """Print error message with usage and help hint, matching grep format."""
+        self.exit(2, f"{self.prog}: error: {message}\nUsage: {self.format_usage().split('usage: ')[1]}Try '{self.prog} --help' for more information.\n")
+
+
+class FilterCommentsValidator:
+    """Validator for --no-filter-comments values."""
+    VALID_CHOICES = {'pattern', 'input', 'both', 'none'}
+    
+    def __call__(self, value):
+        if value not in self.VALID_CHOICES:
+            msg = f'invalid choice: {value!r} (choose from {", ".join(sorted(self.VALID_CHOICES))})'
+            raise argparse.ArgumentTypeError(msg)
+        return value
+
+
+class NoFilterCommentsAction(argparse.Action):
+    """Custom action for --no-filter-comments that handles optional values."""
+    def __init__(self, option_strings, dest, const='both', **kwargs):
+        super().__init__(option_strings, dest, nargs='?', const=const, **kwargs)
+    
+    def __call__(self, parser, namespace, values, option_string=None):
+        if values is None:
+            setattr(namespace, self.dest, self.const)
+        else:
+            validator = FilterCommentsValidator()
+            try:
+                setattr(namespace, self.dest, validator(values))
+            except argparse.ArgumentTypeError as e:
+                raise argparse.ArgumentError(self, str(e))
+
+
 def run():
     """Main CLI entry point."""
-    parser = argparse.ArgumentParser(
+    parser = GrepNetArgumentParser(
         prog='grepnet',
         description='Network-aware grep for CIDR blocks and IP ranges',
         usage='%(prog)s [OPTION...] PATTERN [FILE...]  OR  %(prog)s [OPTION...] -f PATTERNS_FILE [FILE...]',
@@ -201,9 +242,9 @@ def run():
     # Comment handling
     parser.add_argument(
         '--no-filter-comments',
-        choices=['pattern', 'input', 'both', 'none'],
+        action=NoFilterCommentsAction,
         default=None,
-        help='Do not filter comments (pattern, input, both, or none)',
+        help='Do not filter comments (pattern, input, both, or none; default: both)',
     )
     
     # Parse control flags
@@ -496,8 +537,7 @@ def run():
     
     if not patterns and not has_pattern_source and not args.extract and not args.consolidate:
         if not args.no_messages:
-            print('grepnet: error: no patterns to search for', file=sys.stderr)
-        sys.exit(2)
+            parser.error('no patterns to search for')
     
     # Determine match type filter based on -e, -s, -S, -O, -u flags
     match_type_filter = []
@@ -720,8 +760,7 @@ def run():
     if not args.extract and not args.consolidate and not grepnet.parsed_patterns:
         # Normal search mode: empty patterns is an ERROR
         if not args.no_messages:
-            print('grepnet: error: no patterns to search for', file=sys.stderr)
-        sys.exit(2)
+            parser.error('no patterns to search for')
     
     # Run search
     try:
@@ -1252,8 +1291,7 @@ def run():
         sys.exit(130)
     except Exception as e:
         if not args.no_messages:
-            print(f'grepnet: {e}', file=sys.stderr)
-        sys.exit(2)
+            error(str(e))
 
 
 if __name__ == '__main__':

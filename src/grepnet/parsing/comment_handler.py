@@ -25,17 +25,9 @@ class CommentHandler:
     - Can be disabled with --no-filter-comments flag
     """
     
-    # Regex for inline comments: # followed by space/tab (no leading space required)
-    INLINE_COMMENT_PATTERN = re.compile(r'#\s')
-    # Regex for inline // comments: // followed by space/tab
-    INLINE_CSTYLE_COMMENT_PATTERN = re.compile(r'//\s')
-    # Regex for inline -- comments: -- followed by space/tab
-    INLINE_SQL_COMMENT_PATTERN = re.compile(r'--\s')
-    # Regex for inline ; comments: ; followed by space/tab
-    INLINE_SEMI_COMMENT_PATTERN = re.compile(r';\s')
-    
     # Regex for Cisco keywords (case-insensitive)
-    CISCO_KEYWORD_PATTERN = re.compile(r'^\s*(remark|rem|description|desc)\s', re.IGNORECASE)
+    # Matches: keyword preceded by whitespace (or line start) and followed by whitespace
+    CISCO_KEYWORD_PATTERN = re.compile(r'(?:^|\s)(remark|rem|description|desc)(?:\s|$)', re.IGNORECASE)
     
     def __init__(self):
         """Initialize with block comment state tracking."""
@@ -104,15 +96,36 @@ class CommentHandler:
                     break
         
         # Full-line comments: #, !, --, //, ;
+        # Per spec: markers do NOT require trailing whitespace
+        # A line is a comment if it starts with any comment marker (after lstrip)
         stripped = line.lstrip()
-        if stripped.startswith('#') or stripped.startswith('!') or \
-           stripped.startswith('--') or stripped.startswith('//') or \
-           stripped.startswith(';'):
+        
+        def is_full_line_comment_marker(s):
+            """Check if string starts with a comment marker."""
+            if not s:
+                return False
+            # Single-char markers: #, !, ;
+            if s[0] in '#!;':
+                return True
+            # Two-char markers: --, //
+            if s.startswith('--') or s.startswith('//'):
+                return True
+            return False
+        
+        if is_full_line_comment_marker(stripped):
             return '', True
         
         # Cisco keywords: remark, rem, description, desc (case-insensitive)
-        if self.CISCO_KEYWORD_PATTERN.match(line):
-            return '', True
+        # Must be preceded by whitespace (or start of line) and followed by whitespace
+        # When found, everything from keyword onward is stripped for extraction
+        cisco_match = self.CISCO_KEYWORD_PATTERN.search(line)
+        if cisco_match:
+            # Find where the keyword starts (group 1 is the keyword)
+            keyword_start = cisco_match.start(1)
+            # Strip everything from the keyword onward
+            line = line[:keyword_start].rstrip()
+            had_comments = True
+            # Continue processing with the stripped line (may have networks before keyword)
         
         # C-style block comment handling: /* ... */
         while '/*' in line or self.in_block_comment:
@@ -152,18 +165,21 @@ class CommentHandler:
                     # No block comment found
                     break
         
-        # Inline comments: check for #, //, --, ; followed by whitespace
-        for pattern in [self.INLINE_COMMENT_PATTERN, 
-                       self.INLINE_CSTYLE_COMMENT_PATTERN,
-                       self.INLINE_SQL_COMMENT_PATTERN,
-                       self.INLINE_SEMI_COMMENT_PATTERN]:
-            match = pattern.search(line)
-            if match:
-                # Remove from the space before comment char onward
-                line = line[:match.start()]
-                line = line.rstrip()
-                had_comments = True
-                break  # Only one inline comment type per line
+        # Inline comments: find the FIRST occurrence of any comment marker
+        # Per spec: markers do NOT require trailing whitespace
+        # We need to find which marker appears first and split there
+        markers = ['#', '!', '//', '--', ';']
+        first_marker_pos = len(line)  # Initialize to end of line
+        
+        for marker in markers:
+            pos = line.find(marker)
+            if pos != -1 and pos < first_marker_pos:
+                first_marker_pos = pos
+        
+        if first_marker_pos < len(line):
+            # Found a comment marker, remove everything from that point onward
+            line = line[:first_marker_pos].rstrip()
+            had_comments = True
         
         return line, had_comments
     

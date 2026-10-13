@@ -577,6 +577,20 @@ A set tracks already-extracted tokens. When a broader network is found (e.g., CI
 
 **Invariant**: No line produces duplicate matches for the same network, even if it appears in multiple formats.
 
+### Comment Marker Precedence (Critical)
+
+When multiple comment marker types appear on the same line, **the marker appearing earliest (leftmost) takes precedence and determines where the comment starts**. All markers that appear after the first marker are treated as part of the comment and have no special meaning.
+
+**Single-line markers**: Once the first marker is found, everything from that marker to end-of-line is treated as comment (no further markers are recognized).
+
+**Multi-line block comments**: The outermost comment delimiters "swallow" inner markers. Inner markers appearing before the outer block comment ends are treated as regular text within the comment.
+
+**Examples**:
+- `192.0.2.1!192.0.2.2#192.0.2.3` → Comment starts at `!` (position 9) → Extracted: `192.0.2.1` → Comment portion: `!192.0.2.2#192.0.2.3` (the `#` is ignored as it's already in comment)
+- `192.0.2.1 # comment ! more` → Comment starts at `#` (position 9) → Extracted: `192.0.2.1` → Comment portion: `# comment ! more` (the `!` is ignored)
+- `192.0.2.1 /* comment -- text */ 192.0.2.2` → Block comment starts at `/*` → Everything until `*/` is comment → Extracted: `192.0.2.1` and `192.0.2.2` → SQL marker `--` inside block comment is ignored
+- `<!-- comment /* text --> 192.0.2.1` → HTML comment starts at `<!--` → C-style marker `/*` inside is ignored → Comment ends at `-->`
+
 ### Comment Handling
 
 Comments are recognized and separated from searchable content BEFORE extraction begins.
@@ -597,6 +611,34 @@ Comments are recognized and separated from searchable content BEFORE extraction 
 3. Split line into searchable portion (before marker) and comment portion (after marker)
 4. Perform extraction only on searchable portion
 5. Preserve comment portion in output (displayed uncolorized)
+
+**Critical Clarification: Two-Phase Comment Handling**:
+
+Comments are handled in two distinct phases:
+
+1. **Extraction Phase** (during network parsing):
+   - Comments are stripped from the line ONLY for the purpose of network extraction
+   - Networks found in comments are NOT matched
+   - The comment removal is internal to the parser and does not affect output
+
+2. **Output Phase** (when printing results):
+   - If a line produces network matches and is selected for output, the FULL ORIGINAL LINE is printed (including comments)
+   - The comment portion appears in the output uncolorized (no highlighting)
+   - Networks found before the comment marker are highlighted normally
+   - If a line is entirely a comment (produces no network extractions), NO output is printed for that line at all
+
+**Examples**:
+- Input: `! Version1 192.0.2.2` with pattern `0.0.0.0/0`
+  - Extraction phase: Entire line is a comment, extracts to empty, no networks found
+  - Output: **Nothing printed** (entire line was comment-only)
+
+- Input: `192.0.2.1!192.0.2.2` with pattern `0.0.0.0/0`
+  - Extraction phase: Comment at `!` marker, extracts `192.0.2.1`, matches pattern
+  - Output: `192.0.2.1!192.0.2.2` printed with `192.0.2.1` highlighted and `!192.0.2.2` uncolorized
+
+- Input: `192.0.2.1 # This is a comment` with pattern `0.0.0.0/0`
+  - Extraction phase: Comment at `#` marker, extracts `192.0.2.1`, matches pattern
+  - Output: `192.0.2.1 # This is a comment` printed with `192.0.2.1` highlighted and `# This is a comment` uncolorized
 
 ### Comment Filtering
 
@@ -631,10 +673,43 @@ The `--no-filter-comments` flag accepts optional arguments to control which scop
 **Behavior**:
 - Comment-only lines are skipped entirely (not added to file entries)
 - Comment detection is case-insensitive for Cisco keywords (`REMARK`, `REM`, `DESCRIPTION`, `DESC` all recognized)
-- Prefix must be at start of line after optional leading whitespace
-- Single-line comments: Lines starting with comment prefix (`#`, `!`, `--`, `//`, `;`) after optional whitespace are filtered
-- Inline comments: Comments preceded by marker + space (e.g., `192.0.2.1# comment`, `value -- note`) are stripped before extraction. The full original line is output by default; use `-o/--only-matching` to see only extracted networks
-- Block comments: Multi-line blocks (`/* ... */` and `<!-- ... -->`) are removed entirely. Content inside block comments is not extracted
+
+**Single-line comment markers** (1 or 2 characters: `#`, `!`, `--`, `//`, `;`):
+- **Recognition**: Marker can appear anywhere in a line (no preceding whitespace required for inline recognition)
+- **Behavior**: Everything from marker onward is treated as a comment and stripped (during extraction phase only)
+- Do NOT require trailing whitespace (marker is recognized even if followed directly by text)
+- Examples (during extraction phase, with pattern `0.0.0.0/0`):
+  - `#anything` → Extraction: empty, no networks extracted → No output (entire line is comment)
+  - `value#comment` → Extraction: finds networks in `value` portion only → If match, output entire line: `value#comment`
+  - `192.0.2.1!192.0.2.2` → Extraction: finds `192.0.2.1` only, matches pattern → Output: `192.0.2.1!192.0.2.2` (with `!192.0.2.2` uncolorized)
+  - `192.0.2.1--192.0.2.2` → Extraction: finds `192.0.2.1` only, matches pattern → Output: `192.0.2.1--192.0.2.2` (with `--192.0.2.2` uncolorized)
+
+**Cisco keywords** (`remark`, `rem`, `description`, `desc` - single-line only):
+- **Leading requirement**: Keyword must be preceded by whitespace (or be at line start after optional leading whitespace)
+- **Trailing requirement**: Keyword must be followed by whitespace (or end-of-line)
+- **Behavior**: Everything from keyword onward is treated as a comment and stripped during extraction (only the searchable portion before the keyword is processed for networks)
+- Case-insensitive
+- Comments out the rest of the line only (not a multi-line block)
+- Examples (during extraction phase):
+  - `remark This is a comment` → Keyword at line start → Extracts: empty (no searchable content before keyword) → No output
+  - `  rem This is a comment` → Keyword at line start (after leading whitespace) → Extracts: empty → No output
+  - `access-list 101 remark This is a comment` → Keyword in middle, but before it is only `access-list 101` (no networks) → Extracts: empty → No output
+  - `192.0.2.0/24 remark This is a comment` → Keyword in middle, before it is `192.0.2.0/24` (network found) → Extracts: `192.0.2.0/24` → If matches, outputs full line `192.0.2.0/24 remark This is a comment`
+  - `text101rem` → NOT a comment (keyword not preceded by whitespace) → Searches entire line for networks
+  - `text101 rem` → Keyword in middle, before it is `text101` (no networks) → Extracts: empty → No output
+
+**Multi-line block comments** (only these span multiple lines):
+- `/* ... */` (C-style)
+- `<!-- ... -->` (HTML/XML)
+- Content between markers is removed entirely
+- Remark and description keywords are NOT block comments and cannot span multiple lines
+
+**Inline comments**:
+- Single-line comment markers (1 or 2 characters: `#`, `!`, `--`, `//`, `;`): Can appear anywhere in a line (no preceding whitespace required), everything after marker is stripped
+  - Examples: `192.0.2.1#comment` → `192.0.2.1` output; `192.0.2.1!192.0.2.2` → `192.0.2.1` output; `192.0.2.1--192.0.2.2` → `192.0.2.1` output
+- Cisco keywords (`remark`, `rem`, `description`, `desc`): Must be preceded by whitespace AND followed by whitespace, everything after keyword is stripped from extraction
+  - Examples: `access-list 101 remark This is a description` → searches `access-list 101` (no networks) → no output; `192.0.2.0/24 remark description` → searches `192.0.2.0/24` (network found) → output full line
+- The full original line is output by default; use `-o/--only-matching` to see only extracted networks
 
 ### CIDR Notation Parsing
 
@@ -713,6 +788,7 @@ When a line contains two IPv4 addresses separated by one or more horizontal whit
 5. **SPECIAL CASE FIRST** (if `--parse-inverse` enabled): 
    - If pattern is exactly `0.0.0.0 255.255.255.255`, treat as an exception: parse as `0.0.0.0/0` (entire IPv4 space)
    - This overrides normal two-value parsing (which would produce `0.0.0.0/32`)
+   - If pattern is exactly `255.255.255.255 0.0.0.0`, treat as an exception: parse as `255.255.255.255/32` (single broadcast address)
    - Only applies when `--parse-inverse` is NOT disabled
 6. If both are valid IPv4 (and not the special case above):
    - Try subnet mask first: Check if second value is in netmask format (MSB is 1)
@@ -728,7 +804,7 @@ When a line contains two IPv4 addresses separated by one or more horizontal whit
 - Exactly two space-separated parts required (not three or more)
 - Neither value can contain `/` or `-` (these indicate CIDR or range, not mask format)
 - If a dash is present, range parsing handles it at the range extraction stage
-- Special case `0.0.0.0 255.255.255.255` is parsed before normal two-value logic (gate: `--parse-inverse` enabled)
+- Special cases `0.0.0.0 255.255.255.255` and `255.255.255.255 0.0.0.0` are parsed before normal two-value logic (gate: `--parse-inverse` enabled)
 
 ### Inverse/Hostmask Parsing (Cisco Format)
 
@@ -795,6 +871,22 @@ The pattern `0.0.0.0 255.255.255.255` is an exception to normal two-value parsin
 - If `--parse-inverse` is false/disabled: Falls through to normal parsing → `0.0.0.0/32` (single address)
 
 **Implementation note**: This special case check must occur before the normal subnet mask vs. inverse mask detection logic, as an exception override.
+
+### Special Case: 255.255.255.255 0.0.0.0 (Broadcast Address as Single Host)
+
+The pattern `255.255.255.255 0.0.0.0` is an exception to normal two-value parsing rules:
+
+**Why special handling is needed**: 
+- Normally, 0.0.0.0 (all zeros) is a hostmask (MSB=0), so `255.255.255.255 0.0.0.0` would parse as inverse mask format = `255.255.255.255/32`
+- This special case pattern may appear in network configurations and deserves explicit recognition
+
+**Parsing rule**:
+- When the parser encounters exactly `255.255.255.255 0.0.0.0`, treat it as a special case BEFORE normal two-value parsing
+- Result: `255.255.255.255/32` (single broadcast address)
+- **Gating condition**: Only apply this special case if `--parse-inverse` has NOT been set to false (enabled by default)
+- If `--parse-inverse` is false/disabled: Falls through to normal parsing → `255.255.255.255/32` (same result)
+
+**Implementation note**: This special case check must occur alongside the `0.0.0.0 255.255.255.255` check before the normal subnet mask vs. inverse mask detection logic, as an exception override.
 
 ### IP Range Parsing
 

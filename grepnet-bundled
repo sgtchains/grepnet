@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """GrepNet - Network-aware grep (single file executable)
 
-Version: 3.0.0
+Version: 5.0.0
 """
 
 import sys, os, re, argparse, json, subprocess
@@ -13,10 +13,22 @@ from dataclasses import dataclass
 from abc import ABC, abstractmethod
 import fnmatch
 
-__version__ = "3.0.0"
+__version__ = "5.0.0"
+
+# core/__init__.py
+"""
+Core module: Data structures and fundamental abstractions.
+
+Classes:
+- _RawExtraction: Internal format used by extractors (network, format_type, matched_text, was_normalized)
+- ParsedExtraction: Represents a single extracted network object with all matched text variations
+- MatchResult: Represents a match between a pattern and file data
+- MatchType: Enumeration of match relationship types
+- Colorizer: ANSI color code generation and application
+- BinaryDetector: Binary file detection for VTY protection
+"""
 
 
-# grepnet/core/__init__.py
 __all__ = [
     '_RawExtraction',
     'ParsedExtraction',
@@ -26,10 +38,20 @@ __all__ = [
     'BinaryDetector',
 ]
 
-# grepnet/core/network_objects.py
+
+# core/network_objects.py
+"""
+Network objects and match result data structures.
+
+ParsedExtraction: Represents an extracted network object before matching.
+MatchResult: Represents the result of matching a pattern against file data.
+MatchType: Enumeration of match relationship types.
+"""
+
 from enum import Enum, auto
 from typing import NamedTuple, Optional
 from ipaddress import IPv4Network, IPv6Network, IPv4Address, IPv6Address
+
 
 class MatchType(Enum):
     """
@@ -48,6 +70,7 @@ class MatchType(Enum):
     OVERLAP = auto()
     UNMATCHED = auto()
 
+
 class _RawExtraction(NamedTuple):
     """
     Internal extraction format used by extractors.
@@ -59,6 +82,7 @@ class _RawExtraction(NamedTuple):
     format_type: str
     matched_text: str  # Single matched text (aggregated by parser)
     was_normalized: bool
+
 
 class ParsedExtraction(NamedTuple):
     """
@@ -76,6 +100,7 @@ class ParsedExtraction(NamedTuple):
     format_type: str
     was_normalized: bool  # True if ANY text in matched_texts was normalized
     matched_texts: list  # List[dict] with {"text": str, "was_normalized": bool}
+
 
 class MatchResult(NamedTuple):
     """
@@ -114,9 +139,18 @@ class MatchResult(NamedTuple):
     byte_offset: int = 0
     file_type: str = 'stdin'  # 'file', 'stdin', or 'fd'
 
-# grepnet/core/binary_detector.py
+
+# core/binary_detector.py
+"""
+Binary file detection and VTY protection.
+
+Detects binary/non-UTF8 files to prevent terminal corruption from control sequences.
+Three modes: binary (skip), text (process), without-match (report "Binary file X matches").
+"""
+
 import os
 from typing import Tuple
+
 
 class BinaryDetector:
     """
@@ -275,9 +309,18 @@ class BinaryDetector:
             # If can't read from FD, assume text
             return False
 
-# grepnet/core/colorizer.py
+
+# core/colorizer.py
+"""
+Colorizer: Generate ANSI color codes at startup, apply during matching.
+
+Follows tight coupling requirement: colors determined at match time (when content
+is available), not during output phase. Pre-renders colored content in MatchResult.
+"""
+
 import os
 from typing import Dict, Optional
+
 
 class ColorCode:
     """ANSI color code for a single attribute."""
@@ -297,6 +340,7 @@ class ColorCode:
     
     def __str__(self):
         return f'\x1b[{self.code}m' if self.code else ''
+
 
 class Colorizer:
     """
@@ -654,9 +698,23 @@ class Colorizer:
         """Colorize separator using 'sep' color code."""
         return self.colorize_by_name(sep, 'sep')
 
-# grepnet/parsing/extractors/__init__.py
+
+# parsing/extractors/__init__.py
+"""
+Base class for network extractors.
+
+Extractors:
+- CIDRExtractor: IPv4/IPv6 CIDR notation
+- SubnetMaskExtractor: IPv4 subnet mask notation
+- InverseMaskExtractor: IPv4 inverse mask notation
+- IPRangeExtractor: IP range notation
+- IPv6Extractor: IPv6 addresses and CIDR blocks
+- IPOnlyExtractor: Bare IP addresses
+"""
+
 from abc import ABC, abstractmethod
 from typing import Optional
+
 
 class NetworkExtractor(ABC):
     """
@@ -686,6 +744,8 @@ class NetworkExtractor(ABC):
         """Return the format type this extractor produces."""
         pass
 
+
+
 __all__ = [
     'NetworkExtractor',
     'CIDRExtractor',
@@ -695,10 +755,20 @@ __all__ = [
     'IPOnlyExtractor',
 ]
 
-# grepnet/parsing/extractors/cidr_extractor.py
+
+# parsing/extractors/cidr_extractor.py
+"""
+CIDR notation extractor.
+
+Extracts IPv4 and IPv6 CIDR blocks (e.g., 192.0.2.0/24, 2001:db8::/32).
+Normalizes host bits in non-strict mode (e.g., 192.0.2.5/24 → 192.0.2.0/24).
+"""
+
 import re
 from typing import Optional
 from ipaddress import IPv4Network, IPv6Network, AddressValueError
+
+
 
 class CIDRExtractor(NetworkExtractor):
     """
@@ -802,10 +872,20 @@ class CIDRExtractor(NetworkExtractor):
     def get_format_type(self) -> str:
         return 'cidr_notation'
 
-# grepnet/parsing/extractors/ip_only_extractor.py
+
+# parsing/extractors/ip_only_extractor.py
+"""
+IP-only extractor.
+
+Extracts bare IP addresses (IPv4 and IPv6).
+Converts single IPs to /32 (IPv4) or /128 (IPv6) networks for matching.
+"""
+
 import re
 from typing import Optional
 from ipaddress import IPv4Address, IPv6Address, IPv4Network, IPv6Network, AddressValueError
+
+
 
 class IPOnlyExtractor(NetworkExtractor):
     """
@@ -892,10 +972,19 @@ class IPOnlyExtractor(NetworkExtractor):
     def get_format_type(self) -> str:
         return 'ip_only'
 
-# grepnet/parsing/extractors/ip_range_extractor.py
+
+# parsing/extractors/ip_range_extractor.py
+"""
+IP range extractor.
+
+Extracts ranges in format: 192.0.2.0-192.0.2.255 (long), 192.0.2.0-255 (short)
+"""
+
 import re
 from typing import Optional, Tuple
 from ipaddress import IPv4Address, IPv6Address, AddressValueError
+
+
 
 class IPRangeExtractor(NetworkExtractor):
     """
@@ -1047,10 +1136,26 @@ class IPRangeExtractor(NetworkExtractor):
     def get_format_type(self) -> str:
         return 'ip_range'
 
-# grepnet/parsing/extractors/ipv6_extractor.py
+
+# parsing/extractors/ipv6_extractor.py
+"""
+IPv6 address and CIDR extractor.
+
+Extracts IPv6 addresses in all valid formats:
+- Full format: 2001:0db8:0000:0000:0000:0000:0000:0001
+- Compressed: 2001:db8::1
+- Link-local: fe80::1%eth0
+- Loopback: ::1
+- All zeros: ::
+- IPv4-mapped: ::ffff:192.0.2.1
+- CIDR notation: 2001:db8::/32
+"""
+
 import re
 from typing import Optional
 from ipaddress import IPv6Address, IPv6Network, AddressValueError
+
+
 
 class IPv6Extractor(NetworkExtractor):
     """
@@ -1134,10 +1239,20 @@ class IPv6Extractor(NetworkExtractor):
         """Return the format type this extractor produces."""
         return 'ipv6'
 
-# grepnet/parsing/extractors/subnet_mask_extractor.py
+
+# parsing/extractors/subnet_mask_extractor.py
+"""
+Subnet mask notation extractor.
+
+Extracts networks in IP mask format (e.g., 192.0.2.0 255.255.255.0).
+Converts to CIDR internally for matching.
+"""
+
 import re
 from typing import Optional
 from ipaddress import IPv4Address, IPv4Network, AddressValueError
+
+
 
 class SubnetMaskExtractor(NetworkExtractor):
     """
@@ -1221,10 +1336,20 @@ class SubnetMaskExtractor(NetworkExtractor):
     def get_format_type(self) -> str:
         return 'subnet_mask'
 
-# grepnet/parsing/extractors/inverse_mask_extractor.py
+
+# parsing/extractors/inverse_mask_extractor.py
+"""
+Inverse mask (hostmask) notation extractor.
+
+Extracts networks in hostmask format (e.g., 192.0.2.0 0.0.0.255).
+The second IP is the inverse of the subnet mask (hostmask).
+"""
+
 import re
 from typing import Optional
 from ipaddress import IPv4Address, IPv4Network, AddressValueError
+
+
 
 class InverseMaskExtractor(NetworkExtractor):
     """
@@ -1274,6 +1399,23 @@ class InverseMaskExtractor(NetworkExtractor):
                 ip_addr = IPv4Address(ip_str)
                 hostmask_addr = IPv4Address(hostmask_str)
                 
+                # SPEC REQUIREMENT: Inverse mask MUST have MSB=0 (leading zero bit)
+                # This distinguishes hostmask (0s from MSB) from netmask (1s from MSB)
+                hostmask_int = int(hostmask_addr)
+                if hostmask_int & 0x80000000:  # Check if MSB is 1
+                    # MSB=1 means this is netmask format, not hostmask
+                    # Reject and try next pattern
+                    pos = match.start(2)  # Advance to second IP
+                    continue
+                
+                # SPEC REQUIREMENT: Hostmask must be contiguous (all 0s from MSB, then all 1s)
+                # Check if it matches pattern: 0+1* (zero or more 0s, then zero or more 1s)
+                binary = bin(hostmask_int)[2:].zfill(32)
+                if not (binary == '0' * 32 or bool(re.match(r'^0+1+$', binary))):
+                    # Not a contiguous hostmask
+                    pos = match.start(2)
+                    continue
+                
                 # Convert hostmask to netmask: inverse of hostmask
                 netmask_int = (~hostmask_addr._ip) & 0xffffffff
                 netmask_ip = IPv4Address(netmask_int)
@@ -1281,8 +1423,6 @@ class InverseMaskExtractor(NetworkExtractor):
                 # Create network with IP and netmask
                 network = IPv4Network(f'{ip_addr}/{netmask_ip}', strict=False)
                 
-                # Check if this looks like an inverse mask (hostmask is non-zero)
-                # Note: This is a best-effort heuristic to distinguish from subnet mask format
                 was_normalized = False
                 
                 return _RawExtraction(
@@ -1301,31 +1441,48 @@ class InverseMaskExtractor(NetworkExtractor):
     def get_format_type(self) -> str:
         return 'inverse_mask'
 
-# grepnet/parsing/comment_handler.py
+
+# parsing/comment_handler.py
+"""
+Comment handling for network extraction.
+
+Removes comments from lines before extraction, with optional --no-filter-comments flag.
+"""
+
 import re
 from typing import Tuple
+
 
 class CommentHandler:
     """
     Handles comment removal from lines.
     
     Rules:
-    - Lines starting with '#' are full-line comments
+    - Lines starting with '#' are full-line comments (Unix/Python/shell)
+    - Lines starting with '!' are Cisco full-line comments
+    - Lines starting with '--' are SQL/Lua full-line comments
+    - Lines starting with '//' are C-style full-line comments
+    - Lines starting with ';' are INI/Lisp full-line comments
+    - Lines starting with 'remark', 'rem', 'description', or 'desc' are Cisco descriptions (case-insensitive)
     - Inline comments: '#' followed by whitespace
-    - Block comments: /* ... */ (multi-line)
+    - Block comments: /* ... */ (multi-line C-style)
+    - Block comments: <!-- ... --> (multi-line HTML/XML)
     - Can be disabled with --no-filter-comments flag
     """
     
-    # Regex for inline comments: # followed by space/tab
-    INLINE_COMMENT_PATTERN = re.compile(r'\s+#\s')
+    # Regex for Cisco keywords (case-insensitive)
+    # Matches: keyword preceded by whitespace (or line start) and followed by whitespace
+    CISCO_KEYWORD_PATTERN = re.compile(r'(?:^|\s)(remark|rem|description|desc)(?:\s|$)', re.IGNORECASE)
     
     def __init__(self):
         """Initialize with block comment state tracking."""
         self.in_block_comment = False
+        self.in_html_comment = False
     
     def reset(self) -> None:
         """Reset block comment state (call between files)."""
         self.in_block_comment = False
+        self.in_html_comment = False
     
     def filter_comments(self, line: str, filter_enabled: bool = True) -> Tuple[str, bool]:
         """
@@ -1344,12 +1501,78 @@ class CommentHandler:
         had_comments = False
         original_line = line
         
-        # Full-line comment
+        # HTML/XML block comment handling: <!-- ... --> (check BEFORE SQL comments)
+        # This must come before SQL comment checks since "-->" starts with "--"
+        while '<!--' in line or (hasattr(self, 'in_html_comment') and self.in_html_comment):
+            if hasattr(self, 'in_html_comment') and self.in_html_comment:
+                # We're inside an HTML comment, look for the end
+                end_pos = line.find('-->')
+                if end_pos != -1:
+                    # Found end of HTML comment
+                    line = line[end_pos + 3:]  # Remove everything up to and including -->
+                    self.in_html_comment = False
+                    had_comments = True
+                    # If line is now empty, exit loop
+                    if not line:
+                        break
+                    # Continue loop in case there's more content after the comment
+                else:
+                    # Entire line is part of HTML comment
+                    return '', True
+            else:
+                # Look for start of HTML comment
+                start_pos = line.find('<!--')
+                if start_pos != -1:
+                    # Found start of HTML comment
+                    end_pos = line.find('-->', start_pos + 4)
+                    if end_pos != -1:
+                        # HTML comment ends on same line
+                        line = line[:start_pos] + line[end_pos + 3:]
+                        had_comments = True
+                        # Continue loop in case there's more content after the comment
+                    else:
+                        # HTML comment starts but doesn't end on this line
+                        line = line[:start_pos]
+                        self.in_html_comment = True
+                        had_comments = True
+                        break  # Stop processing this line, state is saved for next line
+                else:
+                    # No HTML comment found
+                    break
+        
+        # Full-line comments: #, !, --, //, ;
+        # Per spec: markers do NOT require trailing whitespace
+        # A line is a comment if it starts with any comment marker (after lstrip)
         stripped = line.lstrip()
-        if stripped.startswith('#'):
+        
+        def is_full_line_comment_marker(s):
+            """Check if string starts with a comment marker."""
+            if not s:
+                return False
+            # Single-char markers: #, !, ;
+            if s[0] in '#!;':
+                return True
+            # Two-char markers: --, //
+            if s.startswith('--') or s.startswith('//'):
+                return True
+            return False
+        
+        if is_full_line_comment_marker(stripped):
             return '', True
         
-        # Block comment handling
+        # Cisco keywords: remark, rem, description, desc (case-insensitive)
+        # Must be preceded by whitespace (or start of line) and followed by whitespace
+        # When found, everything from keyword onward is stripped for extraction
+        cisco_match = self.CISCO_KEYWORD_PATTERN.search(line)
+        if cisco_match:
+            # Find where the keyword starts (group 1 is the keyword)
+            keyword_start = cisco_match.start(1)
+            # Strip everything from the keyword onward
+            line = line[:keyword_start].rstrip()
+            had_comments = True
+            # Continue processing with the stripped line (may have networks before keyword)
+        
+        # C-style block comment handling: /* ... */
         while '/*' in line or self.in_block_comment:
             if self.in_block_comment:
                 # We're inside a block comment, look for the end
@@ -1359,6 +1582,9 @@ class CommentHandler:
                     line = line[end_pos + 2:]  # Remove everything up to and including */
                     self.in_block_comment = False
                     had_comments = True
+                    # If line is now empty, exit loop
+                    if not line:
+                        break
                     # Continue loop in case there's more content after the comment
                 else:
                     # Entire line is part of block comment
@@ -1384,12 +1610,20 @@ class CommentHandler:
                     # No block comment found
                     break
         
-        # Inline comment: find ' #' pattern
-        match = self.INLINE_COMMENT_PATTERN.search(line)
-        if match:
-            # Remove from the space before # onward
-            line = line[:match.start()]
-            line = line.rstrip()
+        # Inline comments: find the FIRST occurrence of any comment marker
+        # Per spec: markers do NOT require trailing whitespace
+        # We need to find which marker appears first and split there
+        markers = ['#', '!', '//', '--', ';']
+        first_marker_pos = len(line)  # Initialize to end of line
+        
+        for marker in markers:
+            pos = line.find(marker)
+            if pos != -1 and pos < first_marker_pos:
+                first_marker_pos = pos
+        
+        if first_marker_pos < len(line):
+            # Found a comment marker, remove everything from that point onward
+            line = line[:first_marker_pos].rstrip()
             had_comments = True
         
         return line, had_comments
@@ -1397,11 +1631,31 @@ class CommentHandler:
     @classmethod
     def is_comment_line(cls, line: str) -> bool:
         """Check if entire line is a comment."""
-        return line.lstrip().startswith('#')
+        stripped = line.lstrip()
+        # Check all single-line comment prefixes
+        if stripped.startswith('#') or stripped.startswith('!') or \
+           stripped.startswith('--') or stripped.startswith('//') or \
+           stripped.startswith(';'):
+            return True
+        # Check for Cisco keywords
+        return bool(re.match(r'^(remark|rem|description|desc)\s', stripped, re.IGNORECASE))
 
-# grepnet/parsing/network_parser.py
+
+# parsing/network_parser.py
+"""
+Network parser: orchestrates extraction from text.
+
+Handles:
+- Comment filtering
+- Extraction in priority order (CIDR → subnet mask → inverse mask → ranges → IP only)
+- Deduplication
+- Validation
+"""
+
 from typing import List, Optional, Set
 import re
+from ipaddress import IPv4Address
+
 
 class NetworkParser:
     """
@@ -1579,6 +1833,116 @@ class NetworkParser:
                 extraction = extractor.extract(working_line)
                 if extraction is None:
                     break
+                
+                # Helper functions for mask detection
+                def _is_valid_netmask(ip_str: str) -> bool:
+                    """Check if IP is a valid netmask (contiguous 1s followed by 0s)"""
+                    try:
+                        ip_addr = IPv4Address(ip_str)
+                        binary = bin(int(ip_addr))[2:].zfill(32)
+                        return bool(re.match(r'^1+0*$', binary))
+                    except:
+                        return False
+                
+                def _is_valid_hostmask(ip_str: str) -> bool:
+                    """Check if IP is a valid hostmask (contiguous 0s followed by 1s)"""
+                    try:
+                        ip_addr = IPv4Address(ip_str)
+                        binary = bin(int(ip_addr))[2:].zfill(32)
+                        return bool(re.match(r'^0+1*$', binary))
+                    except:
+                        return False
+                
+                # Validate extraction against parse control settings
+                skip_extraction = False
+                
+                if extraction.format_type == 'ip_only' and idx == 4:
+                    # Find position in ORIGINAL line to detect format context
+                    orig_pos = original_line.find(extraction.matched_text)
+                    
+                    if orig_pos >= 0:
+                        match_end_pos = orig_pos + len(extraction.matched_text)
+                        if match_end_pos < len(original_line):
+                            next_char = original_line[match_end_pos]
+                            
+                            # If followed by /, validate CIDR parse control
+                            if next_char == '/':
+                                if self.parse_cidr == 'none':
+                                    skip_extraction = True
+                                elif self.parse_cidr == 'pattern' and context != 'pattern':
+                                    skip_extraction = True
+                                elif self.parse_cidr == 'input' and context == 'pattern':
+                                    skip_extraction = True
+                            
+                            # If followed by -, validate range parse control
+                            elif next_char == '-':
+                                if self.parse_ranges == 'none':
+                                    skip_extraction = True
+                                elif self.parse_ranges == 'pattern' and context != 'pattern':
+                                    skip_extraction = True
+                                elif self.parse_ranges == 'input' and context == 'pattern':
+                                    skip_extraction = True
+                            
+                            # If followed by space, check for space-separated pair formats (netmask/hostmask)
+                            elif next_char == ' ':
+                                lookahead = original_line[match_end_pos:]
+                                space_match = re.match(r' +([0-9.]+|[\da-fA-F:]+)(?:\s|$)', lookahead)
+                                if space_match:
+                                    second_ip = space_match.group(1)
+                                    # Determine if it's a netmask or hostmask
+                                    is_netmask = _is_valid_netmask(second_ip)
+                                    is_hostmask = _is_valid_hostmask(second_ip)
+                                    
+                                    if is_netmask:
+                                        # It's netmask format (space-separated pair)
+                                        if self.parse_netmask == 'none':
+                                            skip_extraction = True
+                                        elif self.parse_netmask == 'pattern' and context != 'pattern':
+                                            skip_extraction = True
+                                        elif self.parse_netmask == 'input' and context == 'pattern':
+                                            skip_extraction = True
+                                    elif is_hostmask:
+                                        # It's hostmask format (space-separated pair)
+                                        if self.parse_hostmask == 'none':
+                                            skip_extraction = True
+                                        elif self.parse_hostmask == 'pattern' and context != 'pattern':
+                                            skip_extraction = True
+                                        elif self.parse_hostmask == 'input' and context == 'pattern':
+                                            skip_extraction = True
+                        
+                        # Check what comes BEFORE the matched IP (for 2nd part of space-separated pairs)
+                        if not skip_extraction and orig_pos > 0:
+                            before_context = original_line[:orig_pos]
+                            
+                            # Check for "IP space" pattern before (2nd part of space-separated pair)
+                            before_match = re.search(r'(\d+\.\d+\.\d+\.\d+)\s+$', before_context)
+                            if before_match:
+                                # This IP appears to be the 2nd part of a space-separated pair
+                                is_netmask = _is_valid_netmask(extraction.matched_text)
+                                is_hostmask = _is_valid_hostmask(extraction.matched_text)
+                                
+                                if is_netmask:
+                                    # It's the netmask part (space-separated pair)
+                                    if self.parse_netmask == 'none':
+                                        skip_extraction = True
+                                    elif self.parse_netmask == 'pattern' and context != 'pattern':
+                                        skip_extraction = True
+                                    elif self.parse_netmask == 'input' and context == 'pattern':
+                                        skip_extraction = True
+                                elif is_hostmask:
+                                    # It's the hostmask part (space-separated pair)
+                                    if self.parse_hostmask == 'none':
+                                        skip_extraction = True
+                                    elif self.parse_hostmask == 'pattern' and context != 'pattern':
+                                        skip_extraction = True
+                                    elif self.parse_hostmask == 'input' and context == 'pattern':
+                                        skip_extraction = True
+                
+                if skip_extraction:
+                    # Remove the matched text to prevent re-extraction by other extractors
+                    working_line = working_line.replace(extraction.matched_text, '', 1)
+                    continue
+                
                 raw_extractions.append(extraction)
                 # Remove the matched text to prevent re-extraction by lower-priority extractors
                 working_line = working_line.replace(extraction.matched_text, '', 1)
@@ -1655,16 +2019,36 @@ class NetworkParser:
                 results.append((line_num, line, extractions))
         return results
 
-# grepnet/matching/__init__.py
+
+# matching/__init__.py
+"""
+Matching module: Compare networks and ranges against patterns.
+
+Uses interval arithmetic for efficient comparison.
+Supports CIDR networks and IP ranges.
+"""
+
+
 __all__ = [
     'CIDRMatcher',
     'RangeMatcher',
 ]
 
-# grepnet/matching/cidr_matcher.py
+
+# matching/cidr_matcher.py
+"""
+CIDR network matching.
+
+Compares CIDR networks against patterns using interval arithmetic.
+
+Critical note: Overlap is IMPOSSIBLE with CIDR networks due to binary alignment.
+Two CIDR networks can only be: equals, subset/superset, or disjoint.
+"""
+
 from typing import List, Optional
 from ipaddress import IPv4Network, IPv6Network
 import bisect
+
 
 class CIDRMatcher:
     """
@@ -1794,8 +2178,18 @@ class CIDRMatcher:
         # All CIDR relationships are: equals, subset/superset, or disjoint.
         return []
 
-# grepnet/matching/range_matcher.py
+
+# matching/range_matcher.py
+"""
+IP range matching.
+
+Compares IP ranges against patterns using interval arithmetic.
+
+Unlike CIDR networks, ranges can have true partial overlap.
+"""
+
 from typing import List, Tuple
+
 
 class RangeMatcher:
     """
@@ -1898,16 +2292,46 @@ class RangeMatcher:
         
         return matches
 
-# grepnet/input/__init__.py
+
+# input/__init__.py
+"""
+Input module: Unified abstraction for different input sources.
+
+Supports:
+- Regular files
+- Standard input
+- File descriptors
+- Process substitution
+
+All sources use the same interface: lines() → Iterator[(line_number, line_content)]
+"""
+
+
 __all__ = [
     'InputSource',
     'InputDiscovery',
 ]
 
-# grepnet/input/input_source.py
+
+# input/input_source.py
+"""
+Unified Input Source abstraction.
+
+Single InputSource class handles all input types:
+- Files (local files on disk)
+- stdin (piped data)
+- File descriptors (process substitution)
+
+All sources yield identical (line_number, line_content, byte_offset) tuples.
+First 8KB is cached for binary detection before line iteration begins.
+"""
+
 import sys
 import os
 from typing import Iterator, Tuple, Optional
+
+# (bundled: imports already available)
+
 
 class InputSource:
     """
@@ -1927,6 +2351,7 @@ class InputSource:
         file_path: Optional[str] = None,
         fd: Optional[int] = None,
         label: Optional[str] = None,
+        null_delimited: bool = False,
     ):
         """
         Initialize InputSource.
@@ -1936,6 +2361,7 @@ class InputSource:
             file_path: Path to file (required if source_type='file')
             fd: File descriptor number (required if source_type='fd')
             label: Custom display label (from --label flag, used with stdin or fd)
+            null_delimited: If True, split on NUL byte instead of newline (for -z flag)
         """
         if source_type not in ('file', 'stdin', 'fd'):
             raise ValueError(f"Invalid source_type: {source_type}")
@@ -1944,6 +2370,8 @@ class InputSource:
         self.file_path = file_path
         self.fd = fd
         self._label = label
+        self.null_delimited = null_delimited
+        self.record_delimiter = b'\0' if null_delimited else b'\n'
         self._is_binary = None  # Cache binary status
         self._file_handle = None
         self._peek_buffer = None  # First 8KB cached for binary detection (stdin/fd only)
@@ -2021,122 +2449,229 @@ class InputSource:
             self.close()
     
     def _lines_from_file(self) -> Iterator[Tuple[int, str, int]]:
-        """Read lines from file with byte offset tracking."""
+        """Read lines/records from file with byte offset tracking."""
         try:
             self._file_handle = open(self.file_path, 'rb')
-            line_num = 1
-            byte_offset = 0
-            for line_bytes in self._file_handle:
-                # Decode line
-                try:
-                    line = line_bytes.decode('utf-8', errors='replace')
-                except:
-                    line = line_bytes.decode('latin-1', errors='replace')
+            
+            if self.null_delimited:
+                # Read entire file for NUL-delimited records
+                content = self._file_handle.read()
+                records = content.split(b'\0')
                 
-                # Remove trailing newline
-                line_content = line.rstrip('\n\r')
+                line_num = 1
+                byte_offset = 0
                 
-                # Yield with byte offset of this line
-                yield line_num, line_content, byte_offset
-                
-                # Update byte offset for next line
-                byte_offset += len(line_bytes)
-                line_num += 1
+                for i, record_bytes in enumerate(records):
+                    # Skip empty records except if it's the last one and file doesn't end with NUL
+                    if not record_bytes and i < len(records) - 1:
+                        byte_offset += 1  # Account for the NUL delimiter
+                        continue
+                    
+                    # Decode record
+                    try:
+                        record_str = record_bytes.decode('utf-8', errors='replace')
+                    except:
+                        record_str = record_bytes.decode('latin-1', errors='replace')
+                    
+                    # Yield with byte offset of this record
+                    if record_str or i == len(records) - 1:  # Yield empty last record only if file doesn't end with NUL
+                        yield line_num, record_str, byte_offset
+                        line_num += 1
+                    
+                    # Update byte offset for next record
+                    byte_offset += len(record_bytes) + 1  # +1 for NUL delimiter
+            else:
+                # Original newline-delimited logic
+                line_num = 1
+                byte_offset = 0
+                for line_bytes in self._file_handle:
+                    # Decode line
+                    try:
+                        line = line_bytes.decode('utf-8', errors='replace')
+                    except:
+                        line = line_bytes.decode('latin-1', errors='replace')
+                    
+                    # Remove trailing newline
+                    line_content = line.rstrip('\n\r')
+                    
+                    # Yield with byte offset of this line
+                    yield line_num, line_content, byte_offset
+                    
+                    # Update byte offset for next line
+                    byte_offset += len(line_bytes)
+                    line_num += 1
         except IOError as e:
             raise IOError(f"Cannot read {self.file_path}: {e}")
     
     def _lines_from_stdin(self) -> Iterator[Tuple[int, str, int]]:
-        """Read lines from stdin, using cached peek buffer if available."""
+        """Read lines/records from stdin, using cached peek buffer if available."""
         line_num = 1
         partial_line = None
         
-        # If peek buffer exists (from binary detection), process it first
-        if self._peek_buffer:
-            buffer_lines = self._peek_buffer.split(b'\n')
-            # Process all lines except the last (split artifact)
-            for line_bytes in buffer_lines[:-1]:
-                line = line_bytes.decode('utf-8', errors='replace')
-                line_content = line.rstrip('\r')
-                yield line_num, line_content, 0
-                line_num += 1
+        if self.null_delimited:
+            # NUL-delimited record processing with chunked reading
+            chunk_size = 8192
             
-            # Last line from buffer: if non-empty, it was incomplete (no trailing \n)
-            if buffer_lines[-1]:
-                partial_line = buffer_lines[-1]
-        
-        # Read remaining lines from stdin, combining with partial line if needed
-        try:
-            for line_bytes in sys.stdin.buffer:
-                # If we have a partial line from peek buffer, prepend it to first chunk
-                if partial_line:
-                    line_bytes = partial_line + line_bytes
-                    partial_line = None
-                
-                line = line_bytes.decode('utf-8', errors='replace')
-                line_content = line.rstrip('\n\r')
-                yield line_num, line_content, 0  # byte_offset always 0 for stdin
-                line_num += 1
-        except (UnicodeDecodeError, AttributeError):
-            # If sys.stdin.buffer is not available, fall back to text mode
+            # Start with peek buffer if available
+            if self._peek_buffer:
+                buffer = self._peek_buffer
+            else:
+                buffer = b''
+            
             try:
-                for line in sys.stdin:
-                    line_content = line.rstrip('\n\r')
-                    yield line_num, line_content, 0
-                    line_num += 1
-            except UnicodeDecodeError:
+                while True:
+                    # Read next chunk
+                    chunk = sys.stdin.buffer.read(chunk_size)
+                    if not chunk:
+                        # Handle final partial record
+                        if buffer:
+                            record_str = buffer.decode('utf-8', errors='replace')
+                            yield line_num, record_str, 0
+                        break
+                    
+                    # Combine with buffer
+                    buffer += chunk
+                    records = buffer.split(b'\0')
+                    
+                    # Last element might be incomplete - save for next iteration
+                    buffer = records[-1]
+                    
+                    # Process complete records
+                    for record_bytes in records[:-1]:
+                        record_str = record_bytes.decode('utf-8', errors='replace')
+                        yield line_num, record_str, 0
+                        line_num += 1
+            except (UnicodeDecodeError, AttributeError):
                 print('grepnet: error: stdin contains invalid UTF-8 data', file=sys.stderr)
                 raise
+        else:
+            # Original newline-delimited logic
+            # If peek buffer exists (from binary detection), process it first
+            if self._peek_buffer:
+                buffer_lines = self._peek_buffer.split(b'\n')
+                # Process all lines except the last (split artifact)
+                for line_bytes in buffer_lines[:-1]:
+                    line = line_bytes.decode('utf-8', errors='replace')
+                    line_content = line.rstrip('\r')
+                    yield line_num, line_content, 0
+                    line_num += 1
+                
+                # Last line from buffer: if non-empty, it was incomplete (no trailing \n)
+                if buffer_lines[-1]:
+                    partial_line = buffer_lines[-1]
+            
+            # Read remaining lines from stdin, combining with partial line if needed
+            try:
+                for line_bytes in sys.stdin.buffer:
+                    # If we have a partial line from peek buffer, prepend it to first chunk
+                    if partial_line:
+                        line_bytes = partial_line + line_bytes
+                        partial_line = None
+                    
+                    line = line_bytes.decode('utf-8', errors='replace')
+                    line_content = line.rstrip('\n\r')
+                    yield line_num, line_content, 0  # byte_offset always 0 for stdin
+                    line_num += 1
+            except (UnicodeDecodeError, AttributeError):
+                # If sys.stdin.buffer is not available, fall back to text mode
+                try:
+                    for line in sys.stdin:
+                        line_content = line.rstrip('\n\r')
+                        yield line_num, line_content, 0
+                        line_num += 1
+                except UnicodeDecodeError:
+                    print('grepnet: error: stdin contains invalid UTF-8 data', file=sys.stderr)
+                    raise
+                finally:
+                    # If partial_line still exists, yield it
+                    if partial_line:
+                        line = partial_line.decode('utf-8', errors='replace')
+                        line_content = line.rstrip('\r')
+                        yield line_num, line_content, 0
+                        line_num += 1
             finally:
-                # If partial_line still exists, yield it
+                # If partial_line still exists after all reads, yield it
                 if partial_line:
                     line = partial_line.decode('utf-8', errors='replace')
                     line_content = line.rstrip('\r')
                     yield line_num, line_content, 0
-                    line_num += 1
-        finally:
-            # If partial_line still exists after all reads, yield it
-            if partial_line:
-                line = partial_line.decode('utf-8', errors='replace')
-                line_content = line.rstrip('\r')
-                yield line_num, line_content, 0
     
     def _lines_from_fd(self) -> Iterator[Tuple[int, str, int]]:
-        """Read lines from file descriptor, using cached peek buffer if available."""
+        """Read lines/records from file descriptor, using cached peek buffer if available."""
         line_num = 1
         partial_line = None
         
-        # If peek buffer exists (from binary detection), process it first
-        if self._peek_buffer:
-            buffer_lines = self._peek_buffer.split(b'\n')
-            # Process all lines except the last (split artifact)
-            for line_bytes in buffer_lines[:-1]:
-                line = line_bytes.decode('utf-8', errors='replace')
-                line_content = line.rstrip('\r')
-                yield line_num, line_content, 0
-                line_num += 1
-            
-            # Handle last line from buffer: if non-empty, it was incomplete
-            if buffer_lines[-1]:
-                partial_line = buffer_lines[-1]
-        
         try:
             self._file_handle = os.fdopen(self.fd, 'rb')
-            for line_bytes in self._file_handle:
-                # If we have a partial line, prepend it to first chunk
-                if partial_line:
-                    line_bytes = partial_line + line_bytes
-                    partial_line = None
-                
-                line = line_bytes.decode('utf-8', errors='replace')
-                line_content = line.rstrip('\n\r')
-                yield line_num, line_content, 0  # byte_offset always 0 for FD
-                line_num += 1
             
-            # If partial_line still exists after all reads, yield it
-            if partial_line:
-                line = partial_line.decode('utf-8', errors='replace')
-                line_content = line.rstrip('\r')
-                yield line_num, line_content, 0
+            if self.null_delimited:
+                # NUL-delimited record processing with chunked reading
+                chunk_size = 8192
+                
+                # Start with peek buffer if available
+                if self._peek_buffer:
+                    buffer = self._peek_buffer
+                else:
+                    buffer = b''
+                
+                try:
+                    while True:
+                        # Read next chunk
+                        chunk = self._file_handle.read(chunk_size)
+                        if not chunk:
+                            # Handle final partial record
+                            if buffer:
+                                record_str = buffer.decode('utf-8', errors='replace')
+                                yield line_num, record_str, 0
+                            break
+                        
+                        # Combine with buffer
+                        buffer += chunk
+                        records = buffer.split(b'\0')
+                        
+                        # Last element might be incomplete - save for next iteration
+                        buffer = records[-1]
+                        
+                        # Process complete records
+                        for record_bytes in records[:-1]:
+                            record_str = record_bytes.decode('utf-8', errors='replace')
+                            yield line_num, record_str, 0
+                            line_num += 1
+                except (UnicodeDecodeError, AttributeError):
+                    print('grepnet: error: FD contains invalid UTF-8 data', file=sys.stderr)
+                    raise
+            else:
+                # Original newline-delimited logic
+                # If peek buffer exists (from binary detection), process it first
+                if self._peek_buffer:
+                    buffer_lines = self._peek_buffer.split(b'\n')
+                    # Process all lines except the last (split artifact)
+                    for line_bytes in buffer_lines[:-1]:
+                        line = line_bytes.decode('utf-8', errors='replace')
+                        line_content = line.rstrip('\r')
+                        yield line_num, line_content, 0
+                        line_num += 1
+                    
+                    # Handle last line from buffer: if non-empty, it was incomplete
+                    if buffer_lines[-1]:
+                        partial_line = buffer_lines[-1]
+                
+                for line_bytes in self._file_handle:
+                    # If we have a partial line, prepend it to first chunk
+                    if partial_line:
+                        line_bytes = partial_line + line_bytes
+                        partial_line = None
+                    
+                    line = line_bytes.decode('utf-8', errors='replace')
+                    line_content = line.rstrip('\n\r')
+                    yield line_num, line_content, 0  # byte_offset always 0 for FD
+                    line_num += 1
+                
+                # If partial_line still exists after all reads, yield it
+                if partial_line:
+                    line = partial_line.decode('utf-8', errors='replace')
+                    line_content = line.rstrip('\r')
+                    yield line_num, line_content, 0
         except IOError as e:
             raise IOError(f"Cannot read from FD {self.fd}: {e}")
     
@@ -2148,6 +2683,7 @@ class InputSource:
             except:
                 pass  # Already closed or error closing
             self._file_handle = None
+
 
 class InputDiscovery:
     """
@@ -2169,6 +2705,7 @@ class InputDiscovery:
         exclude_patterns: Optional[list] = None,
         exclude_dirs: Optional[list] = None,
         stdin_label: Optional[str] = None,
+        null_delimited: bool = False,
     ) -> list:
         """
         Get list of input sources.
@@ -2182,6 +2719,7 @@ class InputDiscovery:
             exclude_patterns: List of glob patterns to exclude
             exclude_dirs: List of glob patterns for directories to exclude
             stdin_label: Optional custom label for stdin input (from --label flag)
+            null_delimited: If True, split records on NUL byte instead of newline (for -z flag)
         
         Returns:
             List of InputSource instances
@@ -2204,7 +2742,7 @@ class InputDiscovery:
             return any(fnmatch.fnmatch(dir_name, p) for p in exclude_dirs)
         
         if use_stdin:
-            sources.append(InputSource('stdin', label=stdin_label))
+            sources.append(InputSource('stdin', label=stdin_label, null_delimited=null_delimited))
         elif files:
             for file_path in files:
                 if os.path.isdir(file_path) and (recursive or dereference_recursive):
@@ -2224,25 +2762,39 @@ class InputDiscovery:
                             if exclude_patterns and matches_patterns(rel_path, exclude_patterns):
                                 continue
                             
-                            sources.append(InputSource('file', file_path=full_path))
+                            sources.append(InputSource('file', file_path=full_path, null_delimited=null_delimited))
                 else:
                     # Single file - check if it matches patterns
                     if not matches_patterns(file_path, include_patterns):
                         continue
                     if exclude_patterns and matches_patterns(file_path, exclude_patterns):
                         continue
-                    sources.append(InputSource('file', file_path=file_path))
+                    sources.append(InputSource('file', file_path=file_path, null_delimited=null_delimited))
         else:
             # Default: stdin if not a terminal
             if not sys.stdin.isatty():
-                sources.append(InputSource('stdin', label=stdin_label))
+                sources.append(InputSource('stdin', label=stdin_label, null_delimited=null_delimited))
         
         return sources
 
-# grepnet/grepnet.py
+
+# grepnet.py
+"""
+Main GrepNet orchestrator.
+
+Coordinates the entire pipeline:
+1. Initialize colorizer at startup
+2. Parse pattern(s)
+3. Read and parse input sources
+4. Match networks
+5. Format and output results
+"""
+
 import re
-from typing import List, Iterator, Tuple, Optional, Union
+from typing import List, Iterator, Tuple, Optional, Union, Dict
 from ipaddress import IPv4Network, IPv6Network
+
+
 
 class GrepNet:
     """
@@ -2767,19 +3319,42 @@ class GrepNet:
         
         return MatchType.UNMATCHED
     
-    def search(self, input_sources: List[InputSource], yield_all_lines: bool = False) -> Iterator[MatchResult]:
+    def search(self, input_sources: List[InputSource], yield_all_lines: bool = False, mode: str = 'normal') -> Union[Iterator[MatchResult], dict]:
         """
         Search input sources for matching networks.
+        
+        Unified entry point for all output modes (normal, extract, consolidate).
+        Implements "All Input Is Input" principle: single processing path for all modes.
         
         Args:
             input_sources: List of InputSource instances
             yield_all_lines: If True, yield ALL lines (both matches and non-matches).
                             Use for context line support (-A, -B, -C flags).
                             Non-match lines have is_match=False.
+            mode: Output mode ('normal', 'extract', 'consolidate')
+                 - 'normal': Yield MatchResult stream (standard mode)
+                 - 'extract': Return dict of deduplicated networks (for extract mode)
+                 - 'consolidate': Return dict of consolidated networks (for consolidate mode)
         
-        Yields:
-            MatchResult objects. When yield_all_lines=True, non-match lines are
-            yielded with is_match=False and None for match-specific fields.
+        Returns:
+            - 'normal' mode: Iterator[MatchResult] objects
+            - 'extract' mode: dict {network_object -> (ParsedExtraction, line_content)}
+            - 'consolidate' mode: dict {network_object -> (ParsedExtraction, line_content)}
+        """
+        if mode == 'extract':
+            # Extract mode: return deduplicated networks dict
+            return self.extract_networks(input_sources)
+        elif mode == 'consolidate':
+            # Consolidate mode: return consolidated networks dict
+            return self.consolidate_networks(input_sources)
+        else:  # mode == 'normal'
+            # Standard mode: stream MatchResult objects
+            return self._search_generator(input_sources, yield_all_lines)
+    
+    def _search_generator(self, input_sources: List[InputSource], yield_all_lines: bool = False) -> Iterator[MatchResult]:
+        """
+        Generator for normal search mode.
+        Returns MatchResult objects for each line.
         """
         for source in input_sources:
             yield from self._search_source(source, yield_all_lines=yield_all_lines)
@@ -2801,10 +3376,10 @@ class GrepNet:
         file_type = source.file_type
         is_binary = source.get_binary_status()
         
-        # Handle binary files based on binary_files mode
-        if is_binary and self.binary_files == 'binary':
-            # Skip binary files silently
-            return
+        # Note: Do NOT skip binary files here. Let the search proceed normally.
+        # The caller (CLI) will handle binary file suppression based on binary_files mode and output type.
+        # This allows modes like -l, -L, -c to work with binary files, and allows
+        # the default 'binary' mode to report "Binary file X matches" for content output.
         
         # For 'text' mode, treat binary files as text (is_binary stays False for output)
         if is_binary and self.binary_files == 'text':
@@ -3099,16 +3674,252 @@ class GrepNet:
             Tuple of (network_address_as_int, broadcast_address_as_int)
         """
         return (int(network.network_address), int(network.broadcast_address))
+    
+    def extract_networks(self, input_sources: List[InputSource]) -> dict:
+        """
+        Extract and deduplicate networks from input sources.
+        
+        This is the foundation for both --extract and --consolidate modes.
+        It applies pattern filtering at the network level (not line level).
+        
+        Returns:
+            dict: {network_object -> (ParsedExtraction, line_content)}
+            
+            Keys are network objects (IPv4Network/IPv6Network, or range tuples)
+            Values are tuples of (ParsedExtraction object, original line content)
+            
+            Same network appearing in multiple formats/lines is deduplicated.
+            ParsedExtraction preserves format_type and matched_texts for output.
+        """
+        from ipaddress import ip_network
+        
+        networks_dict = {}  # network_obj -> (parsed_extraction, line_content)
+        
+        for input_source in input_sources:
+            for line_number, line_content, byte_offset in input_source.lines():
+                line = line_content.rstrip('\n\r')
+                
+                # Extract networks from this line
+                parsed_extractions = self.parser.parse_line(line)
+                
+                for parsed_ext in parsed_extractions:
+                    network_obj = parsed_ext.network
+                    
+                    # Apply pattern filtering at network level
+                    match_found = False
+                    for pattern in self.parsed_patterns:
+                        match_type = self._find_match_type(parsed_ext, pattern)
+                        if match_type in self.match_type_filter:
+                            match_found = True
+                            break
+                    
+                    # Handle invert_match
+                    if self.invert_match:
+                        match_found = not match_found
+                    
+                    if not match_found:
+                        continue
+                    
+                    # Deduplication: Keep ranges as ranges, CIDR as CIDR
+                    # (don't convert - this preserves the original format)
+                    dedup_network = network_obj
+                    
+                    # Store deduplicated (only first occurrence of each network is kept)
+                    if dedup_network not in networks_dict:
+                        networks_dict[dedup_network] = (parsed_ext, line)
+        
+        return networks_dict
+    
+    def consolidate_networks(self, input_sources: List[InputSource]) -> dict:
+        """
+        Consolidate (merge overlapping/adjacent) networks.
+        
+        Implementation note: This function uses extract_networks() as its foundation,
+        maintaining the "Consolidate = Extract + Merge" architectural relationship.
+        
+        Process:
+        1. Extract deduplicated networks using extract_networks()
+        2. Convert ranges to CIDR blocks
+        3. Use RFC-compliant CIDR supernetting (collapse_addresses) to merge
+        4. Return consolidated network dictionary
+        
+        Returns:
+            dict: {consolidated_network_object -> (ParsedExtraction, line_content)}
+            
+            Keys are consolidated network objects (merged/supernets)
+            Values are ParsedExtraction + line_content from the first network in each supernet
+        """
+        from ipaddress import ip_network, collapse_addresses, IPv4Network, IPv6Network
+        
+        # Step 1: Extract unique networks
+        networks_dict = self.extract_networks(input_sources)
+        
+        if not networks_dict:
+            return {}
+        
+        # Step 2: Convert ranges to CIDR blocks and track metadata
+        # (ranges cannot be directly consolidated, must expand to CIDR)
+        expanded_networks = {}
+        network_metadata = {}  # Maps network object to (ParsedExtraction, line_content)
+        
+        for net_obj, (parsed_ext, line_content) in networks_dict.items():
+            if isinstance(net_obj, tuple):
+                # Range: convert to CIDR blocks
+                start_int, end_int = net_obj
+                version = 6 if start_int > 0xFFFFFFFF else 4
+                cidr_strings = self._range_to_cidrs(start_int, end_int, version)
+                # Add each CIDR block (using same ParsedExtraction/line)
+                for cidr_str in cidr_strings:
+                    cidr_net = ip_network(cidr_str)
+                    expanded_networks[cidr_net] = cidr_str
+                    network_metadata[cidr_net] = (parsed_ext, line_content)
+            else:
+                # Already CIDR - keep as-is
+                expanded_networks[net_obj] = str(net_obj)
+                network_metadata[net_obj] = (parsed_ext, line_content)
+        
+        # Step 3: Use RFC-compliant collapse_addresses for proper CIDR supernetting
+        # Separate IPv4 and IPv6 networks
+        ipv4_networks = [net for net in expanded_networks.keys() if isinstance(net, IPv4Network)]
+        ipv6_networks = [net for net in expanded_networks.keys() if isinstance(net, IPv6Network)]
+        
+        consolidated_list = []
+        
+        # Consolidate IPv4 networks
+        if ipv4_networks:
+            consolidated_list.extend(collapse_addresses(ipv4_networks))
+        
+        # Consolidate IPv6 networks
+        if ipv6_networks:
+            consolidated_list.extend(collapse_addresses(ipv6_networks))
+        
+        # Step 4: Map consolidated networks back to their metadata
+        # For each consolidated network, find the first original network that it contains/equals
+        consolidated_dict = {}
+        for consolidated_net in consolidated_list:
+            # Find the first original network that maps to this consolidated result
+            for original_net, (parsed_ext, line_content) in network_metadata.items():
+                if (isinstance(consolidated_net, type(original_net)) and
+                    (consolidated_net == original_net or 
+                     original_net.subnet_of(consolidated_net))):
+                    consolidated_dict[consolidated_net] = (parsed_ext, line_content)
+                    break
+            else:
+                # Fallback: shouldn't happen, but assign a dummy value
+                consolidated_dict[consolidated_net] = (None, None)
+        
+        return consolidated_dict
+    
+    def _range_to_cidrs(self, start_int: int, end_int: int, version: int = 4) -> List[str]:
+        """
+        Convert a range (start_int, end_int) to a list of CIDR blocks.
+        
+        Algorithm: Iteratively find the largest CIDR block that fits at the current position,
+        emit it, and advance to the next position.
+        
+        Args:
+            start_int: Start IP as integer
+            end_int: End IP as integer  
+            version: IP version (4 or 6)
+        
+        Returns:
+            List of CIDR strings (e.g., ['192.0.2.0/30', '192.0.2.4/32'])
+        """
+        from ipaddress import ip_network
+        
+        max_bits = 32 if version == 4 else 128
+        cidrs = []
+        current = start_int
+        
+        while current <= end_int:
+            # Find the largest block size (smallest prefix length) that:
+            # 1. Starts at an aligned boundary
+            # 2. Doesn't exceed our range
+            
+            prefix_len = max_bits
+            
+            # Try each prefix length from 0 (largest block) to max
+            for pl in range(max_bits):
+                # Block size for this prefix: 2^(max_bits - prefix_length)
+                block_size = 1 << (max_bits - pl)
+                
+                # Check alignment: current must be divisible by block_size
+                if (current % block_size) == 0:
+                    # Check that block doesn't exceed range
+                    block_end = current + block_size - 1
+                    if block_end <= end_int:
+                        # This block fits - use it
+                        prefix_len = pl
+                        break
+            
+            # Emit the CIDR block
+            cidr_str = str(ip_network((current, prefix_len)))
+            cidrs.append(cidr_str)
+            
+            # Advance to next block
+            block_size = 1 << (max_bits - prefix_len)
+            current += block_size
+        
+        return cidrs
 
-# grepnet/cli.py
+
+# cli.py
+"""GrepNet command-line interface."""
+
 import sys
 import argparse
 import re
 from collections import deque
 
+# (bundled: grepnet_module reference handled inline)
+# (bundled: imports already available)
+# (bundled: imports already available)
+
+
+def error(message, exit_code=2):
+    """Standard error handler - prints message to stderr and exits."""
+    print(f"grepnet: error: {message}", file=sys.stderr)
+    sys.exit(exit_code)
+
+
+class GrepNetArgumentParser(argparse.ArgumentParser):
+    """Custom ArgumentParser that adds help hint to all error messages."""
+    
+    def error(self, message):
+        """Print error message with usage and help hint, matching grep format."""
+        self.exit(2, f"{self.prog}: error: {message}\nUsage: {self.format_usage().split('usage: ')[1]}Try '{self.prog} --help' for more information.\n")
+
+
+class FilterCommentsValidator:
+    """Validator for --no-filter-comments values."""
+    VALID_CHOICES = {'pattern', 'input', 'both', 'none'}
+    
+    def __call__(self, value):
+        if value not in self.VALID_CHOICES:
+            msg = f'invalid choice: {value!r} (choose from {", ".join(sorted(self.VALID_CHOICES))})'
+            raise argparse.ArgumentTypeError(msg)
+        return value
+
+
+class NoFilterCommentsAction(argparse.Action):
+    """Custom action for --no-filter-comments that handles optional values."""
+    def __init__(self, option_strings, dest, const='both', **kwargs):
+        super().__init__(option_strings, dest, nargs='?', const=const, **kwargs)
+    
+    def __call__(self, parser, namespace, values, option_string=None):
+        if values is None:
+            setattr(namespace, self.dest, self.const)
+        else:
+            validator = FilterCommentsValidator()
+            try:
+                setattr(namespace, self.dest, validator(values))
+            except argparse.ArgumentTypeError as e:
+                raise argparse.ArgumentError(self, str(e))
+
+
 def run():
     """Main CLI entry point."""
-    parser = argparse.ArgumentParser(
+    parser = GrepNetArgumentParser(
         prog='grepnet',
         description='Network-aware grep for CIDR blocks and IP ranges',
         usage='%(prog)s [OPTION...] PATTERN [FILE...]  OR  %(prog)s [OPTION...] -f PATTERNS_FILE [FILE...]',
@@ -3137,7 +3948,7 @@ def run():
     )
     parser.add_argument(
         '-f',
-        '--file-patterns',
+        '--patterns-file',
         action='store',
         dest='pattern_file',
         help='Read patterns from file (one per line)',
@@ -3146,9 +3957,9 @@ def run():
     # Matching options
     parser.add_argument(
         '-e',
-        '--equals',
+        '--equal',
         action='store_true',
-        help='Match only EQUALS',
+        help='Match equal networks',
     )
     parser.add_argument(
         '-s',
@@ -3185,6 +3996,12 @@ def run():
         '--quiet',
         action='store_true',
         help='Suppress output (exit code only)',
+    )
+    parser.add_argument(
+        '--silent',
+        action='store_true',
+        dest='quiet',
+        help='Alias for --quiet',
     )
     parser.add_argument(
         '--no-messages',
@@ -3242,11 +4059,25 @@ def run():
         help='Display stdin as LABEL instead of (standard input)',
     )
     parser.add_argument(
-        '-T',
-        '--tab',
+        '-Z',
+        '--null',
         action='store_true',
-        dest='tab_prefix',
-        help='Prepend tab character to each output line',
+        dest='null_output',
+        help='Output NUL byte instead of newline after filename',
+    )
+    parser.add_argument(
+        '-z',
+        '--null-data',
+        action='store_true',
+        dest='null_data',
+        help='Treat input/output data as NUL-terminated records',
+    )
+    parser.add_argument(
+        '-T',
+        '--initial-tab',
+        action='store_true',
+        dest='initial_tab',
+        help='Insert tab after prefixes for alignment',
     )
     parser.add_argument(
         '-l',
@@ -3256,16 +4087,30 @@ def run():
     )
     parser.add_argument(
         '-L',
-        '--files-without-matches',
+        '--files-without-match',
         action='store_true',
         help='Print only files without matches',
+    )
+    parser.add_argument(
+        '-a',
+        '--text',
+        action='store_true',
+        dest='text_mode',
+        help='Process binary files as text (equivalent to --binary-files=text)',
+    )
+    parser.add_argument(
+        '-I',
+        action='store_true',
+        dest='no_binary_match',
+        help='Binary files are treated as non-matching (equivalent to --binary-files=without-match)',
     )
     
     # Comment handling
     parser.add_argument(
         '--no-filter-comments',
-        action='store_true',
-        help='Do not remove comments before parsing',
+        action=NoFilterCommentsAction,
+        default=None,
+        help='Do not filter comments (pattern, input, both, or none; default: both)',
     )
     
     # Parse control flags
@@ -3391,10 +4236,10 @@ def run():
     )
     parser.add_argument(
         '-F',
-        '--file',
+        '--input-file',
         action='append',
         dest='input_files_explicit',
-        help='Specify input file explicitly (can be used multiple times)',
+        help='Specify input file explicitly (repeatable)',
     )
     
     # Exclusion filters
@@ -3472,8 +4317,6 @@ def run():
     )
     
     args = parser.parse_args()
-    
-    # Handle -C (context) flag which sets both -A and -B
     if args.context > 0:
         args.after_context = args.context
         args.before_context = args.context
@@ -3489,22 +4332,18 @@ def run():
     # From -f file
     if args.pattern_file:
         try:
-            # Handle special case: -f - means read from stdin
+            # Use InputSource for pattern files - exact same extraction process as input files
+            # This ensures pattern files respect -z (null-delimited) and binary file handling
             if args.pattern_file == '-':
-                f = sys.stdin
+                pattern_source = InputSource('stdin', null_delimited=args.null_data)
             else:
-                f = open(args.pattern_file, 'r')
+                pattern_source = InputSource('file', file_path=args.pattern_file, null_delimited=args.null_data)
             
-            for line in f:
-                line = line.rstrip('\n\r')
+            for line_num, line_content, byte_offset in pattern_source.lines():
                 # Add all non-empty lines to patterns list (without pre-filtering)
                 # Comment handling is done by the extraction pipeline in GrepNet.parser
-                if line:
-                    patterns.append(line)
-            
-            # Close file if we opened it (not stdin)
-            if args.pattern_file != '-':
-                f.close()
+                if line_content:
+                    patterns.append(line_content)
             
             # Empty pattern file is allowed - will match nothing (or extract all in extract mode)
         except IOError as e:
@@ -3537,26 +4376,40 @@ def run():
         arg.startswith('--after-context') or arg.startswith('--before-context') or arg.startswith('--context')
         for arg in sys.argv[1:]  # Skip program name
     )
-    if context_flags_provided and (args.files_with_matches or args.files_without_matches or args.extract or args.consolidate):
+    if context_flags_provided and (args.files_with_matches or args.files_without_match or args.extract or args.consolidate):
         if not args.no_messages:
             print('grepnet: error: context flags (-B/-A/-C) cannot be used with -l, -L, --extract, or --consolidate', file=sys.stderr)
         sys.exit(2)
     
+    # Handle binary file flags: -a (--text), -I, and --binary-files
+    # Precedence: explicit binary flags override --binary-files
+    if args.text_mode:
+        # -a, --text: process binary files as text
+        args.binary_files = 'text'
+    elif args.no_binary_match:
+        # -I: treat binary files as non-matching
+        args.binary_files = 'without-match'
+    # else: use the default or explicitly set --binary-files value
+    
+    # Force text mode for -z flag: NUL-delimited files are detected as binary due to NUL bytes,
+    # but -z means the user explicitly wants to treat them as text records separated by NUL
+    if args.null_data:
+        args.binary_files = 'text'
+    
     # If no patterns found from any source (args.pattern_flags or positional), error
     # But allow it if pattern file was provided (even if empty), or if --extract/--consolidate
     # Only error if user provided NO pattern source at all in normal grep mode
-    has_pattern_source = args.pattern_file or args.pattern_flags or (args.positional_args and not args.extract and not args.consolidate and not (args.files_with_matches or args.files_without_matches))
+    has_pattern_source = args.pattern_file or args.pattern_flags or (args.positional_args and not args.extract and not args.consolidate and not (args.files_with_matches or args.files_without_match))
     
     if not patterns and not has_pattern_source and not args.extract and not args.consolidate:
         if not args.no_messages:
-            print('grepnet: error: no patterns to search for', file=sys.stderr)
-        sys.exit(2)
+            parser.error('no patterns to search for')
     
     # Determine match type filter based on -e, -s, -S, -O, -u flags
     match_type_filter = []
     has_explicit_match_type = False
     
-    if args.equals:
+    if args.equal:
         match_type_filter.append(MatchType.EQUALS)
         has_explicit_match_type = True
     if args.subset:
@@ -3590,16 +4443,19 @@ def run():
     else:  # auto
         enable_colors = sys.stdout.isatty()
     
+    # Set output record delimiter based on -z flag
+    output_delimiter = '\0' if args.null_data else '\n'
+    
     # Load exclude strings from file if provided (BEFORE creating GrepNet instance)
     if args.exclude_strings_file:
         try:
-            with open(args.exclude_strings_file, 'r') as f:
-                for line in f:
-                    line = line.rstrip('\n\r')
-                    if line and not line.lstrip().startswith('#'):
-                        if args.exclude_strings is None:
-                            args.exclude_strings = []
-                        args.exclude_strings.append(line)
+            # Use InputSource for exclude files - exact same extraction process as input files
+            exclude_source = InputSource('file', file_path=args.exclude_strings_file, null_delimited=args.null_data)
+            for line_num, line_content, byte_offset in exclude_source.lines():
+                if line_content and not line_content.lstrip().startswith('#'):
+                    if args.exclude_strings is None:
+                        args.exclude_strings = []
+                    args.exclude_strings.append(line_content)
         except IOError as e:
             if not args.no_messages:
                 print(f'grepnet: Cannot read exclude strings file {args.exclude_strings_file}: {e}', file=sys.stderr)
@@ -3608,13 +4464,13 @@ def run():
     # Load exclude CIDR patterns from file if provided (BEFORE creating GrepNet instance)
     if args.exclude_cidrs_file:
         try:
-            with open(args.exclude_cidrs_file, 'r') as f:
-                for line in f:
-                    line = line.rstrip('\n\r')
-                    if line and not line.lstrip().startswith('#'):
-                        if args.exclude_cidrs is None:
-                            args.exclude_cidrs = []
-                        args.exclude_cidrs.append(line)
+            # Use InputSource for exclude files - exact same extraction process as input files
+            exclude_source = InputSource('file', file_path=args.exclude_cidrs_file, null_delimited=args.null_data)
+            for line_num, line_content, byte_offset in exclude_source.lines():
+                if line_content and not line_content.lstrip().startswith('#'):
+                    if args.exclude_cidrs is None:
+                        args.exclude_cidrs = []
+                    args.exclude_cidrs.append(line_content)
         except IOError as e:
             if not args.no_messages:
                 print(f'grepnet: Cannot read exclude CIDR file {args.exclude_cidrs_file}: {e}', file=sys.stderr)
@@ -3634,9 +4490,33 @@ def run():
         else:
             grepnet_patterns = patterns
         
+        # Determine comment filtering behavior based on --no-filter-comments scope
+        # Default (None): filter comments in both patterns and input
+        # 'both': don't filter comments anywhere
+        # 'input': don't filter input comments (but filter patterns)
+        # 'pattern': don't filter pattern comments (but filter input)
+        # 'none': filter comments everywhere (same as default)
+        if args.no_filter_comments is None or args.no_filter_comments == 'none':
+            # Default behavior: filter comments
+            filter_comments_enabled = True
+        elif args.no_filter_comments == 'both':
+            # Don't filter comments anywhere
+            filter_comments_enabled = False
+        elif args.no_filter_comments == 'input':
+            # Don't filter input comments (filter patterns instead)
+            # TODO: This requires passing separate flags to GrepNet
+            filter_comments_enabled = False
+        elif args.no_filter_comments == 'pattern':
+            # Don't filter pattern comments (filter input instead)
+            # TODO: This requires passing separate flags to GrepNet
+            filter_comments_enabled = True
+        else:
+            # Fallback to filtering enabled
+            filter_comments_enabled = True
+        
         grepnet = GrepNet(
             patterns=grepnet_patterns,
-            filter_comments=not args.no_filter_comments,
+            filter_comments=filter_comments_enabled,
             strict_mode=(args.strict_cidr in ['pattern', 'both']),
             strict_cidr_action=args.strict_cidr_action,
             strict_cidr_mode=args.strict_cidr,
@@ -3671,13 +4551,13 @@ def run():
         # Load exclude patterns from file if provided (for --exclude-from)
         if args.exclude_from_file:
             try:
-                with open(args.exclude_from_file, 'r') as f:
-                    for line in f:
-                        line = line.rstrip('\n\r')
-                        if line and not line.lstrip().startswith('#'):
-                            if args.exclude_patterns is None:
-                                args.exclude_patterns = []
-                            args.exclude_patterns.append(line)
+                # Use InputSource for exclude files - exact same extraction process as input files
+                exclude_source = InputSource('file', file_path=args.exclude_from_file, null_delimited=args.null_data)
+                for line_num, line_content, byte_offset in exclude_source.lines():
+                    if line_content and not line_content.lstrip().startswith('#'):
+                        if args.exclude_patterns is None:
+                            args.exclude_patterns = []
+                        args.exclude_patterns.append(line_content)
             except IOError as e:
                 if not args.no_messages:
                     print(f'grepnet: Cannot read exclude patterns file {args.exclude_from_file}: {e}', file=sys.stderr)
@@ -3709,6 +4589,7 @@ def run():
         exclude_patterns=args.exclude_patterns,
         exclude_dirs=args.exclude_dirs,
         stdin_label=args.label,
+        null_delimited=args.null_data,
     )
     
     if not input_sources:
@@ -3717,7 +4598,7 @@ def run():
     # Auto-enable filename prefix for multiple files (unless --no-filename is set)
     # Count non-stdin files in input_sources
     file_count = len([s for s in input_sources if s.display_name is not None])
-    if file_count > 1 and not args.files_without_matches and not args.no_filename:
+    if file_count > 1 and not args.files_without_match and not args.no_filename:
         args.with_filename = True
     
     if not input_sources:
@@ -3745,335 +4626,84 @@ def run():
     if not args.extract and not args.consolidate and not grepnet.parsed_patterns:
         # Normal search mode: empty patterns is an ERROR
         if not args.no_messages:
-            print('grepnet: error: no patterns to search for', file=sys.stderr)
-        sys.exit(2)
+            parser.error('no patterns to search for')
     
     # Run search
     try:
         if args.extract or args.consolidate:
-            from ipaddress import IPv4Network, IPv6Network, ip_network
+            from ipaddress import IPv4Network, IPv6Network
+# (bundled: imports already available)
             
-            # Internal validation: patterns must exist (CLI should have provided defaults or user patterns)
-            # For extract/consolidate: allow empty patterns (will extract nothing, exit 1)
-            # This is belt & suspenders - CLI layer should have validated, but check here too
+            # Validation: patterns must exist for extract/consolidate
             if not grepnet.parsed_patterns:
-                # In extract/consolidate mode with empty patterns: exit 1 (no matches)
-                # not error (which would be 2)
-                if not args.no_messages:
-                    # Silently return 1 - no patterns means no networks to extract
-                    pass
+                # No patterns means no networks to extract
                 sys.exit(1)
             
-            # For extract/consolidate modes: iterate through ALL lines and extract networks
-            # Then apply pattern filtering at NETWORK level (not line level)
-            
-            # ============================================================================
-            # DATA STRUCTURE: networks_dict
-            # ============================================================================
-            # Type: dict[IPv4Network | IPv6Network, tuple[ParsedExtraction, str]]
-            # 
-            # Key Design Decisions:
-            # =====================
-            # 
-            # 1. KEYS ARE NETWORK OBJECTS (not strings):
-            #    - Keys must be IPv4Network/IPv6Network objects (from ipaddress module)
-            #    - NOT string representations (e.g., not "192.0.2.0/24" strings)
-            #    - Reason: Network objects have proper __eq__() and __hash__() for dict lookup
-            #    - Reason: Consolidate mode needs to call .supernet_of(), .subnet_of(), 
-            #              .version, .network_address, etc.
-            #
-            # 2. RANGE TUPLES CONVERTED TO CIDR OBJECTS:
-            #    - Ranges are parsed as tuples: (start_int, end_int)
-            #    - Tuples are NOT added to dict directly
-            #    - Instead: Convert to CIDR via _range_to_cidrs(), use first CIDR as key
-            #    - Reason: Ensures all dict keys are compatible IPv4Network/IPv6Network
-            #    - Reason: Deduplication works correctly (same network in different formats)
-            #
-            # 3. VALUES CONTAIN METADATA:
-            #    - value[0] = ParsedExtraction object
-            #      Contains: network_obj, format_type, was_normalized, matched_texts
-            #    - value[1] = Original line content (string)
-            #    - Reason: Preserves format info for output (can show "subnet mask" vs "CIDR")
-            #    - Reason: Consolidate mode can access line-level context
-            #
-            # Architectural Dependency:
-            # ==========================
-            # This structure is specifically designed to support CONSOLIDATE MODE:
-            # - Consolidate merges overlapping/adjacent networks into supernets
-            # - It must call network_obj.supernet_of() and .subnet_of() methods
-            # - String keys would break this (can't call methods on strings)
-            # - Previous bug: Used string keys, broke consolidate's merge logic
-            # - Current fix: Use network objects, consolidate can access all methods
-            #
-            # Example:
-            # --------
-            # Input lines:
-            #   192.0.2.0/24 (CIDR format)
-            #   192.0.2.0 255.255.255.0 (subnet mask format)
-            #   192.0.2.0-192.0.2.255 (range format)
-            #
-            # All three parse to same network: IPv4Network('192.0.2.0/24')
-            # All three convert to same dedup key: IPv4Network('192.0.2.0/24')
-            # Dict contains single entry (deduplicated), preserves all original texts
-            # ============================================================================
-            
-            networks_dict = {}  # network_obj -> (parsed_extraction, line_content)
-            
+            # Use unified grepnet.search() interface for extraction
+            # This replaces the old direct input loop pattern
             try:
-                # Iterate through all input lines
-                for input_source in input_sources:
-                    try:
-                        for line_number, line_content, byte_offset in input_source.lines():
-                            line = line_content.rstrip('\n\r')
-                            
-                            # Extract networks from this line
-                            parsed_extractions = grepnet.parser.parse_line(line)
-                            
-                            for parsed_ext in parsed_extractions:
-                                network_obj = parsed_ext.network
-                                
-                                # Apply pattern filtering at network level
-                                # Check if this network matches any pattern
-                                match_found = False
-                                for pattern in grepnet.parsed_patterns:
-                                    match_type = grepnet._find_match_type(parsed_ext, pattern)
-                                    if match_type in grepnet.match_type_filter:
-                                        match_found = True
-                                        break
-                                
-                                # Handle invert_match
-                                if grepnet.invert_match:
-                                    match_found = not match_found
-                                
-                                # Only include if it matches the pattern filter
-                                if match_found:
-                                    # =========================================================================
-                                    # DEDUP
-                                    # DEDUPLICATION LOGIC: Convert all network types to canonical form
-                                    # =========================================================================
-                                    # Problem: Networks extracted from different formats need deduplication
-                                    # - CIDR: "192.0.2.0/24" -> IPv4Network object
-                                    # - Subnet mask: "192.0.2.0 255.255.255.0" -> IPv4Network object  
-                                    # - Range: "192.0.2.0-192.0.2.255" -> tuple (start_int, end_int)
-                                    # - IP only: "192.0.2.0" -> IPv4Network object (/32)
-                                    #
-                                    # All the above represent the SAME NETWORK, but:
-                                    # - IPv4Network objects compare equal (correct behavior)
-                                    # - Tuples are a different type, so tuple != IPv4Network (bug!)
-                                    #
-                                    # Fix: Convert range tuples to IPv4Network/IPv6Network objects
-                                    # This way all dict keys are compatible, with proper equality checking
-                                    # =========================================================================
-                                    
-                                    dedup_network = network_obj
-                                    if isinstance(network_obj, tuple):
-                                        # Range tuple: (start_int, end_int)
-                                        # Must convert to CIDR to get IPv4Network/IPv6Network object
-                                        start_int, end_int = network_obj
-                                        
-                                        # Determine IP version based on address size
-                                        if start_int > 0xFFFFFFFF:
-                                            version = 6
-                                        else:
-                                            version = 4
-                                        
-                                        # Convert range to CIDR blocks
-                                        # _range_to_cidrs() returns list of CIDR STRINGS
-                                        cidr_strings = grepnet._range_to_cidrs(start_int, end_int, version)
-                                        if cidr_strings:
-                                            # Convert string CIDR to network object
-                                            cidr_str = cidr_strings[0]  # Use first CIDR block
-                                            dedup_network = ip_network(cidr_str)  # Convert string to network object
-                                        # else: keep original tuple if conversion fails (edge case - shouldn't happen)
-                                    
-                                    # Store in networks_dict with network object as key
-                                    # Value is tuple: (ParsedExtraction object, original line content string)
-                                    # - ParsedExtraction contains format_type, matched_texts for output formatting
-                                    # - Line content string provides context for consolidate mode
-                                    # CRITICAL: Do NOT use string keys (breaks consolidate mode's .supernet_of() calls)
-                                    if dedup_network not in networks_dict:
-                                        try:
-                                            networks_dict[dedup_network] = (parsed_ext, line)
-                                        except Exception as e:
-                                            if not args.no_messages:
-                                                print(f'grepnet: error storing in networks_dict: {e}', file=sys.stderr)
-                                                print(f'  dedup_network type: {type(dedup_network).__name__}, value: {dedup_network}', file=sys.stderr)
-                                                print(f'  parsed_ext type: {type(parsed_ext).__name__}', file=sys.stderr)
-                                                print(f'  line type: {type(line).__name__}, length: {len(line) if isinstance(line, str) else "N/A"}', file=sys.stderr)
-                                            raise
-                    except IOError as e:
-                        if not args.no_messages:
-                            print(f'grepnet: Cannot read {input_source.display_name or "stdin"}: {e}', file=sys.stderr)
-                        continue
+                if args.extract:
+                    # Extract mode: use grepnet.search(mode='extract')
+                    networks_dict = grepnet.search(input_sources, mode='extract')
+                    
+                    if not networks_dict:
+                        sys.exit(1)
+                    
+                    # Output extracted networks
+                    for parsed_extraction, line_content in networks_dict.values():
+                        # Apply exclusion filters
+                        if grepnet._check_extraction_excluded(parsed_extraction):
+                            continue
+                        
+                        formatted_net = grepnet.format_network(parsed_extraction)
+                        if args.show_content and line_content:
+                            print(f'{formatted_net} {line_content}', end=output_delimiter)
+                        else:
+                            print(formatted_net, end=output_delimiter)
+                    
+                    sys.exit(0)
+                
+                elif args.consolidate:
+                    # Consolidate mode: use grepnet.search(mode='consolidate')
+                    # Returns consolidated network dictionary
+                    consolidated_dict = grepnet.search(input_sources, mode='consolidate')
+                    
+                    if not consolidated_dict:
+                        sys.exit(1)
+                    
+                    # Output consolidated networks
+                    for net_obj, (parsed_ext, line_content) in consolidated_dict.items():
+                        # Create temporary ParsedExtraction wrapper for consolidated networks
+                        if isinstance(net_obj, (IPv4Network, IPv6Network)):
+                            temp_extraction = ParsedExtraction(
+                                network=net_obj,
+                                format_type='cidr_notation',
+                                was_normalized=False,
+                                matched_texts=[]
+                            )
+                        else:
+                            # Range tuple - mark as range
+                            temp_extraction = ParsedExtraction(
+                                network=net_obj,
+                                format_type='ipv4_range' if net_obj[0] <= 0xFFFFFFFF else 'ipv6_range',
+                                was_normalized=False,
+                                matched_texts=[]
+                            )
+                        
+                        # format_network() handles output format conversion
+                        formatted_net = grepnet.format_network(temp_extraction)
+                        print(formatted_net, end=output_delimiter)
+                    
+                    sys.exit(0)
+            
             except Exception as e:
                 if not args.no_messages:
                     import traceback
-                    print(f'grepnet: error during extract/consolidate processing: {e}', file=sys.stderr)
+                    print(f'grepnet: error during extract/consolidate: {e}', file=sys.stderr)
                     traceback.print_exc(file=sys.stderr)
                 sys.exit(2)
-            
-            if not networks_dict:
-                sys.exit(1)
-            
-            # Step 2: For extract mode, output and exit
-            if args.extract:
-                for parsed_extraction, line_content in networks_dict.values():
-                    # Apply exclusion filters in extract mode
-                    if grepnet._check_extraction_excluded(parsed_extraction):
-                        continue
-                    
-                    formatted_net = grepnet.format_network(parsed_extraction)
-                    if args.show_content and line_content:
-                        print(f'{formatted_net} {line_content}')
-                    else:
-                        print(formatted_net)
-                sys.exit(0)
-            
-            # Step 3: For consolidate mode, consolidate the extracted networks
-            # ========================================================================
-            # CONSOLIDATE MODE: Merge overlapping and adjacent networks into supernets
-            # ========================================================================
-            # Purpose: Take extracted networks and merge them:
-            # - Overlapping networks: Keep the superset (largest network)
-            # - Adjacent networks: Merge into single supernet if possible
-            # - Example: 192.0.2.0/25 + 192.0.2.128/25 -> 192.0.2.0/24
-            #
-            # Why networks_dict keys must be IPv4Network/IPv6Network objects:
-            # - Need to call .subnet_of(), .supernet_of(), .version properties
-            # - String keys can't call methods (this was the Issue 1 bug that broke consolidate)
-            # - Issue 1 fix ensures all keys are network objects (not strings, not tuples)
-            #
-            # Algorithm:
-            # 1. Sort networks by version and start address (ensures consistent merge order)
-            # 2. Iterate through sorted networks
-            # 3. For each network: check if it overlaps/is-adjacent-to previous
-            # 4. If yes: merge into supernet and replace last entry
-            # 5. If no: append as new entry
-            # 6. Output merged networks
-            # ========================================================================
-            
-            if args.consolidate:
-                # Sort extracted networks for consolidation
-                # networks_dict.items() returns: [(network_obj, (parsed_ext, line)), ...]
-                # where network_obj is guaranteed to be IPv4Network/IPv6Network (Issue 1 ensures this)
-                
-                # Debug: Check networks_dict contents
-                if args.debug:
-                    print(f'DEBUG: networks_dict has {len(networks_dict)} entries', file=sys.stderr)
-                    for i, (k, v) in enumerate(list(networks_dict.items())[:3]):  # Show first 3
-                        print(f'  [{i}] key={k} (type={type(k).__name__}), value={type(v).__name__} with {len(v)} items', file=sys.stderr)
-                
-                networks_list = list(networks_dict.items())  # [(network_obj, (parsed_ext, line)), ...]
-                
-                def _sort_key(item):
-                    # Sort networks by: (ip_version, start_address)
-                    # This ensures:
-                    # - IPv4 networks come before IPv6 networks
-                    # - Within same version, sorted by start address (ascending)
-                    # - Consolidation algorithm can safely merge adjacent networks
-                    # 
-                    # Note: By Issue 1 fix, all network_obj should be IPv4Network/IPv6Network
-                    # (no tuples), so the hasattr check should always return True
-                    network_obj, _ = item
-                    if hasattr(network_obj, 'version'):
-                        # CIDR: IPv4Network or IPv6Network object
-                        # Can directly access .version and .network_address properties
-                        version = network_obj.version
-                        start_addr = int(network_obj.network_address)
-                    else:
-                        # Range tuple: (start_int, end_int)
-                        start_addr, _ = network_obj
-                        # IPv4 ranges are 32-bit, IPv6 are 128-bit
-                        version = 4 if start_addr <= 0xFFFFFFFF else 6
-                    return (version, start_addr)
-                
-                networks_list.sort(key=_sort_key)
-                
-                # Debug: Check what's in networks_list
-                if not networks_list:
-                    sys.exit(1)
-                
-                # Merge overlapping and adjacent networks
-                consolidated = []
-                for network_obj, value_tuple in networks_list:
-                    # Unpack value tuple - should be (parsed_ext, content)
-                    try:
-                        parsed_ext, content = value_tuple
-                    except (TypeError, ValueError) as e:
-                        if not args.no_messages:
-                            print(f'grepnet: error: failed to unpack value from networks_dict: {e}', file=sys.stderr)
-                            print(f'  network_obj: {network_obj}', file=sys.stderr)
-                            print(f'  value_tuple type: {type(value_tuple)}, len: {len(value_tuple) if isinstance(value_tuple, (list, tuple)) else "N/A"}', file=sys.stderr)
-                            if isinstance(value_tuple, (list, tuple)):
-                                for i, item in enumerate(value_tuple):
-                                    print(f'    [{i}]: {type(item)} = {item}', file=sys.stderr)
-                        sys.exit(2)
-                    
-                    net = network_obj
-                    net = network_obj
-                    if not consolidated:
-                        # First network - always add
-                        consolidated.append(net)
-                    else:
-                        last = consolidated[-1]
-                        
-                        # Check if networks are both CIDR or both tuples
-                        # (By Issue 1 fix, should always be CIDR IPv4Network/IPv6Network)
-                        is_cidr_net = isinstance(net, (IPv4Network, IPv6Network))
-                        is_cidr_last = isinstance(last, (IPv4Network, IPv6Network))
-                        
-                        if is_cidr_net and is_cidr_last:
-                            # Both are CIDR network objects - try to merge
-                            try:
-                                # Check if networks overlap or one is subset of other
-                                if net.subnet_of(last) or last.subnet_of(net):
-                                    # One is contained in the other
-                                    # Keep the superset (largest network)
-                                    if net.version == last.version:
-                                        # Same IP version: keep whichever is larger
-                                        consolidated[-1] = last if last.supernet_of(net) else net
-                                elif net.network_address == last.broadcast_address + 1:
-                                    # Adjacent networks - next network starts where previous ends
-                                    # Merge into single supernet
-                                    supernet_addr = last.network_address
-                                    supernet_mask = last.prefixlen - 1
-                                    consolidated[-1] = ip_network((supernet_addr, supernet_mask))
-                                else:
-                                    # Networks don't overlap or touch - keep both
-                                    consolidated.append(net)
-                            except:
-                                # If merge logic fails for any reason, keep the network
-                                consolidated.append(net)
-                        else:
-                            # Can't easily merge ranges, just append as-is
-                            # (This case shouldn't happen due to Issue 1 fix)
-                            consolidated.append(net)
-                
-                # Output consolidated networks in requested format
-                # ===================================================
-                # For consolidate mode, networks came from the original extraction pipeline
-                # and may have original format_type (subnet_mask, cidr_notation, etc.)
-                # However, after consolidation, we need to output in target format
-                # 
-                # Create temporary ParsedExtraction wrappers to provide metadata
-                # to the formatting function. The network object is what matters most.
-                for net in consolidated:
-                    # Create temporary ParsedExtraction wrapper for consolidated networks
-                    # Note: format_type is 'cidr_notation' for all consolidated output
-                    # (consolidation produces standard CIDR form)
-                    temp_extraction = ParsedExtraction(
-                        network=net,
-                        format_type='cidr_notation' if isinstance(net, (IPv4Network, IPv6Network)) else 'ipv4_range',
-                        was_normalized=False,
-                        matched_texts=[]
-                    )
-                    # format_network() handles output format conversion (--format cidr/range/etc.)
-                    formatted_net = grepnet.format_network(temp_extraction)
-                    print(formatted_net)
-                
-                sys.exit(0)
-
         
+        # Normal mode: process as standard search
         match_count = 0
         file_matches = {}  # Map filename -> set of line numbers with matches
         seen_output = set()  # Track output to avoid duplication
@@ -4114,7 +4744,7 @@ def run():
                         
                         # Gap exists if there's space between them (ranges don't overlap)
                         if prev_context_end < curr_context_start and not args.quiet and not args.no_group_separator:
-                            print(args.group_separator)
+                            print(args.group_separator, end=output_delimiter)
                     
                     # Output before-context buffer
                     for ctx_filename, ctx_line_num, ctx_content in before_buf:
@@ -4131,7 +4761,7 @@ def run():
                                 prefix_parts.append(str(ctx_line_num))
                         
                         # Choose separator: tab for -T, colon for normal
-                        if args.tab_prefix and prefix_parts:
+                        if args.initial_tab and prefix_parts:
                             sep = '\t'
                         elif enable_colors:
                             sep = grepnet.colorizer.colorize_separator(':')
@@ -4147,14 +4777,14 @@ def run():
                                 ctx_prefix_count += 1
                             if args.line_number:
                                 ctx_prefix_count += 1
-                            if args.tab_prefix and ctx_prefix_count == 1:
+                            if args.initial_tab and ctx_prefix_count == 1:
                                 output = f'{prefix}\t{ctx_content}'
                             else:
                                 output = f'{prefix}:{ctx_content}'
                         else:
                             output = ctx_content
                         if not args.quiet:
-                            print(output)
+                            print(output, end=output_delimiter)
                     
                     before_buf.clear()
                     
@@ -4185,7 +4815,7 @@ def run():
                                          if enable_colors else str(result.byte_offset))
                     
                     # Build prefix in the correct order for -T or normal mode
-                    if args.tab_prefix:
+                    if args.initial_tab:
                         # For -T mode: byte, line, filename order with tab separators
                         if byte_offset_str:
                             prefix_parts.append(byte_offset_str)
@@ -4223,14 +4853,14 @@ def run():
                                     output_text = grepnet.colorizer.finalize_markup(marked_block.group(0), enable_colors=True)
                             if prefix:
                                 # Use tab as separator if -T and single prefix, colon if multiple
-                                if args.tab_prefix and len(prefix_parts) == 1:
+                                if args.initial_tab and len(prefix_parts) == 1:
                                     output = f'{prefix}\t{output_text}'
                                 else:
                                     output = f'{prefix}:{output_text}'
                             else:
                                 output = output_text
                             if not args.quiet:
-                                print(output)
+                                print(output, end=output_delimiter)
                             match_count += 1
                             if args.max_count > 0 and match_count >= args.max_count:
                                 break
@@ -4239,14 +4869,14 @@ def run():
                         line_output = result.content_colored if enable_colors else result.line_content
                         if prefix:
                             # Use tab as separator if -T and single prefix, colon if multiple
-                            if args.tab_prefix and len(prefix_parts) == 1:
+                            if args.initial_tab and len(prefix_parts) == 1:
                                 output = f'{prefix}\t{line_output}'
                             else:
                                 output = f'{prefix}:{line_output}'
                         else:
                             output = line_output
                         if not args.quiet:
-                            print(output)
+                            print(output, end=output_delimiter)
                         match_count += 1
                     
                     # Track this line and match for next iteration's gap check
@@ -4263,7 +4893,7 @@ def run():
                         prefix_parts.append(str(current_line))
                     
                     # Choose separator: tab for -T, colon for normal
-                    if args.tab_prefix and prefix_parts:
+                    if args.initial_tab and prefix_parts:
                         sep = '\t'
                     else:
                         sep = ':'
@@ -4273,14 +4903,14 @@ def run():
                     line_output = result.line_content.rstrip('\n')
                     if prefix:
                         # Use tab as separator if -T and single prefix, colon if multiple
-                        if args.tab_prefix and len(prefix_parts) == 1:
+                        if args.initial_tab and len(prefix_parts) == 1:
                             output = f'{prefix}\t{line_output}'
                         else:
                             output = f'{prefix}:{line_output}'
                     else:
                         output = line_output
                     if not args.quiet:
-                        print(output)
+                        print(output, end=output_delimiter)
                     
                     after_count -= 1
                 
@@ -4309,17 +4939,28 @@ def run():
         
         # Skip output phase if context mode already output all results
         if not use_context:
-            # For "without-match" mode, output binary file messages instead of normal output
-            if args.binary_files == 'without-match' and binary_files_matched:
-                for filename in sorted(binary_files_matched.keys()):
-                    if not args.quiet:
-                        print(f'Binary file {filename} matches')
-                # Still set match_count for -c (count) mode
-                for lines in file_matches.values():
-                    match_count += len(lines)
+            # Handle binary files based on binary_files mode
+            # For 'binary' mode (default): output "Binary file X matches" for normal output only
+            # For 'without-match' mode (-I): same suppression
+            # For 'text' mode (-a): output normally
             
-            # Output normal results (only if NOT in without-match mode or no binary matches)
-            elif not (args.binary_files == 'without-match' and binary_files_matched):
+            binary_files_with_output = set()  # Track which binary files we've already reported
+            
+            # For "binary" or "without-match" mode, output binary file messages for NORMAL OUTPUT ONLY
+            # (not for -c, -l, -L which have their own output handling)
+            if (args.binary_files in ['binary', 'without-match']) and binary_files_matched:
+                # Only output "Binary file X matches" if NOT in count/list mode
+                if not (args.count or args.files_with_matches or args.files_without_match):
+                    for filename in sorted(binary_files_matched.keys()):
+                        if not args.quiet:
+                            print(f'Binary file {filename} matches', end=output_delimiter)
+                        binary_files_with_output.add(filename)
+                # Count matches for all modes
+                for filename in binary_files_matched.keys():
+                    match_count += len(file_matches.get(filename, []))
+            
+            # Output normal results (skipping binary files if already handled)
+            if not (args.binary_files == 'without-match' and binary_files_matched):
                 for line_number in sorted(results_by_line.keys()):
                     # Check max_count before outputting this line
                     if args.max_count > 0 and match_count >= args.max_count:
@@ -4329,7 +4970,14 @@ def run():
                     filename, first_result = line_results[0]
                     
                     # Skip output for -l and -L (handled at end)
-                    if args.files_with_matches or args.files_without_matches:
+                    if args.files_with_matches or args.files_without_match:
+                        continue
+                    
+                    # Skip line output for binary files in 'binary' mode (they were already reported as "Binary file X matches")
+                    if first_result.is_binary_file and args.binary_files == 'binary':
+                        # Only count the matches, don't output line content
+                        if not args.count:  # -c mode already counted above
+                            match_count += len(line_results)
                         continue
                     
                     # For -c (count), just count and skip output
@@ -4354,7 +5002,7 @@ def run():
                                          if enable_colors else str(first_result.byte_offset))
                     
                     # Build prefix in the correct order for -T or normal mode
-                    if args.tab_prefix:
+                    if args.initial_tab:
                         # For -T mode: byte, line, filename order with tab separators
                         if byte_offset_str:
                             prefix_parts.append(byte_offset_str)
@@ -4398,7 +5046,7 @@ def run():
                             # Add prefix
                             if prefix:
                                 # Use tab as separator if -T and single prefix, colon if multiple
-                                if args.tab_prefix and len(prefix_parts) == 1:
+                                if args.initial_tab and len(prefix_parts) == 1:
                                     output = f'{prefix}\t{output_text}'
                                 else:
                                     output = f'{prefix}:{output_text}'
@@ -4406,7 +5054,7 @@ def run():
                                 output = output_text
                             
                             if not args.quiet:
-                                print(output)
+                                print(output, end=output_delimiter)
                             match_count += 1
                             
                             # Check max_count after each match in -o mode
@@ -4421,7 +5069,7 @@ def run():
                             
                             if prefix:
                                 # Use tab as separator if -T and single prefix, colon if multiple
-                                if args.tab_prefix and len(prefix_parts) == 1:
+                                if args.initial_tab and len(prefix_parts) == 1:
                                     output = f'{prefix}\t{line_output}'
                                 else:
                                     output = f'{prefix}:{line_output}'
@@ -4435,7 +5083,7 @@ def run():
                                 print('=== OUTPUT ===', file=sys.stderr)
                             
                             if not args.quiet:
-                                print(output)
+                                print(output, end=output_delimiter)
                             
                             seen_output.add(output_key)
                             match_count += 1
@@ -4446,17 +5094,19 @@ def run():
         
         # Handle -l (files-with-matches): print only filenames with matches
         if args.files_with_matches:
+            end_char = '\0' if args.null_output else '\n'
             for filename in sorted(file_matches.keys()):
                 if file_matches[filename]:  # Has matches
                     if enable_colors:
                         output = grepnet.colorizer.colorize_filename(filename)
                     else:
                         output = filename
-                    print(output)
+                    if not args.quiet:
+                        print(output, end=end_char)
             if not file_matches or not any(file_matches.values()):
                 sys.exit(1)
         # Handle -L (files-without-matches): print only filenames without matches
-        elif args.files_without_matches:
+        elif args.files_without_match:
             matched_files = set(f for f, lines in file_matches.items() if lines)
             # Extract filenames from input_sources (display_name is None for stdin without --label)
             all_files = set()
@@ -4465,12 +5115,14 @@ def run():
             unmatched = all_files - matched_files
             # Filter out None (stdin without --label) from output
             unmatched = {f for f in unmatched if f is not None}
+            end_char = '\0' if args.null_output else '\n'
             for filename in sorted(unmatched):
                 if enable_colors:
                     output = grepnet.colorizer.colorize_filename(filename)
                 else:
                     output = filename
-                print(output)
+                if not args.quiet:
+                    print(output, end=end_char)
             if not unmatched:
                 sys.exit(1)
         # Handle -c (count): print count
@@ -4486,12 +5138,12 @@ def run():
                             count = len(file_matches[filename])
                             if enable_colors:
                                 colored_filename = grepnet.colorizer.colorize_filename(filename)
-                                print(f"{colored_filename}:{count}")
+                                print(f"{colored_filename}:{count}", end=output_delimiter)
                             else:
-                                print(f"{filename}:{count}")
+                                print(f"{filename}:{count}", end=output_delimiter)
                 else:
                     # Single file or stdin - just print count
-                    print(match_count)
+                    print(match_count, end=output_delimiter)
             if match_count == 0:
                 sys.exit(1)
         else:
@@ -4505,9 +5157,16 @@ def run():
         sys.exit(130)
     except Exception as e:
         if not args.no_messages:
-            print(f'grepnet: {e}', file=sys.stderr)
-        sys.exit(2)
+            error(str(e))
+
+
+if __name__ == '__main__':
+    run()
+
 
 
 if __name__ == "__main__":
-    run()
+    try:
+        sys.exit(run())
+    except KeyboardInterrupt:
+        sys.exit(1)
