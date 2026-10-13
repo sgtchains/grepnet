@@ -407,6 +407,13 @@ def run():
         dest='exclude_cidrs_file',
         help='Load networks to exclude from file (one network per line)',
     )
+    parser.add_argument(
+        '--exclude-cidr-behaviour',
+        choices=['subset', 'superset', 'equals', 'related', 'cut'],
+        default='subset',
+        dest='exclude_cidr_behaviour',
+        help='CIDR exclusion behavior: subset (default), superset, equals, related, or cut',
+    )
     
     # File filtering options
     parser.add_argument(
@@ -547,6 +554,12 @@ def run():
         if not args.no_messages:
             parser.error('no patterns to search for')
     
+    # Validate --exclude-cidr-behaviour=cut: only valid with --extract or --consolidate
+    if args.exclude_cidr_behaviour == 'cut' and not (args.extract or args.consolidate):
+        if not args.no_messages:
+            print('grepnet: error: --exclude-cidr-behaviour=cut requires --extract or --consolidate', file=sys.stderr)
+        sys.exit(2)
+    
     # Determine match type filter based on -e, -s, -S, -O, -u flags
     match_type_filter = []
     has_explicit_match_type = False
@@ -678,6 +691,7 @@ def run():
             debug=args.debug,
             exclude_strings=args.exclude_strings,
             exclude_cidrs=None,  # Will be set after parsing
+            exclude_cidr_behaviour=args.exclude_cidr_behaviour,
             output_format=args.format if args.format else 'cidr',  # Default to 'cidr' if not provided
             binary_files=args.binary_files,
         )
@@ -795,10 +809,14 @@ def run():
                     if not networks_dict:
                         sys.exit(1)
                     
+                    # Apply cut behavior if requested
+                    if args.exclude_cidr_behaviour == 'cut':
+                        networks_dict = grepnet._apply_cut_exclusion(networks_dict)
+                    
                     # Output extracted networks
                     for parsed_extraction, line_content in networks_dict.values():
-                        # Apply exclusion filters
-                        if grepnet._check_extraction_excluded(parsed_extraction):
+                        # Apply exclusion filters (skip cut, as it was already applied)
+                        if args.exclude_cidr_behaviour != 'cut' and grepnet._check_extraction_excluded(parsed_extraction):
                             continue
                         
                         formatted_net = grepnet.format_network(parsed_extraction)
@@ -816,6 +834,13 @@ def run():
                     
                     if not consolidated_dict:
                         sys.exit(1)
+                    
+                    # Apply cut behavior if requested
+                    if args.exclude_cidr_behaviour == 'cut':
+                        # Convert consolidated_dict to extract format, apply cut, then convert back
+                        extract_dict = {net: data for net, data in consolidated_dict.items()}
+                        extract_dict = grepnet._apply_cut_exclusion(extract_dict)
+                        consolidated_dict = extract_dict
                     
                     # Output consolidated networks
                     for net_obj, (parsed_ext, line_content) in consolidated_dict.items():

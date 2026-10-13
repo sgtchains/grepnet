@@ -432,6 +432,39 @@ class InputDiscovery:
                 # Support '-' as stdin
                 if file_path == '-':
                     sources.append(InputSource('stdin', label=stdin_label, null_delimited=null_delimited))
+                # Support FD numbers (e.g., 3, 4 from process substitution)
+                elif file_path.isdigit():
+                    fd = int(file_path)
+                    sources.append(InputSource('fd', fd=fd, label=stdin_label, null_delimited=null_delimited))
+                # Support /dev/fd/N and /proc/*/fd/N patterns (process substitution)
+                elif file_path.startswith('/dev/fd/') and file_path[8:].isdigit():
+                    fd = int(file_path[8:])
+                    sources.append(InputSource('fd', fd=fd, label=stdin_label, null_delimited=null_delimited))
+                elif '/proc/' in file_path and file_path.endswith(('/fd/0', '/fd/1', '/fd/2')):
+                    # Standard streams via /proc
+                    fd = int(file_path[-1])
+                    sources.append(InputSource('fd', fd=fd, label=stdin_label, null_delimited=null_delimited))
+                elif '/proc/' in file_path and '/fd/' in file_path:
+                    # Try to extract FD number from /proc paths
+                    try:
+                        fd_str = file_path.split('/fd/')[-1]
+                        if fd_str.isdigit():
+                            fd = int(fd_str)
+                            sources.append(InputSource('fd', fd=fd, label=stdin_label, null_delimited=null_delimited))
+                        else:
+                            # Not an FD path, treat as regular file
+                            if not matches_patterns(file_path, include_patterns):
+                                continue
+                            if exclude_patterns and matches_patterns(file_path, exclude_patterns):
+                                continue
+                            sources.append(InputSource('file', file_path=file_path, null_delimited=null_delimited))
+                    except (ValueError, IndexError):
+                        # If extraction fails, treat as regular file
+                        if not matches_patterns(file_path, include_patterns):
+                            continue
+                        if exclude_patterns and matches_patterns(file_path, exclude_patterns):
+                            continue
+                        sources.append(InputSource('file', file_path=file_path, null_delimited=null_delimited))
                 elif os.path.isdir(file_path) and (recursive or dereference_recursive):
                     # Recursively discover files
                     follow_symlinks = dereference_recursive

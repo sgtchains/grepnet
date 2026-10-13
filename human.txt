@@ -1,15 +1,13 @@
-Need to validate that information in newer *.md files
-do not add uncaptured information
-
-Need to obstract files so that it is more standardized in 
-functions and reduces bs code duplication.
-
-Add specical parsing condition so that "0.0.0.0 255.255.255.255"
-results in 0.0.0.0/0 (if parse-inverse has not been set to false)
-
 Add --fill-pct for --consolidate
 
-Do we need to add a --parse-bare-ip?
+Will add IPs (up to a percentage of total IP addresses to consolidate
+into larger CIDRs)
+
+$ ./grepnet 192.0.2.1-192.0.2.2 --consolidate --fill-pct=25
+$ ./grepnet 192.0.2.1-192.0.2.2 --consolidate --fill-pct=50
+192.0.2.0/30
+
+
 
 Add --ipv4-sorter-than, --ipv4-longer-than, --ipv6-sorter-than,
 and --ipv6-longer-than
@@ -55,19 +53,4 @@ $ echo 192.0.2.0/24 | ./grepnet --extract \
 $
 
 
-Add args to --no-filter-comments={pattern,input,both,none} 
-    default to "both" if --no-filter-comments used without
-    additional args. default to "none" if not used.
-
-Modify the spec file to give great detail to the
-InputSource struct.
-
-Document that short-cidr (E.g. 192.0.2/24, 10/8, 0/0) is 
-not being scanned for, nor ranges with spaces 
-192.0.2.0\s+-\s+192.0.2.255.
-
-chains@ubuntu-dev:~/dev/grepnet$ ./grepnet 192 tests/files/binary_file
-chains@ubuntu-dev:~/dev/grepnet$ ./grepnet
-chains@ubuntu-dev:~/dev/grepnet$
-... where is the error for no pattern?
 

@@ -84,6 +84,7 @@ class GrepNet:
         debug: Optional[str] = None,
         exclude_strings: Optional[List[str]] = None,
         exclude_cidrs: Optional[List] = None,
+        exclude_cidr_behaviour: str = 'subset',
         output_format: str = 'cidr',
         binary_files: str = 'binary',
     ):
@@ -104,6 +105,7 @@ class GrepNet:
             debug: Debug mode ('markup' to show internal markup, None to disable)
             exclude_strings: List of substrings to exclude from results
             exclude_cidrs: List of network objects (IPv4Network/IPv6Network or ranges) to exclude
+            exclude_cidr_behaviour: CIDR exclusion behavior ('subset', 'superset', 'equals', 'related', 'cut')
             output_format: Network output format for --extract/--consolidate ('cidr', 'range', 'short-range')
         """
         self.patterns = patterns
@@ -125,6 +127,7 @@ class GrepNet:
         self.debug = debug
         self.exclude_strings = exclude_strings or []
         self.exclude_cidrs = exclude_cidrs or []
+        self.exclude_cidr_behaviour = exclude_cidr_behaviour
         self.output_format = output_format
         self.binary_files = binary_files
         
@@ -400,8 +403,7 @@ class GrepNet:
         if self.exclude_cidrs:
             file_network = extraction.network
             for exclude_net in self.exclude_cidrs:
-                # Default behavior: 'subset' - exclude if file network is subset of exclude network
-                if self._check_cidr_exclusion(file_network, exclude_net, behavior='subset'):
+                if self._check_cidr_exclusion(file_network, exclude_net, behavior=self.exclude_cidr_behaviour):
                     return True
         
         return False
@@ -509,6 +511,115 @@ class GrepNet:
         except (TypeError, ValueError, AttributeError):
             # Skip if comparison fails
             return False
+    
+    def _cut_network(self, network, exclude_net) -> List[Union[IPv4Network, IPv6Network]]:
+        """
+        Carve out exclude_net from network and return remaining CIDRs.
+        
+        Args:
+            network: Network to cut from (IPv4Network or IPv6Network)
+            exclude_net: Network to remove (IPv4Network or IPv6Network)
+        
+        Returns:
+            List of networks that remain after cutting out exclude_net
+        """
+        if not isinstance(network, (IPv4Network, IPv6Network)):
+            # Ranges not yet supported for cut
+            return [network]
+        
+        if not isinstance(exclude_net, (IPv4Network, IPv6Network)):
+            # Exclude is a range, convert to CIDR
+            return [network]
+        
+        # If exclude_net is not within network, return network unchanged
+        if not exclude_net.subnet_of(network) and exclude_net != network:
+            return [network]
+        
+        # If they're equal, return nothing
+        if exclude_net == network:
+            return []
+        
+        # Use supernet_of/subnets to compute complement
+        result = []
+        current = [network]
+        
+        while current:
+            subnet = current.pop(0)
+            
+            # If exclude_net doesn't overlap with subnet, keep subnet
+            if not subnet.overlaps(exclude_net):
+                result.append(subnet)
+                continue
+            
+            # If exclude_net equals subnet, skip it
+            if exclude_net == subnet:
+                continue
+            
+            # If exclude_net contains subnet, skip it
+            if exclude_net.supernet_of(subnet):
+                continue
+            
+            # If subnet is not the parent of exclude_net, split and recurse
+            if not exclude_net.subnet_of(subnet):
+                # Partial overlap - shouldn't happen if exclude_net.subnet_of(network)
+                # but handle anyway
+                result.append(subnet)
+                continue
+            
+            # Split the subnet in half
+            subnets = list(subnet.subnets(prefixlen_diff=1))
+            current.extend(subnets)
+        
+        return result
+    
+    def _apply_cut_exclusion(self, networks: Dict) -> Dict:
+        """
+        Apply cut exclusion behavior to extracted networks.
+        
+        For each exclude CIDR, remove it from all networks and expand results.
+        
+        Args:
+            networks: Dictionary from extract mode {network: (ParsedExtraction, line_content)}
+        
+        Returns:
+            Modified dictionary with cut-out networks
+        """
+        if not self.exclude_cidrs:
+            return networks
+        
+        result = {}
+        
+        for network, (parsed_ext, line_content) in networks.items():
+            if not isinstance(network, (IPv4Network, IPv6Network)):
+                # Skip ranges for now
+                result[network] = (parsed_ext, line_content)
+                continue
+            
+            remaining = [network]
+            
+            # Apply each exclude CIDR
+            for exclude_net in self.exclude_cidrs:
+                if not isinstance(exclude_net, (IPv4Network, IPv6Network)):
+                    continue
+                
+                new_remaining = []
+                for net in remaining:
+                    cutout = self._cut_network(net, exclude_net)
+                    new_remaining.extend(cutout)
+                remaining = new_remaining
+            
+            # Add remaining networks to result
+            for net in remaining:
+                # Create a new ParsedExtraction for the cut network
+                temp_extraction = ParsedExtraction(
+                    network=net,
+                    format_type='cidr_notation',
+                    was_normalized=False,
+                    matched_texts=parsed_ext.matched_texts if parsed_ext else []
+                )
+                result[net] = (temp_extraction, line_content)
+        
+        return result
     
     def _check_match_type_against_pattern(self, matcher, pattern_start_or_net, pattern_end=None) -> MatchType:
         """
