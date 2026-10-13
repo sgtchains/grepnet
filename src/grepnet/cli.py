@@ -273,6 +273,12 @@ def run():
         help='Where to accept IP ranges (default: both)',
     )
     parser.add_argument(
+        '--parse-bare-ip',
+        choices=['pattern', 'input', 'both', 'none'],
+        default='both',
+        help='Where to accept single IP address (default: both)',
+    )
+    parser.add_argument(
         '--range-format',
         choices=['long', 'short', 'both', 'none'],
         default='both',
@@ -658,6 +664,7 @@ def run():
             parse_netmask=args.parse_netmask,
             parse_hostmask=args.parse_hostmask,
             parse_ranges=args.parse_ranges,
+            parse_bare_ip=args.parse_bare_ip,
             range_format=args.range_format,
             enable_colors=enable_colors,
             match_type_filter=match_type_filter,

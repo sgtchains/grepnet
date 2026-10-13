@@ -45,6 +45,7 @@ class NetworkParser:
         parse_netmask: str = 'both',
         parse_hostmask: str = 'both',
         parse_ranges: str = 'both',
+        parse_bare_ip: str = 'both',
         range_format: str = 'both',
     ):
         """
@@ -56,6 +57,8 @@ class NetworkParser:
             parse_cidr: Where to accept CIDR ('pattern', 'input', 'both', 'none')
             parse_netmask: Where to accept subnet masks ('pattern', 'input', 'both', 'none')
             parse_hostmask: Where to accept hostmasks ('pattern', 'input', 'both', 'none')
+            parse_ranges: Where to accept IP ranges ('pattern', 'input', 'both', 'none')
+            parse_bare_ip: Where to accept bare IPs ('pattern', 'input', 'both', 'none')
             range_format: Range format preference ('long', 'short', 'both', 'none')
         """
         self.filter_comments = filter_comments
@@ -64,6 +67,7 @@ class NetworkParser:
         self.parse_netmask = parse_netmask
         self.parse_hostmask = parse_hostmask
         self.parse_ranges = parse_ranges
+        self.parse_bare_ip = parse_bare_ip
         self.range_format = range_format
         
         # Initialize comment handler
@@ -228,11 +232,14 @@ class NetworkParser:
                     
                     if orig_pos >= 0:
                         match_end_pos = orig_pos + len(extraction.matched_text)
+                        is_bare_ip = True  # Assume bare IP unless proven otherwise
+                        
                         if match_end_pos < len(original_line):
                             next_char = original_line[match_end_pos]
                             
                             # If followed by /, validate CIDR parse control
                             if next_char == '/':
+                                is_bare_ip = False
                                 if self.parse_cidr == 'none':
                                     skip_extraction = True
                                 elif self.parse_cidr == 'pattern' and context != 'pattern':
@@ -242,6 +249,7 @@ class NetworkParser:
                             
                             # If followed by -, validate range parse control
                             elif next_char == '-':
+                                is_bare_ip = False
                                 if self.parse_ranges == 'none':
                                     skip_extraction = True
                                 elif self.parse_ranges == 'pattern' and context != 'pattern':
@@ -258,6 +266,10 @@ class NetworkParser:
                                     # Determine if it's a netmask or hostmask
                                     is_netmask = _is_valid_netmask(second_ip)
                                     is_hostmask = _is_valid_hostmask(second_ip)
+                                    
+                                    # Only mark as not-bare-ip if second value is actually a netmask/hostmask
+                                    if is_netmask or is_hostmask:
+                                        is_bare_ip = False
                                     
                                     if is_netmask:
                                         # It's netmask format (space-separated pair)
@@ -283,9 +295,14 @@ class NetworkParser:
                             # Check for "IP space" pattern before (2nd part of space-separated pair)
                             before_match = re.search(r'(\d+\.\d+\.\d+\.\d+)\s+$', before_context)
                             if before_match:
+                                first_ip = before_match.group(1)
                                 # This IP appears to be the 2nd part of a space-separated pair
                                 is_netmask = _is_valid_netmask(extraction.matched_text)
                                 is_hostmask = _is_valid_hostmask(extraction.matched_text)
+                                
+                                # Only mark as not-bare-ip if this IP is actually a netmask/hostmask
+                                if is_netmask or is_hostmask:
+                                    is_bare_ip = False
                                 
                                 if is_netmask:
                                     # It's the netmask part (space-separated pair)
@@ -303,6 +320,15 @@ class NetworkParser:
                                         skip_extraction = True
                                     elif self.parse_hostmask == 'input' and context == 'pattern':
                                         skip_extraction = True
+                        
+                        # If it's a bare IP (not part of another format), validate parse_bare_ip control
+                        if not skip_extraction and is_bare_ip:
+                            if self.parse_bare_ip == 'none':
+                                skip_extraction = True
+                            elif self.parse_bare_ip == 'pattern' and context != 'pattern':
+                                skip_extraction = True
+                            elif self.parse_bare_ip == 'input' and context == 'pattern':
+                                skip_extraction = True
                 
                 if skip_extraction:
                     # Remove the matched text to prevent re-extraction by other extractors

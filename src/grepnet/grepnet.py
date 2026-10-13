@@ -74,6 +74,7 @@ class GrepNet:
         parse_netmask: str = 'both',
         parse_hostmask: str = 'both',
         parse_ranges: str = 'both',
+        parse_bare_ip: str = 'both',
         range_format: str = 'both',
         enable_colors: bool = True,
         match_type_filter: Optional[List[MatchType]] = None,
@@ -132,6 +133,7 @@ class GrepNet:
         self.parse_netmask = parse_netmask
         self.parse_hostmask = parse_hostmask
         self.parse_ranges = parse_ranges
+        self.parse_bare_ip = parse_bare_ip
         self.range_format = range_format
         
         # Initialize colorizer at startup (before any matching)
@@ -145,6 +147,7 @@ class GrepNet:
             parse_netmask=parse_netmask,
             parse_hostmask=parse_hostmask,
             parse_ranges=parse_ranges,
+            parse_bare_ip=parse_bare_ip,
             range_format=range_format,
         )
         self.parsed_patterns = self._parse_patterns()

@@ -15,6 +15,8 @@ Add --ipv4-sorter-than, --ipv4-longer-than, --ipv6-sorter-than,
 and --ipv6-longer-than
 For use with --extract and --consolidate 
 
+.. shorter/longer than, not equal to.
+
 $ echo "192.0.2.0/25 192.0.2.0/29 192.0.2.1 10.0.0.0/8" | \
   ./grepnet --extract --ipv4-shorter-than=29 192.0.2.0/24
 192.0.2.0/25
@@ -40,6 +42,18 @@ $ echo 192.0.2.0/24 | ./grepnet --extract \
 192.0.2.64/26 
 192.0.2.128/25 
 $
+
+$ echo 192.0.2.0/24 | ./grepnet --extract \
+  --exclude-cidr=192.0.2.4/30             \
+  --exclude-cidr-behaviour=cut
+192.0.2.0/30 
+192.0.2.8/29 
+192.0.2.16/28 
+192.0.2.32/27 
+192.0.2.64/26 
+192.0.2.128/25 
+$
+
 
 Add args to --no-filter-comments={pattern,input,both,none} 
     default to "both" if --no-filter-comments used without
