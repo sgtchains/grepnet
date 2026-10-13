@@ -1,0 +1,617 @@
+.TH GREPNET 1 "October 13, 2026" "grepnet 5.0.0" "User Commands"
+.ad l
+.nh
+
+
+.SH NAME
+
+grepnet - Network-aware grep for CIDR blocks, IP ranges, and network addresses
+
+.SH SYNOPSIS
+
+\fBgrepnet\fR [\fIOPTION\fR...] \fIPATTERN\fR [\fIFILE\fR...]
+
+\fBgrepnet\fR [\fIOPTION\fR...] \fB-f\fR \fIPATTERN_FILE\fR [\fIFILE\fR...]
+
+.SH DESCRIPTION
+
+grepnet searches for network addresses in text files using network algebra instead of substring matching. A pattern like \fB192.0.2.0/24\fR will match any IP address, CIDR block, subnet mask, or IP range that falls within that network—regardless of format.
+
+This makes grepnet ideal for:
+
+.RS 4
+.IP \(bu 2
+\fBNetwork auditing\fR: Find all references to a network across multiple files and formats
+.IP \(bu 2
+\fBConfiguration review\fR: Locate which systems/applications reference specific networks
+.IP \(bu 2
+\fBSecurity analysis\fR: Identify networks referenced in logs, configs, and documentation
+.IP \(bu 2
+\fBNetwork extraction\fR: Extract and consolidate all networks mentioned in files
+
+.SS Core Concept: Network Matching
+
+.RE
+Unlike grep which does text matching, grepnet understands network topology. These all represent the same /24 network:
+
+.EX
+192.0.2.0/24             (CIDR)
+192.0.2.0 255.255.255.0  (Subnet mask)
+192.0.2.0 0.0.0.255      (Inverse mask)
+192.0.2.0-192.0.2.255    (IP range)
+192.0.2.1                (Single IP within the network)
+.EE
+A single \fBgrepnet '192.0.2.0/24'\fR command finds all of these.
+
+.SH QUICK START
+
+.EX
+.SH Find any reference to a network
+
+grepnet '192.0.2.0/24' config.txt
+
+.SH Search from stdin
+
+echo "server 192.0.2.1" | grepnet '192.0.2.0/24'
+
+.SH Search multiple files recursively
+
+grepnet -r '10.0.0.0/8' /etc/
+
+.SH Show line numbers and only matching networks
+
+grepnet -n -o '192.0.2.0/24' data.txt
+
+.SH Extract all networks from a file
+
+grepnet --extract config.txt
+
+.SH Consolidate overlapping networks
+
+grepnet --consolidate networks.txt
+.EE
+.SH PATTERN AND FILE INPUT
+
+\fIPATTERN\fR
+: Network pattern to search for (CIDR, IP range, subnet mask, bare IP, or file glob with \fB-f\fR)
+
+\fIFILE\fR...
+: Files to search. If omitted, reads from stdin.
+
+.TP
+\fB-P\fR, \fB--pattern\fR \fIPATTERN\fR
+Specify additional patterns (repeatable: \fB-P net1 -P net2\fR)
+
+.TP
+\fB-f\fR, \fB--patterns-file\fR \fIPATTERN_FILE\fR
+Read patterns from file, one per line (repeatable)
+
+.TP
+\fB-F\fR, \fB--input-file\fR \fIFILE\fR
+Specify input file explicitly (alternative to positional FILE arguments)
+
+.SH MATCH TYPES
+
+By default, grepnet finds all matches. Use these flags to filter by relationship type:
+
+.TP
+\fB-e\fR, \fB--equal\fR
+Match only networks that are exactly equal
+
+.TP
+\fB-s\fR, \fB--subset\fR
+Match only when file network is smaller than pattern (contained within)
+
+.TP
+\fB-S\fR, \fB--superset\fR
+Match only when file network is larger than pattern (contains pattern)
+
+.TP
+\fB-O\fR, \fB--overlap\fR
+Match only when networks partially overlap
+
+.TP
+\fB-v\fR, \fB--invert-match\fR
+Show lines that do NOT match (inverse logic)
+
+\fBExample\fR: \fBgrepnet -s '192.0.0.0/16' data.txt\fR finds all /24 or /25 networks within 192.0.0.0/16
+
+.SH OUTPUT OPTIONS
+
+.TP
+\fB-o\fR, \fB--only-matching\fR
+Print only the matched networks, not the entire line
+
+.TP
+\fB-n\fR, \fB--line-number\fR
+Prefix output with 1-based line numbers
+
+.TP
+\fB-b\fR, \fB--byte-offset\fR
+Prefix output with 0-based byte offsets
+
+.TP
+\fB-H\fR, \fB--with-filename\fR
+Include filename in output (default when multiple files)
+
+\fB--no-filename\fR
+: Suppress filename in output
+
+.TP
+\fB-T\fR, \fB--initial-tab\fR
+Insert tab after line number/byte offset for alignment
+
+.TP
+\fB-c\fR, \fB--count\fR
+Print count of matching lines instead of lines
+
+.TP
+\fB-l\fR, \fB--files-with-matches\fR
+Print only filenames containing matches (useful for scripting)
+
+.TP
+\fB-L\fR, \fB--files-without-matches\fR
+Print only filenames without matches
+
+.TP
+\fB-q\fR, \fB--quiet\fR
+Suppress output (exit code only)
+
+\fB--label\fR \fILABEL\fR
+: Display stdin as \fILABEL\fR instead of "(standard input)"
+
+.TP
+\fB-m\fR \fINUM\fR, \fB--max-count\fR \fINUM\fR
+Stop searching after \fINUM\fR matches
+
+.SH CONTEXT OPTIONS
+
+.TP
+\fB-A\fR \fINUM\fR, \fB--after-context\fR \fINUM\fR
+Print \fINUM\fR lines after each match
+
+.TP
+\fB-B\fR \fINUM\fR, \fB--before-context\fR \fINUM\fR
+Print \fINUM\fR lines before each match
+
+.TP
+\fB-C\fR \fINUM\fR, \fB--context\fR \fINUM\fR
+Print \fINUM\fR lines before and after each match
+
+\fB--group-separator\fR \fISEP\fR
+: Print \fISEP\fR between match groups (default: "--")
+
+\fB--no-group-separator\fR
+: Suppress group separator
+
+\fBExample\fR: \fBgrepnet -C 2 '192.0.2.0/24' config.txt\fR shows each match with 2 lines of context
+
+.SH EXTRACTION AND CONSOLIDATION
+
+\fB--extract\fR
+: Extract all unique networks found in input (deduplicated)
+
+\fB--consolidate\fR
+: Consolidate overlapping and adjacent networks into larger blocks
+
+\fB--show-content\fR
+: Include original line content in extract/consolidate output
+
+\fB--format\fR {\fBcidr\fR|\fBrange\fR|\fBshort-range\fR|\fBoriginal\fR}
+: Output format for networks (default: \fBcidr\fR)
+
+.RS 4
+.IP \(bu 2
+\fBcidr\fR - CIDR notation: \fB192.0.2.0/24\fR
+.IP \(bu 2
+\fBrange\fR - Full ranges: \fB192.0.2.0-192.0.2.255\fR
+.IP \(bu 2
+\fBshort-range\fR - Abbreviated ranges: \fB192.0.2.0-255\fR
+.IP \(bu 2
+\fBoriginal\fR - Original format as found (not available with \fB--consolidate\fR)
+
+.RE
+\fBExamples\fR:
+
+.EX
+.SH Extract all unique networks
+
+grepnet --extract network_logs.txt
+
+.SH Consolidate overlapping networks into larger blocks
+
+grepnet --consolidate all_networks.txt
+
+.SH Extract networks matching a pattern, output as ranges
+
+grepnet --extract '10.0.0.0/8' systems.txt --format range
+
+.SH Consolidate and show which lines contained each network
+
+grepnet --consolidate --show-content config.txt
+.EE
+.SH FILTERING
+
+\fB--exclude-string\fR \fIPATTERN\fR
+: Exclude lines matching text pattern (regex; repeatable)
+
+\fB--exclude-strings-file\fR \fIFILE\fR
+: Load text patterns to exclude from file
+
+\fB--exclude-cidr\fR \fINETWORK\fR
+: Exclude specific networks (repeatable)
+
+\fB--exclude-cidrs-file\fR \fIFILE\fR
+: Load networks to exclude from file
+
+\fBExample\fR: \fBgrepnet '192.0.0.0/16' data.txt --exclude-string 'deprecated'\fR finds all matches except lines marked deprecated
+
+.SH FILE DISCOVERY
+
+.TP
+\fB-r\fR, \fB--recursive\fR
+Search directories recursively (don't follow symlinks)
+
+.TP
+\fB-R\fR, \fB--dereference-recursive\fR
+Search directories recursively (follow symlinks)
+
+\fB--include\fR \fIGLOB\fR
+: Include only files matching glob (repeatable)
+
+\fB--exclude\fR \fIGLOB\fR
+: Exclude files matching glob (repeatable)
+
+\fB--exclude-from\fR \fIFILE\fR
+: Load exclude patterns from file
+
+\fB--exclude-dir\fR \fIPATTERN\fR
+: Exclude directories matching glob (repeatable)
+
+\fBExamples\fR:
+
+.EX
+.SH Search all .conf files recursively
+
+grepnet -r --include '*.conf' '192.0.0.0/16' /etc/
+
+.SH Search everywhere except backups
+
+grepnet -r --exclude-dir 'backup' '10.0.0.0/8' /var/
+
+.SH Search logs excluding old archive subdirectories
+
+grepnet -r --exclude '*/old/*' '192.0.2.0/24' /var/log/
+.EE
+.SH PARSING CONTROL
+
+\fB--parse-cidr\fR {\fBpattern\fR|\fBinput\fR|\fBboth\fR|\fBnone\fR}
+: Accept CIDR notation in patterns, input, both, or neither (default: \fBboth\fR)
+
+\fB--parse-netmask\fR {\fBpattern\fR|\fBinput\fR|\fBboth\fR|\fBnone\fR}
+: Accept subnet masks (default: \fBboth\fR)
+
+\fB--parse-hostmask\fR {\fBpattern\fR|\fBinput\fR|\fBboth\fR|\fBnone\fR}
+: Accept inverse/host masks (default: \fBboth\fR)
+
+\fB--parse-ranges\fR {\fBpattern\fR|\fBinput\fR|\fBboth\fR|\fBnone\fR}
+: Accept IP ranges (default: \fBboth\fR)
+
+\fB--range-format\fR {\fBlong\fR|\fBshort\fR|\fBboth\fR|\fBnone\fR}
+: Accept long/short range formats (default: \fBboth\fR)
+
+Use these to restrict which network formats are recognized. For example, \fB--parse-ranges none\fR ignores range notation entirely.
+
+.SH STRICT CIDR VALIDATION
+
+\fB--strict-cidr\fR {\fBpattern\fR|\fBinput\fR|\fBboth\fR|\fBnone\fR}
+: Apply strict CIDR validation (default: \fBnone\fR)
+
+\fB--strict-cidr-action\fR {\fBfail\fR|\fBnormalize\fR|\fBignore\fR|\fBwarn\fR}
+: Action on invalid CIDR (default: \fBnormalize\fR)
+
+Strict mode rejects CIDRs with host bits set (e.g., \fB192.0.2.1/24\fR should be \fB192.0.2.0/24\fR).
+
+.RS 4
+.IP \(bu 2
+\fBfail\fR - Exit with error code 2
+.IP \(bu 2
+\fBnormalize\fR - Silently correct to network address
+.IP \(bu 2
+\fBignore\fR - Skip invalid CIDR
+.IP \(bu 2
+\fBwarn\fR - Print warning, then skip
+
+.SH BINARY FILE HANDLING
+
+.TP
+\fB-a\fR, \fB--text\fR
+Treat all files as text
+
+.RE
+\fB-I\fR
+: Skip binary files
+
+\fB--binary-files\fR {\fBbinary\fR|\fBtext\fR|\fBwithout-match\fR}
+: How to handle binary files (default: \fBbinary\fR)
+
+.SH COMMENT FILTERING
+
+By default, grepnet ignores commented lines and removes inline comments from processing.
+
+\fB--no-filter-comments\fR
+: Include commented lines in search
+
+Recognized comment markers: \fB#\fR, \fB!\fR, \fB--\fR, \fB//\fR, \fB;\fR
+
+Cisco keywords like \fBremark\fR and \fBdescription\fR are also recognized as comment markers.
+
+\fBExample\fR:
+
+.EX
+.SH Default behavior: this line is ignored
+
+server 192.0.2.1 # production
+
+.SH With --no-filter-comments: both lines included
+
+.EE
+.SH COLOR OUTPUT
+
+\fB--color\fR {\fBauto\fR|\fBalways\fR|\fBnever\fR}
+: Use colored output (default: \fBauto\fR - colors on terminal, none when piped)
+
+\fBGREPNET_COLORS\fR
+: Environment variable to customize colors (space-separated \fBKEY=ANSI_CODE\fR pairs)
+
+.EX
+export GREPNET_COLORS="match=01;32 filename=35"
+grepnet '192.0.2.0/24' *.txt
+.EE
+.SH DATA FORMATS
+
+.TP
+\fB-z\fR, \fB--null-data\fR
+Treat input/output as NUL-terminated records instead of newlines
+
+.TP
+\fB-Z\fR, \fB--null\fR
+Output NUL after filename instead of colon
+
+Useful for safe handling of filenames with special characters: \fBgrepnet -lZ '192.0.0.0/16' *.txt | xargs -0 cat\fR
+
+.SH DEBUGGING
+
+\fB--debug\fR [\fIFUNCTIONS\fR]
+: Enable debug output to stderr
+
+\fB--no-messages\fR
+: Suppress error and warning messages
+
+\fB--version\fR
+: Show version and exit
+
+.TP
+\fB-h\fR, \fB--help\fR
+Show help and exit
+
+.SH EXIT STATUS
+
+0
+: Matches found
+
+1
+: No matches found, or no matching files found (with \fB-l\fR / \fB-L\fR)
+
+2
+: Error occurred (invalid arguments, file not found, pattern error, etc.)
+
+.SH EXAMPLES
+
+.SS Basic Searching
+
+.EX
+.SH Find all references to a network in a file
+
+grepnet '192.0.2.0/24' config.txt
+
+.SH Match a single IP against a CIDR pattern
+
+echo "192.0.2.50" | grepnet '192.0.2.0/24'
+
+.SH Search multiple files
+
+grepnet '10.0.0.0/8' server1.txt server2.txt server3.txt
+.EE
+.SS Multiple Patterns
+
+.EX
+.SH Search for either network
+
+grepnet -P '192.0.2.0/24' -P '10.0.0.0/8' data.txt
+
+.SH Read patterns from file
+
+grepnet -f allowed_networks.txt config.txt
+.EE
+.SS Match Type Filtering
+
+.EX
+.SH Find only exact matches
+
+grepnet -e '192.0.2.0/24' networks.txt
+
+.SH Find networks contained within the pattern
+
+grepnet -s '192.0.0.0/16' all_networks.txt
+
+.SH Find networks that contain the pattern
+
+grepnet -S '192.0.2.1' subnets.txt
+.EE
+.SS Output Formatting
+
+.EX
+.SH Show line numbers
+
+grepnet -n '192.0.2.0/24' config.txt
+
+.SH Show only the matched networks
+
+grepnet -o '192.0.2.0/24' data.txt
+
+.SH Count matching lines
+
+grepnet -c '192.0.2.0/24' *.txt
+
+.SH Show only filenames with matches
+
+grepnet -l '192.0.0.0/16' *.conf
+.EE
+.SS Context Display
+
+.EX
+.SH Show 2 lines of context around matches
+
+grepnet -C 2 '192.0.2.0/24' config.txt
+
+.SH Show 1 line before, 3 lines after
+
+grepnet -B 1 -A 3 '192.0.2.0/24' audit.log
+
+.SH Context without group separator
+
+grepnet -C 1 --no-group-separator '192.0.2.0/24' file.txt
+.EE
+.SS Network Extraction
+
+.EX
+.SH Extract all unique networks from file
+
+grepnet --extract firewall_rules.txt
+
+.SH Extract networks matching a pattern
+
+grepnet --extract -P '192.0.0.0/16' all_networks.txt
+
+.SH Consolidate overlapping networks
+
+grepnet --consolidate all_subnets.txt
+
+.SH Output consolidated networks as ranges
+
+grepnet --consolidate --format range networks.txt
+
+.SH Extract and show source lines
+
+grepnet --extract --show-content config.txt
+.EE
+.SS Exclusion
+
+.EX
+.SH Exclude deprecated networks
+
+grepnet --exclude-string 'deprecated' '192.0.0.0/16' config.txt
+
+.SH Exclude specific network from results
+
+grepnet --exclude-cidr '192.0.2.0/25' '192.0.2.0/24' data.txt
+
+.SH Exclude networks from file
+
+grepnet --exclude-cidrs-file banned.txt '0.0.0.0/0' networks.txt
+.EE
+.SS Recursive Searching
+
+.EX
+.SH Find all references in configuration directory
+
+grepnet -r '192.0.0.0/16' /etc/
+
+.SH Include only .conf and .yaml files
+
+grepnet -r --include '*.conf' --include '*.yaml' '10.0.0.0/8' /etc/
+
+.SH Exclude backup directories
+
+grepnet -r --exclude-dir 'backup' '192.0.2.0/24' /var/
+
+.SH Search logs, exclude archived subdirectories
+
+grepnet -r --exclude '*/archive/*' '192.0.0.0/16' /var/log/
+.EE
+.SS Binary File Handling
+
+.EX
+.SH Process binary files as text
+
+grepnet -a '192.0.2.0/24' data.bin
+
+.SH Report binary matches without displaying content
+
+grepnet --binary-files without-match '192.0.0.0/16' *.bin
+.EE
+.SS Advanced Combinations
+
+.EX
+.SH Extract networks from pattern file, exclude deprecated, consolidate
+
+grepnet --extract -f allowed.txt --exclude-strings-file deprecated.txt \
+  --consolidate --format range config.txt
+
+.SH Recursive search with context, line numbers, and colors
+
+grepnet -rn -C 2 --color always '192.0.2.0/24' /etc/
+
+.SH Find networks in logs, exclude internal, show counts per file
+
+grepnet -rc --exclude-cidr '10.0.0.0/8' '192.0.0.0/16' /var/log/*.txt
+.EE
+.SH COMMON PATTERNS
+
+\fBSecurity audits\fR:
+.EX
+.SH Find all external networks referenced
+
+grepnet -r --exclude-cidr '10.0.0.0/8' --exclude-cidr '172.16.0.0/12' \
+  --exclude-cidr '192.168.0.0/16' '0.0.0.0/0' /etc/
+.EE
+\fBConfiguration extraction\fR:
+.EX
+.SH Extract all networks from config files and consolidate
+
+find /etc -name '*.conf' | xargs grepnet --extract --consolidate --format range
+.EE
+\fBNetwork monitoring\fR:
+.EX
+.SH Check for changes to allowed networks
+
+grepnet --extract -f current.txt config.txt > new.txt
+diff allowed.txt new.txt
+.EE
+\fBCompliance checking\fR:
+.EX
+.SH Verify no systems reference banned networks
+
+if grepnet --exclude-cidrs-file banned.txt '0.0.0.0/0' *.txt > /dev/null; then
+  echo "FAIL: Banned networks found"
+fi
+.EE
+.SH ENVIRONMENT VARIABLES
+
+\fBGREPNET_COLORS\fR
+: Customize output colors (space-separated KEY=ANSI_CODE pairs)
+
+\fBExample\fR: \fBexport GREPNET_COLORS="match=01;32 fn=35"\fR
+
+.SH AUTHOR
+
+GrepNet Contributors
+
+.SH COPYRIGHT
+
+GrepNet is released under the MIT License.
+
+.SH SEE ALSO
+
+grep(1), awk(1), ipcalc(1), cidr(1)
