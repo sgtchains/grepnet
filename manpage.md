@@ -1,4 +1,4 @@
-% GREPNET(1) grepnet 3.0.0 | User Commands
+% GREPNET(1) grepnet 5.0.0 | User Commands
 % Network-aware grep for CIDR blocks and IP ranges
 % 2026
 
@@ -15,6 +15,99 @@ grepnet - Network-aware grep for CIDR blocks, IP ranges, and network addresses
 # DESCRIPTION
 
 grepnet searches for network addresses (CIDR blocks, IP ranges, subnet masks, and bare IPs) in text files. Unlike traditional text grep, grepnet uses network algebra to match addresses: a bare IP `192.0.2.1` will match a CIDR pattern `192.0.2.0/24` because the IP is within that network.
+
+## How grepnet Differs from grep
+
+grepnet is **not a substring matcher**. It understands network topology and algebra:
+
+- **Network equivalence**: Different formats representing the same network match identically
+  - `192.0.2.0/24` matches `192.0.2.0 255.255.255.0` (both are the same /24 network)
+  - Bare IPs `192.0.2.1` match CIDR patterns `192.0.2.0/24` if the IP falls within
+
+- **Set operations**: Networks are compared using relational logic
+  - Subset: Does pattern network fully contain file network?
+  - Superset: Does file network fully contain pattern network?
+  - Overlap: Do networks partially overlap?
+  - Equals: Do networks represent identical address space?
+
+- **Format agnostic**: Networks can be expressed in any supported format; grepnet normalizes internally
+
+## Supported Network Formats
+
+grepnet recognizes networks in multiple formats:
+
+- **CIDR notation**: `192.0.2.0/24`, `2001:db8::/32` (most common)
+- **Subnet mask**: `192.0.2.0 255.255.255.0` (IP followed by netmask)
+- **Inverse mask**: `192.0.2.0 0.0.0.255` (IP followed by hostmask)
+- **IP ranges**: `192.0.2.0-192.0.2.255`, `192.0.2.0-255` (abbreviated form)
+- **Bare IPs**: `192.0.2.1`, `2001:db8::1` (single host /32 or /128)
+
+Patterns are parsed through the same extraction process as input files, ensuring consistency.
+
+## Example: Why Network Matching Matters
+
+Consider a firewall rule log with many different format expressions:
+
+```
+# Traditional grep would NOT match these as the same network:
+192.0.2.0/24        # CIDR notation
+192.0.2.0 255.255.255.0  # Subnet mask
+192.0.2.0 0.0.0.255      # Inverse mask
+192.0.2.1-192.0.2.254    # Range format
+192.0.2.100          # Bare IP within network
+
+# But they all represent the same /24 network
+```
+
+With grepnet, a single pattern `192.0.2.0/24` finds all of these:
+
+```bash
+grepnet '192.0.2.0/24' firewall_rules.txt
+```
+
+This outputs all lines containing any of these network representations, because grepnet understands they're the same network.
+
+## Real-World Use Cases
+
+**Network auditing**: Find all references to a particular network across config files, logs, and documentation.
+
+```bash
+grepnet -r '10.0.0.0/8' /etc/ /var/log/  # Find all 10.x.x.x references
+```
+
+**Access control review**: Find which systems/applications reference a security-sensitive network.
+
+```bash
+grepnet -l --exclude-string 'deprecated' '192.168.0.0/16' *.conf *.yaml
+```
+
+**Configuration extraction**: Extract and consolidate all networks mentioned in config files.
+
+```bash
+grepnet --extract --consolidate --format range data.txt  # Show consolidated networks
+```
+
+**Policy compliance**: Verify no systems reference excluded/banned networks.
+
+```bash
+grepnet -v --exclude-cidrs-file banned_nets.txt '0.0.0.0/0' config.txt
+```
+
+## Comment Handling
+
+By default, grepnet filters out lines that are comments, allowing you to focus on actual data. Comments are recognized by markers at the line start or inline (such as `#`, `!`, `--`, `//`, `;`).
+
+- **Full-line comments**: Lines starting with `#`, `!`, `--`, `//`, `;` are ignored
+  - Example: `# Server IP 192.0.2.1` is skipped (full comment line)
+  
+- **Inline comments**: Text after comment marker on same line is removed from processing
+  - Example: `192.0.2.1 # Production server` matches pattern, extracts just the IP
+  - Example: `192.0.2.1!192.0.2.2 # Range` finds the network range before the `!`
+
+- **Cisco keywords**: Cisco config keywords (`remark`, `description`, etc.) are recognized with boundary rules
+  - Example: `access-list 1 remark Allowed 192.0.2.0/24` is skipped
+
+Use `--no-filter-comments` to include commented lines in your search.
 
 Network addresses can be expressed in multiple formats:
 - CIDR notation: `192.0.2.0/24`, `2001:db8::/32`
@@ -237,10 +330,60 @@ Results are excluded if they match ANY text pattern OR ANY network pattern.
 - **text** - Treat as text files
 - **without-match** - Report "Binary file *FILE* matches" if matches found
 
-# COMMENTS
+# COMMENT FILTERING
 
-**--no-filter-comments**
-: Include commented lines in search (by default, lines starting with # are ignored)
+By default, grepnet automatically filters out commented lines and removes inline comments from processing. This allows you to focus on actual network data without comment noise.
+
+## Comment Detection and Filtering
+
+### Full-Line Comments
+
+Lines that start with a comment marker (after optional whitespace) are entirely skipped during network extraction:
+
+- `# This is a comment` - Full-line marker, line ignored
+- `! Configuration remark` - Full-line marker, line ignored
+- `-- Comment in SQL` - Full-line marker, line ignored
+- `// Code comment` - Full-line marker, line ignored
+- `; Lisp comment` - Full-line marker, line ignored
+
+### Inline Comments
+
+Comments appearing on the same line as network data are removed from processing, but the line itself is still checked for matches:
+
+- `192.0.2.1 # production server` - Line is checked, full line output if matched
+- `192.0.2.1!192.0.2.2 # range` - Comment after `!` removed; range extracted
+- `server 192.0.2.0/24 -- the data center` - Network extracted before `--`
+
+### Comment Marker Precedence
+
+When multiple comment markers appear on same line, the **first marker encountered** takes precedence:
+
+- `192.0.2.1!192.0.2.2#192.0.2.3` - First marker is `!` at position 11, so comment starts there
+- Only `192.0.2.1` before position 11 is extracted
+- Everything after `!` (including the `#`) is treated as comment
+
+### Cisco Keywords
+
+Cisco configuration keywords are recognized with word-boundary rules and treated as comment markers:
+
+- **remark**: `access-list 101 remark Managed 192.0.2.0/24` (entire line skipped)
+- **description**: `interface Eth1/1 description Server network 192.0.2.0/24` (keyword and after are skipped)
+
+Cisco keywords must have:
+- Leading whitespace or line start
+- Trailing whitespace or end-of-line
+- Case-insensitive matching
+
+### Disabling Comment Filtering
+
+Use `--no-filter-comments` to include commented lines:
+
+```bash
+# Search within comments too
+grepnet --no-filter-comments '192.0.2.0/24' config.txt
+```
+
+Or use `--no-filter-comments pattern` to filter only pattern comments, `--no-filter-comments input` to filter only input comments, `--no-filter-comments none` to disable all filtering.
 
 # COLOR OUTPUT
 
