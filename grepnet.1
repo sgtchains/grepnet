@@ -111,6 +111,10 @@ Match only when file network is larger than pattern (contains pattern)
 Match only when networks partially overlap
 
 .TP
+\fB-u\fR, \fB--unmatched\fR
+Include networks that don't match any pattern (for use with other match type flags)
+
+.TP
 \fB-v\fR, \fB--invert-match\fR
 Show lines that do NOT match (inverse logic)
 
@@ -150,7 +154,7 @@ Print count of matching lines instead of lines
 Print only filenames containing matches (useful for scripting)
 
 .TP
-\fB-L\fR, \fB--files-without-matches\fR
+\fB-L\fR, \fB--files-without-match\fR
 Print only filenames without matches
 
 .TP

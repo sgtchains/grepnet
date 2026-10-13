@@ -92,6 +92,9 @@ By default, grepnet finds all matches. Use these flags to filter by relationship
 **-O**, **--overlap**
 : Match only when networks partially overlap
 
+**-u**, **--unmatched**
+: Include networks that don't match any pattern (for use with other match type flags)
+
 **-v**, **--invert-match**
 : Show lines that do NOT match (inverse logic)
 
@@ -123,7 +126,7 @@ By default, grepnet finds all matches. Use these flags to filter by relationship
 **-l**, **--files-with-matches**
 : Print only filenames containing matches (useful for scripting)
 
-**-L**, **--files-without-matches**
+**-L**, **--files-without-match**
 : Print only filenames without matches
 
 **-q**, **--quiet**, **--silent**
