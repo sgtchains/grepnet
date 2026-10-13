@@ -1667,11 +1667,14 @@ A future version will add `--exclude-cidr-behaviour` flag to control CIDR exclus
   - Example: `--exclude-cidr-behaviour=related --exclude-cidr 192.0.2.0/24` excludes any network that touches, contains, or is contained by `192.0.2.0/24`
   - Note: "related" also includes equality
 
-- **cut**: Exclude partial overlaps but NOT pure subsets or supersets (overlap only)
-  - Example: `--exclude-cidr-behaviour=cut --exclude-cidr 192.0.1.0/24` excludes `192.0.1.128/25` if using ranges, NOT CIDR subsets
-  - Note: Primarily useful for range matching; CIDR networks cannot partially 
-  
-  ^^^ Discussion on this 'cut' behaviour needs more discussion.  The human expected cut to mean excluding 192.0.2.128/25 from 192.0.2.0/24 would result in 192.0.2.0/25.
+- **cut**: Carve out excluded network(s) and return the remaining address space as minimal CIDR blocks
+  - **Scope**: Only valid with `--extract` and `--consolidate` (must error if used without these flags)
+  - **Behavior**: When extracting networks, remove the excluded CIDR block(s) from the extracted networks and return all minimal non-overlapping CIDR blocks that represent what remains
+  - **Result format**: Complete list of CIDR blocks covering the remaining address space with no gaps or overlaps
+  - **Examples**:
+    - `echo 192.0.2.0/24 | ./grepnet --extract --exclude-cidr=192.0.2.0/30 --exclude-cidr-behaviour=cut` → Removes `192.0.2.0/30`, returns the 6 CIDR blocks that fill the gap: `192.0.2.4/30`, `192.0.2.8/29`, `192.0.2.16/28`, `192.0.2.32/27`, `192.0.2.64/26`, `192.0.2.128/25`
+    - `echo 192.0.2.0/24 | ./grepnet --extract --exclude-cidr=192.0.2.4/30 --exclude-cidr-behaviour=cut` → Removes `192.0.2.4/30`, returns the 6 CIDR blocks: `192.0.2.0/30`, `192.0.2.8/29`, `192.0.2.16/28`, `192.0.2.32/27`, `192.0.2.64/26`, `192.0.2.128/25`
+  - **Use cases**: Computing network complements, finding gaps in allocations, inverse lists
 
 **Constraints**:
 - Multiple `--exclude-cidr-behaviour` flags are NOT allowed (last one wins)
