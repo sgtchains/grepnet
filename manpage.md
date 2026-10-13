@@ -126,7 +126,7 @@ By default, grepnet finds all matches. Use these flags to filter by relationship
 **-L**, **--files-without-matches**
 : Print only filenames without matches
 
-**-q**, **--quiet**
+**-q**, **--quiet**, **--silent**
 : Suppress output (exit code only)
 
 **--label** *LABEL*
