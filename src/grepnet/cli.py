@@ -751,7 +751,6 @@ def run():
             match_type_filter=match_type_filter,
             invert_match=args.invert_match,
             show_unmatched=args.unmatched,
-            debug=args.debug,
             exclude_strings=args.exclude_strings,
             exclude_cidrs=None,  # Will be set after parsing
             exclude_cidr_behaviour=args.exclude_cidr_behaviour,
@@ -1345,12 +1344,6 @@ def run():
                                     output = f'{prefix}:{line_output}'
                             else:
                                 output = line_output
-                            
-                            # Debug output if requested
-                            if args.debug == 'markup':
-                                print('=== MARKUP ===', file=sys.stderr)
-                                print(repr(first_result.content_marked), file=sys.stderr)
-                                print('=== OUTPUT ===', file=sys.stderr)
                             
                             if not args.quiet:
                                 print(output, end=output_delimiter)
