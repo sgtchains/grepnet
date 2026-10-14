@@ -543,9 +543,38 @@ fi
 # ENVIRONMENT VARIABLES
 
 **GREPNET_COLORS**
-: Customize output colors (space-separated KEY=ANSI_CODE pairs)
+: Customize output colors (space-separated `KEY=ANSI_CODE` pairs)
 
-**Example**: `export GREPNET_COLORS="match=01;32 fn=35"`
+Supported color keys:
+
+- `fn`: Filename (default: 35 = magenta)
+- `ln`: Line number (default: 32 = green)
+- `bn`: Byte offset (default: 32 = green)
+- `se`: Separator (default: 36 = cyan)
+- `sl`: Selected line background (default: 0 = none)
+- `cx`: Context line (default: 0 = none)
+- `mt`: Match text color (default: 0 = none)
+- `ms`: Match separator (default: 0 = none)
+- `mc`: Match colon (default: 0 = none)
+- `me`: EQUALS match type (default: 01;32 = bright green)
+- `mb`: SUBSET match type (default: 01;34 = bright blue)
+- `mS`: SUPERSET match type (default: 01;33 = bright yellow)
+- `mo`: OVERLAP match type (default: 01;31 = bright red)
+- `mu`: UNMATCHED type (default: 0 = none)
+- `mn`: Normalized CIDR (default: 04 = underline)
+
+ANSI codes are SGR (Select Graphic Rendition) values. Common values:
+- `0` = reset/no color
+- `01` = bold
+- `04` = underline
+- `31-37` = foreground colors (red, green, yellow, blue, magenta, cyan, white)
+- Combine with semicolons: `01;32` = bold green
+
+**Example**:
+```bash
+export GREPNET_COLORS="fn=35 me=01;31 mb=01;36"
+grepnet '192.0.2.0/24' *.txt
+```
 
 # AUTHOR
 

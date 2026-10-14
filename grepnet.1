@@ -630,9 +630,81 @@ fi
 .SH ENVIRONMENT VARIABLES
 
 \fBGREPNET_COLORS\fR
-: Customize output colors (space-separated KEY=ANSI_CODE pairs)
+.RS
+Customize output colors (space-separated KEY=ANSI_CODE pairs).
+.RE
 
-\fBExample\fR: \fBexport GREPNET_COLORS="match=01;32 fn=35"\fR
+.SS Supported color keys:
+.TP
+\fBfn\fR
+Filename (default: 35 = magenta)
+.TP
+\fBln\fR
+Line number (default: 32 = green)
+.TP
+\fBbn\fR
+Byte offset (default: 32 = green)
+.TP
+\fBse\fR
+Separator (default: 36 = cyan)
+.TP
+\fBsl\fR
+Selected line background (default: 0 = none)
+.TP
+\fBcx\fR
+Context line (default: 0 = none)
+.TP
+\fBmt\fR
+Match text color (default: 0 = none)
+.TP
+\fBms\fR
+Match separator (default: 0 = none)
+.TP
+\fBmc\fR
+Match colon (default: 0 = none)
+.TP
+\fBme\fR
+EQUALS match type (default: 01;32 = bright green)
+.TP
+\fBmb\fR
+SUBSET match type (default: 01;34 = bright blue)
+.TP
+\fBmS\fR
+SUPERSET match type (default: 01;33 = bright yellow)
+.TP
+\fBmo\fR
+OVERLAP match type (default: 01;31 = bright red)
+.TP
+\fBmu\fR
+UNMATCHED type (default: 0 = none)
+.TP
+\fBmn\fR
+Normalized CIDR (default: 04 = underline)
+
+.SS ANSI codes are SGR (Select Graphic Rendition) values:
+.RS
+.TP
+0
+reset/no color
+.TP
+01
+bold
+.TP
+04
+underline
+.TP
+31-37
+foreground colors (red, green, yellow, blue, magenta, cyan, white)
+.TP
+Combine with semicolons
+01;32 = bold green
+.RE
+
+.SS Example:
+.EX
+export GREPNET_COLORS="fn=35 me=01;31 mb=01;36"
+grepnet '192.0.2.0/24' *.txt
+.EE
 
 .SH AUTHOR
 
