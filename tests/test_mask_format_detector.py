@@ -135,11 +135,20 @@ class TestMaskFormatDetectorMixed:
         text = """
 192.0.2.0 255.255.255.0
 10.0.0.0 0.255.255.255
-192.168.0.0 0.0.0.255
+192.168.0.0 0.0.0.1
 """
         # 1 netmask (MSB=1), 2 hostmask (MSB=0) = 33% netmask, 67% hostmask
-        # Just barely above threshold but not meeting "netmask_dominant" threshold
-        # So this is mixed
+        # 67% is exactly at threshold so it's hostmask_dominant (not mixed)
+        # Need 2-2 split for true mixed, or 3-2 split (40%) for below threshold
+        assert MaskFormatDetector.detect_format(text) == 'hostmask_dominant'
+    
+    def test_exactly_equal_mixed(self):
+        """Exactly equal split should be detected as mixed."""
+        text = """
+192.0.2.0 255.255.255.0
+10.0.0.0 0.255.255.255
+"""
+        # 1 netmask, 1 hostmask = 50% each = mixed
         assert MaskFormatDetector.detect_format(text) == 'mixed'
 
 

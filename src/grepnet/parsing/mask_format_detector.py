@@ -18,7 +18,8 @@ class MaskFormatDetector:
     
     # Pattern to match two space-separated IPv4 addresses
     IP_PATTERN = r'(?:(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.){3}(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])'
-    TWO_VALUE_PATTERN = re.compile(f'\\b({IP_PATTERN})\\s+({IP_PATTERN})\\b')
+    # Two-value pattern: IP followed by spaces/tabs (not newlines), then another IP
+    TWO_VALUE_PATTERN = re.compile(f'\\b({IP_PATTERN})[ \t]+({IP_PATTERN})\\b')
     
     @staticmethod
     def detect_format(text: str) -> str:

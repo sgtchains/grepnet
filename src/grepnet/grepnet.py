@@ -786,6 +786,9 @@ class GrepNet:
         file_type = source.file_type
         is_binary = source.get_binary_status()
         
+        # Get mask format hint from peek buffer (if scan_mask is enabled)
+        mask_format_hint = source.get_mask_format_hint(self.scan_mask)
+        
         # Note: Do NOT skip binary files here. Let the search proceed normally.
         # The caller (CLI) will handle binary file suppression based on binary_files mode and output type.
         # This allows modes like -l, -L, -c to work with binary files, and allows
@@ -797,8 +800,8 @@ class GrepNet:
         
         # Iterate over lines
         for line_number, line_content, byte_offset in source.lines():
-            # Parse networks from this line
-            file_extractions = self.parser.parse_line(line_content, context='input')
+            # Parse networks from this line, passing mask format hint
+            file_extractions = self.parser.parse_line(line_content, context='input', mask_format_hint=mask_format_hint)
             
             # Validate strict CIDR in input if requested
             if self.strict_cidr_mode in ['input', 'both'] and file_extractions:

@@ -170,7 +170,7 @@ class NetworkParser:
         
         return True
     
-    def parse_line(self, line: str, line_number: int = 0, context: str = 'input') -> List[ParsedExtraction]:
+    def parse_line(self, line: str, line_number: int = 0, context: str = 'input', mask_format_hint: Optional[str] = None) -> List[ParsedExtraction]:
         """
         Extract all networks from a line.
         
@@ -178,6 +178,7 @@ class NetworkParser:
             line: Line text
             line_number: Line number (1-based, for reference)
             context: Context for parsing ('pattern' for search patterns, 'input' for file input)
+            mask_format_hint: Format hint from peek buffer analysis ('netmask_dominant', 'hostmask_dominant', 'mixed', 'unknown', or None)
         
         Returns:
             List of ParsedExtraction objects, deduplicated by network value

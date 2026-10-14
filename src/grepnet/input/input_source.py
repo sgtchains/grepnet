@@ -15,6 +15,7 @@ import os
 from typing import Iterator, Tuple, Optional
 
 from grepnet.core.binary_detector import BinaryDetector
+from grepnet.parsing.mask_format_detector import MaskFormatDetector
 
 
 class InputSource:
@@ -59,6 +60,7 @@ class InputSource:
         self._is_binary = None  # Cache binary status
         self._file_handle = None
         self._peek_buffer = None  # First 8KB cached for binary detection (stdin/fd only)
+        self._mask_format_hint = None  # Format hint cached from peek buffer analysis
     
     @property
     def file_type(self) -> str:
@@ -85,19 +87,73 @@ class InputSource:
         Check if source contains binary data.
         
         Lazy evaluation: checks only once and caches result.
-        For stdin/fd: reads and caches first 8KB for analysis, buffer is reused during line reading.
+        For all sources: reads and caches first 8KB for analysis and format detection.
         
         Returns:
             True if source appears to be binary
         """
         if self._is_binary is None:
             if self.source_type == 'file':
-                self._is_binary = BinaryDetector.is_binary(self.file_path)
+                # For files, read first 8KB for binary detection
+                try:
+                    with open(self.file_path, 'rb') as f:
+                        self._peek_buffer = f.read(BinaryDetector.DETECTION_SIZE)
+                    self._is_binary = BinaryDetector.is_binary_from_buffer(self._peek_buffer)
+                except (IOError, OSError):
+                    self._is_binary = False
             else:
                 # stdin or fd: read and cache first 8KB for binary detection
                 self._peek_buffer = self._read_peek_buffer()
                 self._is_binary = BinaryDetector.is_binary_from_buffer(self._peek_buffer)
         return self._is_binary
+    
+    def get_mask_format_hint(self, scan_mask: str = 'both') -> Optional[str]:
+        """
+        Get cached mask format hint from peek buffer analysis.
+        
+        Lazy evaluation: scans only once and caches result.
+        For files: reads first 8KB to detect format.
+        For stdin/fd: reuses peek buffer from binary detection.
+        
+        Args:
+            scan_mask: Control flag ('both', 'input', 'pattern', 'none')
+                      Only used if scan_mask != 'none'
+        
+        Returns:
+            Format hint: 'netmask_dominant', 'hostmask_dominant', 'mixed', 'unknown'
+            or None if scan_mask is 'none'
+        """
+        if scan_mask == 'none':
+            return None
+        
+        if self._mask_format_hint is not None:
+            return self._mask_format_hint
+        
+        # Ensure peek buffer is loaded
+        if self.source_type == 'file':
+            # For files, read first 8KB
+            try:
+                with open(self.file_path, 'rb') as f:
+                    peek_bytes = f.read(BinaryDetector.DETECTION_SIZE)
+            except (IOError, OSError):
+                self._mask_format_hint = 'unknown'
+                return self._mask_format_hint
+        else:
+            # For stdin/fd, ensure peek buffer exists from binary detection
+            if self._peek_buffer is None:
+                # Binary detection wasn't called yet, read it now
+                self._peek_buffer = self._read_peek_buffer()
+            peek_bytes = self._peek_buffer
+        
+        # Decode peek buffer to text
+        try:
+            peek_text = peek_bytes.decode('utf-8', errors='replace')
+        except:
+            peek_text = peek_bytes.decode('latin-1', errors='replace')
+        
+        # Scan for format
+        self._mask_format_hint = MaskFormatDetector.detect_format(peek_text)
+        return self._mask_format_hint
     
     def _read_peek_buffer(self) -> bytes:
         """
