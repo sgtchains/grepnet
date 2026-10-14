@@ -549,7 +549,7 @@ fi
 
 # AUTHOR
 
-GrepNet Contributors
+Larry M. Smith <sgtchains@att.com>
 
 # SEE ALSO
 
