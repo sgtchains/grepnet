@@ -554,3 +554,7 @@ Larry M. Smith <sgtchains@att.com>
 # SEE ALSO
 
 grep(1), awk(1), ipcalc(1), cidr(1)
+
+**Related tools:**
+- grepcidr (Jem Berkes' version): https://www.pc-tools.net/unix/grepcidr/
+- grepcidr3 (John Levine's version): https://github.com/jrlevine/grepcidr3
