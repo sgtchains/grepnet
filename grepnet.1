@@ -198,10 +198,22 @@ Print \fINUM\fR lines before and after each match
 \fB--consolidate\fR
 : Consolidate overlapping and adjacent networks into larger blocks
 
+\fB--fill-pct\fR \fIN\fR
+: Allow consolidation to fill gaps up to N% of network size (only with \fB--consolidate\fR; range 0-100)
+
+.RS 4
+.IP \(bu 2
+Finds the smallest supernet for each network where gap_ratio ≤ N%
+.IP \(bu 2
+Single-pass: fill-pct applies once per extracted network, then networks merge via \fBcollapse_addresses()\fR
+.IP \(bu 2
+Examples: \fB--fill-pct=50\fR allows up to 50% gap filling; \fB--fill-pct=0\fR disallows any gap
+
+.RE
 \fB--show-content\fR
 : Include original line content in extract/consolidate output
 
-\fB--format\fR {\fBcidr\fR|\fBrange\fR|\fBshort-range\fR|\fBoriginal\fR}
+\fB--format\fR {\fBcidr\fR|\fBrange\fR|\fBshort-range\fR|\fBips\fR|\fBoriginal\fR}
 : Output format for networks (default: \fBcidr\fR)
 
 .RS 4
@@ -210,7 +222,9 @@ Print \fINUM\fR lines before and after each match
 .IP \(bu 2
 \fBrange\fR - Full ranges: \fB192.0.2.0-192.0.2.255\fR
 .IP \(bu 2
-\fBshort-range\fR - Abbreviated ranges: \fB192.0.2.0-255\fR
+\fBshort-range\fR - Abbreviated ranges: \fB192.0.2.0-255\fR (IPv4 only, last octet)
+.IP \(bu 2
+\fBips\fR - Individual IP addresses, one per line (only with \fB--consolidate\fR)
 .IP \(bu 2
 \fBoriginal\fR - Original format as found (not available with \fB--consolidate\fR)
 
@@ -226,13 +240,25 @@ grepnet --extract network_logs.txt
 
 grepnet --consolidate all_networks.txt
 
+.SH Consolidate with gap filling (up to 50%)
+
+grepnet --consolidate --fill-pct=50 network_ranges.txt
+
 .SH Extract networks matching a pattern, output as ranges
 
 grepnet --extract '10.0.0.0/8' systems.txt --format range
 
+.SH Consolidate and output individual IPs
+
+grepnet --consolidate --format ips networks.txt
+
 .SH Consolidate and show which lines contained each network
 
 grepnet --consolidate --show-content config.txt
+
+.SH Combine fill-pct with IP list output
+
+grepnet --consolidate --fill-pct=50 --format ips network_ranges.txt
 .EE
 .SH FILTERING
 

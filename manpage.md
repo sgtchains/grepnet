@@ -165,15 +165,23 @@ By default, grepnet finds all matches. Use these flags to filter by relationship
 **--consolidate**
 : Consolidate overlapping and adjacent networks into larger blocks
 
+**--fill-pct** *N*
+: Allow consolidation to fill gaps up to N% of network size (only with `--consolidate`; range 0-100)
+
+- Finds the smallest supernet for each network where gap_ratio ≤ N%
+- Single-pass: fill-pct applies once per extracted network, then networks merge via `collapse_addresses()`
+- Examples: `--fill-pct=50` allows up to 50% gap filling; `--fill-pct=0` disallows any gap
+
 **--show-content**
 : Include original line content in extract/consolidate output
 
-**--format** {**cidr**|**range**|**short-range**|**original**}
+**--format** {**cidr**|**range**|**short-range**|**ips**|**original**}
 : Output format for networks (default: **cidr**)
 
 - **cidr** - CIDR notation: `192.0.2.0/24`
 - **range** - Full ranges: `192.0.2.0-192.0.2.255`
-- **short-range** - Abbreviated ranges: `192.0.2.0-255`
+- **short-range** - Abbreviated ranges: `192.0.2.0-255` (IPv4 only, last octet)
+- **ips** - Individual IP addresses, one per line (only with `--consolidate`)
 - **original** - Original format as found (not available with `--consolidate`)
 
 **Examples**:
@@ -185,11 +193,20 @@ grepnet --extract network_logs.txt
 # Consolidate overlapping networks into larger blocks
 grepnet --consolidate all_networks.txt
 
+# Consolidate with gap filling (up to 50%)
+grepnet --consolidate --fill-pct=50 network_ranges.txt
+
 # Extract networks matching a pattern, output as ranges
 grepnet --extract '10.0.0.0/8' systems.txt --format range
 
+# Consolidate and output individual IPs
+grepnet --consolidate --format ips networks.txt
+
 # Consolidate and show which lines contained each network
 grepnet --consolidate --show-content config.txt
+
+# Combine fill-pct with IP list output
+grepnet --consolidate --fill-pct=50 --format ips network_ranges.txt
 ```
 
 # FILTERING
