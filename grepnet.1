@@ -274,6 +274,35 @@ grepnet --consolidate --fill-pct=50 --format ips network_ranges.txt
 \fB--exclude-cidrs-file\fR \fIFILE\fR
 : Load networks to exclude from file
 
+\fB--exclude-cidr-behaviour\fR {subset|superset|equals|related|cut}
+: How to match excluded networks (default: subset)
+
+.RS
+Control how excluded networks are matched:
+.TP
+\fBsubset\fR
+Exclude networks contained within excluded CIDR (default)
+.TP
+\fBsuperset\fR
+Exclude networks that contain excluded CIDR
+.TP
+\fBequals\fR
+Exclude only exact matches
+.TP
+\fBrelated\fR
+Exclude any network that touches, contains, or is contained by excluded CIDR
+.TP
+\fBcut\fR
+Remove excluded network and return non-overlapping remainder blocks
+.RE
+
+.SS Examples:
+.RS
+\fB--exclude-cidr-behaviour=subset --exclude-cidr 192.0.0.0/16\fR excludes 192.0.2.0/24 but not 10.0.0.0/8
+
+\fB--exclude-cidr-behaviour=cut --exclude-cidr 192.0.2.4/30 192.0.2.0/24\fR returns gap-fill blocks
+.RE
+
 \fBExample\fR: \fBgrepnet '192.0.0.0/16' data.txt --exclude-string 'deprecated'\fR finds all matches except lines marked deprecated
 
 .SH FILE DISCOVERY
@@ -331,6 +360,33 @@ grepnet -r --exclude '*/old/*' '192.0.2.0/24' /var/log/
 : Accept long/short range formats (default: \fBboth\fR)
 
 Use these to restrict which network formats are recognized. For example, \fB--parse-ranges none\fR ignores range notation entirely.
+
+.SH PREFIX LENGTH FILTERING
+
+\fB--ipv4-shorter-than\fR \fIN\fR
+: Include only IPv4 networks with prefix length < N
+
+\fB--ipv4-longer-than\fR \fIN\fR
+: Include only IPv4 networks with prefix length > N
+
+\fB--ipv6-shorter-than\fR \fIN\fR
+: Include only IPv6 networks with prefix length < N
+
+\fB--ipv6-longer-than\fR \fIN\fR
+: Include only IPv6 networks with prefix length > N
+
+Filter extracted or consolidated networks by prefix length (CIDR mask size). Useful for finding smaller subnets or larger aggregates.
+
+.SS Examples:
+.RS
+\fB--ipv4-longer-than=24\fR - Only networks with /25 or smaller (more specific)
+
+\fB--ipv4-shorter-than=16\fR - Only networks with /0 to /15 (less specific)
+
+\fB--ipv4-longer-than=24 --ipv4-shorter-than=32\fR - Networks between /25 and /31
+
+\fB--ipv6-longer-than=64\fR - Only IPv6 with /65 or longer
+.RE
 
 .SH STRICT CIDR VALIDATION
 

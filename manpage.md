@@ -223,7 +223,21 @@ grepnet --consolidate --fill-pct=50 --format ips network_ranges.txt
 **--exclude-cidrs-file** *FILE*
 : Load networks to exclude from file
 
-**Example**: `grepnet '192.0.0.0/16' data.txt --exclude-string 'deprecated'` finds all matches except lines marked deprecated
+**--exclude-cidr-behaviour** {**subset**|**superset**|**equals**|**related**|**cut**}
+: How to match excluded networks (default: **subset**)
+
+Control how excluded networks are matched:
+- **subset**: Exclude networks contained within excluded CIDR (default)
+- **superset**: Exclude networks that contain excluded CIDR
+- **equals**: Exclude only exact matches
+- **related**: Exclude any network that touches, contains, or is contained by excluded CIDR
+- **cut**: Remove excluded network and return non-overlapping remainder blocks
+
+**Examples**:
+- `--exclude-cidr-behaviour=subset --exclude-cidr 192.0.0.0/16` excludes `192.0.2.0/24` but not `10.0.0.0/8`
+- `--exclude-cidr-behaviour=cut --exclude-cidr 192.0.2.4/30 192.0.2.0/24` returns gap-fill blocks
+
+**--exclude-string** example: `grepnet '192.0.0.0/16' data.txt --exclude-string 'deprecated'` finds all matches except lines marked deprecated
 
 # FILE DISCOVERY
 
@@ -272,10 +286,38 @@ grepnet -r --exclude '*/old/*' '192.0.2.0/24' /var/log/
 **--parse-ranges** {**pattern**|**input**|**both**|**none**}
 : Accept IP ranges (default: **both**)
 
+**--parse-bare-ip** {**pattern**|**input**|**both**|**none**}
+: Accept single IP addresses without CIDR notation (default: **both**)
+
 **--range-format** {**long**|**short**|**both**|**none**}
 : Accept long/short range formats (default: **both**)
 
-Use these to restrict which network formats are recognized. For example, `--parse-ranges none` ignores range notation entirely.
+Use these to restrict which network formats are recognized. For example:
+- `--parse-ranges none` ignores range notation entirely
+- `--parse-bare-ip input` only accepts bare IPs in input files (not in patterns)
+- `--parse-bare-ip none` requires explicit CIDR notation (e.g., `192.0.2.0/32` instead of `192.0.2.0`)
+
+# PREFIX LENGTH FILTERING
+
+**--ipv4-shorter-than** *N*
+: Include only IPv4 networks with prefix length < N
+
+**--ipv4-longer-than** *N*
+: Include only IPv4 networks with prefix length > N
+
+**--ipv6-shorter-than** *N*
+: Include only IPv6 networks with prefix length < N
+
+**--ipv6-longer-than** *N*
+: Include only IPv6 networks with prefix length > N
+
+Filter extracted or consolidated networks by prefix length (CIDR mask size). Useful for finding smaller subnets or larger aggregates.
+
+**Examples**:
+- `--ipv4-longer-than=24` - Only networks with /25 or smaller (more specific)
+- `--ipv4-shorter-than=16` - Only networks with /0 to /15 (less specific)
+- `--ipv4-longer-than=24 --ipv4-shorter-than=32` - Networks between /25 and /31
+- `--ipv6-longer-than=64` - Only IPv6 with /65 or longer
 
 # STRICT CIDR VALIDATION
 
