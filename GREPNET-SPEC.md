@@ -1377,25 +1377,33 @@ Color code when equality match found: `me=` (match type equals, meaning networks
 
 **2. Subset (`subset`)**
 
-Pattern is a SUBSET of file data (file contains pattern).
+Pattern is a SUBSET of file data (file contains pattern), but NOT equal.
 
-Logical definition: All addresses in the pattern are also in the file data.
+Logical definition: All addresses in the pattern are also in the file data, AND the networks are not identical.
 
-For CIDR: Pattern prefix ≥ file prefix (more specific), and pattern is within file's address space.
+For CIDR: Pattern prefix > file prefix (strictly more specific), and pattern is within file's address space.
+         Equivalently: file must NOT equal pattern.
 
-For ranges: Pattern start ≥ file start AND pattern end ≤ file end.
+For ranges: Pattern start ≥ file start AND pattern end ≤ file end AND (pattern start > file start OR pattern end < file end).
+           Equivalently: ranges must NOT be equal.
+
+Note: EQUAL networks are reported with match_type EQUALS, never with SUBSET or SUPERSET.
 
 Color code when subset match found: `mb=` (match type subset, meaning pattern is a subset of data)
 
 **3. Superset (`superset`)**
 
-Pattern is a SUPERSET of file data (pattern contains file data).
+Pattern is a SUPERSET of file data (pattern contains file), but NOT equal.
 
-Logical definition: All addresses in the file data are also in the pattern.
+Logical definition: All addresses in the file data are also in the pattern, AND the networks are not identical.
 
-For CIDR: Pattern prefix ≤ file prefix (less specific), and file is within pattern's address space.
+For CIDR: Pattern prefix < file prefix (strictly less specific), and file is within pattern's address space.
+         Equivalently: file must NOT equal pattern.
 
-For ranges: Pattern start ≤ file start AND pattern end ≥ file end.
+For ranges: Pattern start ≤ file start AND pattern end ≥ file end AND (pattern start < file start OR pattern end > file end).
+           Equivalently: ranges must NOT be equal.
+
+Note: EQUAL networks are reported with match_type EQUALS, never with SUBSET or SUPERSET.
 
 Color code when superset match found: `mS=` (match type superset, meaning pattern is a superset of data)
 
