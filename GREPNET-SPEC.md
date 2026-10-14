@@ -1330,18 +1330,23 @@ Closes and cleans up resources associated with the input source.
 
 **Objective**: Use the cached 8KB peek buffer (from binary detection) to analyze what format predominates in the file/pattern - netmask or hostmask - and provide hints to the parser for more intelligent extraction decisions.
 
+**Critical**: Mask format scanning happens **ONCE PER INPUT SOURCE**, analyzed on the cached 8KB peek buffer, with the result cached and reused for parsing all lines from that source.
+
 **Mechanism**:
 
-1. **After 8KB peek buffer is cached**, analyze it for format indicators:
+1. **After 8KB peek buffer is cached** (during binary detection):
+   - Analyze the buffer for format indicators (separate from binary detection analysis)
    - Count two-value patterns with MSB=1 (netmask format indicators, e.g., `IP 255.x`, `IP 255.255.x`)
    - Count two-value patterns with MSB=0 (hostmask format indicators, e.g., `IP 0.x`, `IP 0.0.x`)
-   - Calculate format dominance ratio
+   - Calculate format dominance ratio (threshold: >66% for dominance)
 
 2. **Cache format hint** in InputSource:
    - Store detected format preference (`'netmask_dominant'`, `'hostmask_dominant'`, `'mixed'`, `'unknown'`)
-   - This is used during parsing to make context-aware decisions
+   - This hint is cached per InputSource instance and reused for all parsing of that source
+   - No re-scanning occurs; one analysis per input source
 
-3. **Use hint during parsing**:
+3. **Use hint during parsing** (for all lines from that source):
+   - The cached format hint applies to all lines parsed from this input source
    - When encountering ambiguous two-value patterns (e.g., `192.0.2.1 0.0.0.0`), the format hint MAY influence extraction strategy
    - If format hint is `'netmask_dominant'` or `'hostmask_dominant'`, use it as a tie-breaker for edge cases
    - If format hint is `'mixed'` or `'unknown'`, fall back to standard MSB-based two-value parsing algorithm (see "Normal Two-Value Parsing Algorithm" section)

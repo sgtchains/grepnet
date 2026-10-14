@@ -46,11 +46,13 @@ class GrepNet:
     # Format type to markup OBJ type mapping (used for colorization)
     FORMAT_TYPE_MAP = {
         'cidr_notation': 'CIDR',
+        'subnet_mask': 'SUBNET_MASK',
         'subnet_mask_notation': 'SUBNET_MASK',
+        'inverse_mask': 'INVERSE_MASK',
         'inverse_mask_notation': 'INVERSE_MASK',
-        'ip_range_notation': 'RANGE',
         'ipv4_range': 'RANGE',
         'ipv6_range': 'RANGE',
+        'ip_range_notation': 'RANGE',
         'ip_only': 'BARE_IP',
     }
     
@@ -75,6 +77,7 @@ class GrepNet:
         parse_hostmask: str = 'both',
         parse_ranges: str = 'both',
         parse_bare_ip: str = 'both',
+        scan_mask: str = 'both',
         range_format: str = 'both',
         enable_colors: bool = True,
         match_type_filter: Optional[List[MatchType]] = None,
@@ -151,6 +154,7 @@ class GrepNet:
         self.parse_hostmask = parse_hostmask
         self.parse_ranges = parse_ranges
         self.parse_bare_ip = parse_bare_ip
+        self.scan_mask = scan_mask
         self.range_format = range_format
         
         # Initialize colorizer at startup (before any matching)
@@ -165,6 +169,7 @@ class GrepNet:
             parse_hostmask=parse_hostmask,
             parse_ranges=parse_ranges,
             parse_bare_ip=parse_bare_ip,
+            scan_mask=scan_mask,
             range_format=range_format,
         )
         self.parsed_patterns = self._parse_patterns()

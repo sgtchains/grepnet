@@ -31,6 +31,20 @@ class SubnetMaskExtractor(NetworkExtractor):
         f'\\b({IP_PATTERN})\\s+({IP_PATTERN})\\b'
     )
     
+    def __init__(self, reject_zero_mask: bool = True, enabled: bool = True):
+        """
+        Initialize SubnetMaskExtractor.
+        
+        Args:
+            reject_zero_mask: If True, reject 0.0.0.0 as a valid mask (so InverseMaskExtractor
+                            can handle it as a hostmask). If False, accept 0.0.0.0 as valid /0.
+                            This should be False only when hostmask parsing is disabled.
+            enabled: If False, this extractor is disabled (--parse-netmask=none).
+                    When disabled, extract() returns None immediately.
+        """
+        self.reject_zero_mask = reject_zero_mask
+        self.enabled = enabled
+    
     def extract(self, text: str) -> Optional[_RawExtraction]:
         """
         Extract first valid subnet mask notation from text.
@@ -60,6 +74,21 @@ class SubnetMaskExtractor(NetworkExtractor):
                 # Validate that the mask is a valid subnet mask (contiguous 1-bits from left)
                 mask_addr = IPv4Address(mask_str)
                 mask_int = int(mask_addr)
+                
+                # SPEC REQUIREMENT: Check MSB to distinguish netmask from hostmask format
+                # Netmask (subnet mask): MSB=1 (has leading 1s, e.g., 255.255.255.0)
+                # Hostmask (inverse mask): MSB=0 (has leading 0s, e.g., 0.0.0.255)
+                # 
+                # When hostmask parsing IS enabled:
+                #   - Reject MSB=0 values here so InverseMaskExtractor can handle them
+                # When hostmask parsing IS disabled:
+                #   - Accept ALL contiguous masks (including 0.0.0.0)
+                has_msb_one = bool(mask_int & 0x80000000)
+                if not has_msb_one and self.reject_zero_mask:
+                    # MSB=0 indicates hostmask format, and hostmask parsing is enabled
+                    # Skip this and let InverseMaskExtractor handle it
+                    pos = match.start(2)
+                    continue
                 
                 # A valid netmask has contiguous 1-bits from the left
                 # Count leading 1s, then all remaining bits should be 0

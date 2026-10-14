@@ -12,6 +12,7 @@ from typing import List, Optional, Set
 import re
 from ipaddress import IPv4Address
 from .comment_handler import CommentHandler
+from .mask_format_detector import MaskFormatDetector
 from .extractors import (
     CIDRExtractor,
     SubnetMaskExtractor,
@@ -46,6 +47,7 @@ class NetworkParser:
         parse_hostmask: str = 'both',
         parse_ranges: str = 'both',
         parse_bare_ip: str = 'both',
+        scan_mask: str = 'both',
         range_format: str = 'both',
     ):
         """
@@ -59,6 +61,7 @@ class NetworkParser:
             parse_hostmask: Where to accept hostmasks ('pattern', 'input', 'both', 'none')
             parse_ranges: Where to accept IP ranges ('pattern', 'input', 'both', 'none')
             parse_bare_ip: Where to accept bare IPs ('pattern', 'input', 'both', 'none')
+            scan_mask: Where to scan for format hints ('pattern', 'input', 'both', 'none')
             range_format: Range format preference ('long', 'short', 'both', 'none')
         """
         self.filter_comments = filter_comments
@@ -68,6 +71,7 @@ class NetworkParser:
         self.parse_hostmask = parse_hostmask
         self.parse_ranges = parse_ranges
         self.parse_bare_ip = parse_bare_ip
+        self.scan_mask = scan_mask
         self.range_format = range_format
         
         # Initialize comment handler
@@ -76,8 +80,11 @@ class NetworkParser:
         # Initialize extractors in priority order
         self.extractors = [
             CIDRExtractor(strict=strict_mode),
-            SubnetMaskExtractor(),
-            InverseMaskExtractor(),
+            SubnetMaskExtractor(
+                reject_zero_mask=parse_hostmask != 'none',
+                enabled=parse_netmask != 'none'
+            ),
+            InverseMaskExtractor(enabled=parse_hostmask != 'none'),
             IPRangeExtractor(),
             IPOnlyExtractor(),
         ]
@@ -104,6 +111,22 @@ class NetworkParser:
             return True
         
         return False
+    
+    def _detect_mask_format(self, text: str) -> Optional[str]:
+        """
+        Detect mask format hints from text using peek buffer analysis.
+        
+        Args:
+            text: Text to analyze (typically first 8KB)
+        
+        Returns:
+            Format hint: 'netmask_dominant', 'hostmask_dominant', 'mixed', 'unknown'
+            or None if scan_mask is disabled
+        """
+        if self.scan_mask == 'none':
+            return None
+        
+        return MaskFormatDetector.detect_format(text)
     
     def _should_use_extractor(self, extractor_type: str, context: str) -> bool:
         """

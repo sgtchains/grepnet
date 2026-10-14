@@ -31,6 +31,16 @@ class InverseMaskExtractor(NetworkExtractor):
         f'\\b({IP_PATTERN})\\s+({IP_PATTERN})\\b'
     )
     
+    def __init__(self, enabled: bool = True):
+        """
+        Initialize InverseMaskExtractor.
+        
+        Args:
+            enabled: If False, this extractor is disabled (--parse-hostmask=none).
+                    When disabled, extract() returns None immediately.
+        """
+        self.enabled = enabled
+    
     def extract(self, text: str) -> Optional[_RawExtraction]:
         """
         Extract first valid inverse mask notation from text.
