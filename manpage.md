@@ -551,10 +551,6 @@ fi
 
 GrepNet Contributors
 
-# COPYRIGHT
-
-GrepNet is released under the MIT License.
-
 # SEE ALSO
 
 grep(1), awk(1), ipcalc(1), cidr(1)
