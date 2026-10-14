@@ -189,13 +189,37 @@ class InputSource:
             self.close()
     
     def _lines_from_file(self) -> Iterator[Tuple[int, str, int]]:
-        """Read lines/records from file with byte offset tracking."""
+        """
+        Read lines/records from file with byte offset tracking.
+        
+        Uses cached peek buffer if available (from binary detection),
+        ensuring uniform "All Input Is Input" behavior with stdin/fd.
+        """
         try:
-            self._file_handle = open(self.file_path, 'rb')
-            
             if self.null_delimited:
-                # Read entire file for NUL-delimited records
-                content = self._file_handle.read()
+                # NUL-delimited record processing
+                # Reuse peek buffer if available, then continue reading rest of file
+                content = b''
+                
+                if self._peek_buffer:
+                    content = self._peek_buffer
+                
+                # Read remaining content from file (seek past the peek buffer if possible)
+                try:
+                    self._file_handle = open(self.file_path, 'rb')
+                    # Try to seek past the peek buffer to avoid re-reading it
+                    if self._peek_buffer:
+                        try:
+                            self._file_handle.seek(len(self._peek_buffer))
+                        except (OSError, IOError):
+                            # File/stream not seekable (e.g., /dev/stdin), can't continue
+                            pass
+                    content += self._file_handle.read()
+                except IOError:
+                    # If we can't open file but have peek buffer, use just that
+                    if not content:
+                        raise
+                
                 records = content.split(b'\0')
                 
                 line_num = 1
@@ -221,10 +245,51 @@ class InputSource:
                     # Update byte offset for next record
                     byte_offset += len(record_bytes) + 1  # +1 for NUL delimiter
             else:
-                # Original newline-delimited logic
+                # Newline-delimited logic with unified peek buffer handling
                 line_num = 1
                 byte_offset = 0
+                partial_line = None
+                
+                # If peek buffer exists, process it first (unified "All Input Is Input" approach)
+                if self._peek_buffer:
+                    buffer_lines = self._peek_buffer.split(b'\n')
+                    
+                    # Process all complete lines from buffer (all except the last)
+                    for line_bytes in buffer_lines[:-1]:
+                        line = line_bytes.decode('utf-8', errors='replace')
+                        line_content = line.rstrip('\r')
+                        yield line_num, line_content, byte_offset
+                        byte_offset += len(line_bytes) + 1  # +1 for newline
+                        line_num += 1
+                    
+                    # Last line from buffer: if non-empty, it was incomplete (no trailing \n)
+                    if buffer_lines[-1]:
+                        partial_line = buffer_lines[-1]
+                        byte_offset += len(partial_line)  # Account for the incomplete line
+                
+                # Now open file and read remaining content
+                self._file_handle = open(self.file_path, 'rb')
+                
+                # Try to seek past the peek buffer to avoid re-reading it
+                # Some sources (like /dev/stdin) are not seekable, so handle gracefully
+                if self._peek_buffer:
+                    try:
+                        self._file_handle.seek(len(self._peek_buffer))
+                    except (OSError, IOError):
+                        # File/stream not seekable, we'll just use peek buffer and skip rest
+                        # Don't read from file_handle in this case
+                        if partial_line:
+                            line = partial_line.decode('utf-8', errors='replace')
+                            line_content = line.rstrip('\r')
+                            yield line_num, line_content, byte_offset
+                        return
+                
+                # If we have a partial line from peek buffer, prepend it to first read
                 for line_bytes in self._file_handle:
+                    if partial_line:
+                        line_bytes = partial_line + line_bytes
+                        partial_line = None
+                    
                     # Decode line
                     try:
                         line = line_bytes.decode('utf-8', errors='replace')
@@ -240,6 +305,12 @@ class InputSource:
                     # Update byte offset for next line
                     byte_offset += len(line_bytes)
                     line_num += 1
+                
+                # Handle any remaining partial line
+                if partial_line:
+                    line = partial_line.decode('utf-8', errors='replace')
+                    line_content = line.rstrip('\r')
+                    yield line_num, line_content, byte_offset
         except IOError as e:
             raise IOError(f"Cannot read {self.file_path}: {e}")
     
