@@ -45,8 +45,8 @@ class RangeMatcher:
     
     def find_subset_matches(self, pattern_start: int, pattern_end: int) -> List[int]:
         """
-        Find file ranges that are subsets of pattern.
-        (file_range is subset ⟹ pattern contains file_range)
+        Find file ranges that are proper subsets of pattern (excludes equal).
+        (file_range is proper subset ⟹ pattern contains file_range AND they are not equal)
         
         Args:
             pattern_start: Start address
@@ -57,15 +57,17 @@ class RangeMatcher:
         """
         matches = []
         for idx, (start, end) in enumerate(self.file_ranges):
-            # File range is subset if: start >= pattern_start AND end <= pattern_end
+            # File range is proper subset if: contained in pattern AND not equal
             if start >= pattern_start and end <= pattern_end:
-                matches.append(idx)
+                # Exclude equal case
+                if not (start == pattern_start and end == pattern_end):
+                    matches.append(idx)
         return matches
     
     def find_superset_matches(self, pattern_start: int, pattern_end: int) -> List[int]:
         """
-        Find file ranges that are supersets of pattern.
-        (file_range is superset ⟹ file_range contains pattern)
+        Find file ranges that are proper supersets of pattern (excludes equal).
+        (file_range is proper superset ⟹ file_range contains pattern AND they are not equal)
         
         Args:
             pattern_start: Start address
@@ -76,9 +78,11 @@ class RangeMatcher:
         """
         matches = []
         for idx, (start, end) in enumerate(self.file_ranges):
-            # File range is superset if: start <= pattern_start AND end >= pattern_end
+            # File range is proper superset if: contains pattern AND not equal
             if start <= pattern_start and end >= pattern_end:
-                matches.append(idx)
+                # Exclude equal case
+                if not (start == pattern_start and end == pattern_end):
+                    matches.append(idx)
         return matches
     
     def find_overlap_matches(self, pattern_start: int, pattern_end: int) -> List[int]:

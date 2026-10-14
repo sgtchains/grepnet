@@ -72,8 +72,8 @@ class CIDRMatcher:
     
     def find_subset_matches(self, pattern) -> List[int]:
         """
-        Find file networks that are subsets of pattern.
-        (file_network is subset of pattern ⟹ pattern contains file_network)
+        Find file networks that are proper subsets of pattern (excludes equal).
+        (file_network is proper subset of pattern ⟹ pattern contains file_network AND they are not equal)
         
         Args:
             pattern: IPv4Network or IPv6Network
@@ -83,14 +83,18 @@ class CIDRMatcher:
         """
         matches = []
         for idx, net in enumerate(self.file_networks):
-            # File network is subset of pattern if:
+            # File network is proper subset of pattern if:
             # - Same address family
-            # - File prefix >= pattern prefix (more specific)
+            # - File prefix > pattern prefix (strictly more specific)
             # - File network is within pattern's address space
+            # - They are not equal
             if type(net) != type(pattern):
                 continue
             
-            if net.prefixlen >= pattern.prefixlen:
+            if net == pattern:
+                continue  # Exclude equal case
+            
+            if net.prefixlen > pattern.prefixlen:
                 if net.subnet_of(pattern):
                     matches.append(idx)
         
@@ -98,8 +102,8 @@ class CIDRMatcher:
     
     def find_superset_matches(self, pattern) -> List[int]:
         """
-        Find file networks that are supersets of pattern.
-        (file_network is superset of pattern ⟹ file_network contains pattern)
+        Find file networks that are proper supersets of pattern (excludes equal).
+        (file_network is proper superset of pattern ⟹ file_network contains pattern AND they are not equal)
         
         Args:
             pattern: IPv4Network or IPv6Network
@@ -109,14 +113,18 @@ class CIDRMatcher:
         """
         matches = []
         for idx, net in enumerate(self.file_networks):
-            # File network is superset of pattern if:
+            # File network is proper superset of pattern if:
             # - Same address family
-            # - File prefix <= pattern prefix (less specific)
+            # - File prefix < pattern prefix (strictly less specific)
             # - Pattern is within file's address space
+            # - They are not equal
             if type(net) != type(pattern):
                 continue
             
-            if net.prefixlen <= pattern.prefixlen:
+            if net == pattern:
+                continue  # Exclude equal case
+            
+            if net.prefixlen < pattern.prefixlen:
                 if pattern.subnet_of(net):
                     matches.append(idx)
         

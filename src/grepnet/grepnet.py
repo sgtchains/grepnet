@@ -680,34 +680,46 @@ class GrepNet:
         """
         Check matcher against pattern in priority order.
         
+        Checks match types in priority order and returns the first match found.
+        Only returns types that are in self.match_type_filter.
+        
         Args:
             matcher: CIDRMatcher or RangeMatcher instance
             pattern_start_or_net: Pattern network (CIDR) or start int (Range)
             pattern_end: End int (only for Range matcher)
         
         Returns:
-            MatchType (EQUALS, SUBSET, SUPERSET, OVERLAP, or UNMATCHED)
+            MatchType (from match_type_filter, or UNMATCHED)
         """
-        if pattern_end is None:
-            # CIDR matching
-            if matcher.find_equal_matches(pattern_start_or_net):
-                return MatchType.EQUALS
-            if matcher.find_subset_matches(pattern_start_or_net):
-                return MatchType.SUBSET
-            if matcher.find_superset_matches(pattern_start_or_net):
-                return MatchType.SUPERSET
-            if matcher.find_overlap_matches(pattern_start_or_net):
-                return MatchType.OVERLAP
-        else:
-            # Range matching
-            if matcher.find_equal_matches(pattern_start_or_net, pattern_end):
-                return MatchType.EQUALS
-            if matcher.find_subset_matches(pattern_start_or_net, pattern_end):
-                return MatchType.SUBSET
-            if matcher.find_superset_matches(pattern_start_or_net, pattern_end):
-                return MatchType.SUPERSET
-            if matcher.find_overlap_matches(pattern_start_or_net, pattern_end):
-                return MatchType.OVERLAP
+        # Priority order for checking
+        check_order = [MatchType.EQUALS, MatchType.SUBSET, MatchType.SUPERSET, MatchType.OVERLAP]
+        
+        for match_type in check_order:
+            # Skip if this match type is not in the filter
+            if match_type not in self.match_type_filter:
+                continue
+            
+            # Check if this match type applies
+            if pattern_end is None:
+                # CIDR matching
+                if match_type == MatchType.EQUALS and matcher.find_equal_matches(pattern_start_or_net):
+                    return MatchType.EQUALS
+                if match_type == MatchType.SUBSET and matcher.find_subset_matches(pattern_start_or_net):
+                    return MatchType.SUBSET
+                if match_type == MatchType.SUPERSET and matcher.find_superset_matches(pattern_start_or_net):
+                    return MatchType.SUPERSET
+                if match_type == MatchType.OVERLAP and matcher.find_overlap_matches(pattern_start_or_net):
+                    return MatchType.OVERLAP
+            else:
+                # Range matching
+                if match_type == MatchType.EQUALS and matcher.find_equal_matches(pattern_start_or_net, pattern_end):
+                    return MatchType.EQUALS
+                if match_type == MatchType.SUBSET and matcher.find_subset_matches(pattern_start_or_net, pattern_end):
+                    return MatchType.SUBSET
+                if match_type == MatchType.SUPERSET and matcher.find_superset_matches(pattern_start_or_net, pattern_end):
+                    return MatchType.SUPERSET
+                if match_type == MatchType.OVERLAP and matcher.find_overlap_matches(pattern_start_or_net, pattern_end):
+                    return MatchType.OVERLAP
         
         return MatchType.UNMATCHED
     
@@ -932,9 +944,14 @@ class GrepNet:
                     if network_key not in networks_to_mark:
                         continue
                     
-                    # Determine the match type for markup (use highest priority)
-                    match_types = [mt for _, mt in network_matches[network_key]]
-                    match_type = min(match_types, key=lambda mt: self.MATCH_TYPE_PRIORITY.get(mt, 5))
+                    # Determine the match type for markup (use highest priority among filtered types)
+                    # Only consider match types that are in the active filter
+                    match_types = [mt for _, mt in network_matches[network_key] if self._is_match_in_filter(mt)]
+                    if match_types:
+                        match_type = min(match_types, key=lambda mt: self.MATCH_TYPE_PRIORITY.get(mt, 5))
+                    else:
+                        # This shouldn't happen if networks_to_mark was set correctly, but fallback to UNMATCHED
+                        match_type = MatchType.UNMATCHED
                     
                     obj_type = self.FORMAT_TYPE_MAP.get(file_extraction.format_type, 'UNKNOWN')
                     
