@@ -106,6 +106,7 @@ class GrepNet:
             invert_match: If True, invert match logic
             show_unmatched: If True, include unmatched networks (with -u flag)
             mark_normalized: If True, style networks that were normalized (non-strict CIDR)
+            debug: Debug mode ('markup' to show internal markup, None to disable)
             exclude_strings: List of substrings to exclude from results
             exclude_cidrs: List of network objects (IPv4Network/IPv6Network or ranges) to exclude
             exclude_cidr_behaviour: CIDR exclusion behavior ('subset', 'superset', 'equals', 'related', 'cut')
@@ -131,6 +132,7 @@ class GrepNet:
         self.show_unmatched = show_unmatched
         # Use CONFIG value if mark_normalized not explicitly specified
         self.mark_normalized = mark_normalized if mark_normalized is not None else self.CONFIG_MARK_NORMALIZED_NETWORKS
+        self.debug = debug
         self.exclude_strings = exclude_strings or []
         self.exclude_cidrs = exclude_cidrs or []
         self.exclude_cidr_behaviour = exclude_cidr_behaviour
