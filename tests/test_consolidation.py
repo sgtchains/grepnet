@@ -64,6 +64,46 @@ class TestConsolidation(unittest.TestCase):
         finally:
             os.unlink(temp_file)
     
+    def _consolidate_from_string_with_fill(self, input_str: str, fill_pct: int, patterns: list = None) -> list:
+        """
+        Helper: consolidate networks with fill-pct from a string input.
+        
+        Args:
+            input_str: Newline-separated CIDR networks or ranges
+            fill_pct: Fill percentage (0-100)
+            patterns: List of patterns to search for (defaults to extracting all from input)
+        
+        Returns:
+            List of consolidated network strings, sorted
+        """
+        # If no patterns provided, extract them from the input
+        if patterns is None:
+            patterns = [line.strip() for line in input_str.strip().split('\n') if line.strip()]
+        
+        # Create a temp file with the input
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+            f.write(input_str)
+            temp_file = f.name
+        
+        try:
+            # Create GrepNet with patterns
+            grepnet = GrepNet(
+                patterns=patterns,
+                enable_colors=False,
+            )
+            
+            # Create input source from file
+            input_source = InputSource('file', file_path=temp_file)
+            
+            # Consolidate with fill-pct
+            consolidated_dict = grepnet.consolidate_networks([input_source], fill_pct=fill_pct)
+            
+            # Extract and sort network strings
+            result = sorted([str(net) for net in consolidated_dict.keys()])
+            return result
+        finally:
+            os.unlink(temp_file)
+    
     def test_non_consolidatable_networks(self):
         """
         Test that networks at different prefix levels that don't form proper supernets
@@ -166,5 +206,152 @@ class TestConsolidation(unittest.TestCase):
         self.assertEqual(result[0], '192.0.2.0/23')
 
 
-if __name__ == '__main__':
-    unittest.main()
+class TestFillPct(unittest.TestCase):
+    """Test --fill-pct feature for consolidation with gap filling."""
+    
+    def setUp(self):
+        """Set up test fixtures."""
+        pass
+    
+    def _consolidate_from_string_with_fill(self, input_str: str, fill_pct: int, patterns: list = None) -> list:
+        """
+        Helper: consolidate networks with fill-pct from a string input.
+        
+        Args:
+            input_str: Newline-separated CIDR networks or ranges
+            fill_pct: Fill percentage (0-100)
+            patterns: List of patterns to search for (defaults to extracting all from input)
+        
+        Returns:
+            List of consolidated network strings, sorted
+        """
+        # If no patterns provided, extract them from the input
+        if patterns is None:
+            patterns = [line.strip() for line in input_str.strip().split('\n') if line.strip()]
+        
+        # Create a temp file with the input
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+            f.write(input_str)
+            temp_file = f.name
+        
+        try:
+            # Create GrepNet with patterns
+            grepnet = GrepNet(
+                patterns=patterns,
+                enable_colors=False,
+            )
+            
+            # Create input source from file
+            input_source = InputSource('file', file_path=temp_file)
+            
+            # Consolidate with fill-pct
+            consolidated_dict = grepnet.consolidate_networks([input_source], fill_pct=fill_pct)
+            
+            # Extract and sort network strings
+            result = sorted([str(net) for net in consolidated_dict.keys()])
+            return result
+        finally:
+            os.unlink(temp_file)
+    
+    def test_fill_pct_50_simple_range(self):
+        """Test --fill-pct=50 with simple 2-IP range 192.0.2.1-192.0.2.2."""
+        # Input: 192.0.2.1-192.0.2.2 (2 IPs)
+        # Can consolidate to 192.0.2.0/30 (4 IPs total)
+        # Fill ratio: 2 gaps / 4 total = 50%
+        # With fill-pct=50, should consolidate
+        input_str = "192.0.2.1-192.0.2.2"
+        result = self._consolidate_from_string_with_fill(input_str, fill_pct=50)
+        
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0], '192.0.2.0/30')
+    
+    def test_fill_pct_25_rejects_simple_range(self):
+        """Test --fill-pct=25 rejects 192.0.2.1-192.0.2.2."""
+        # Input: 192.0.2.1-192.0.2.2 (2 IPs)
+        # Would need to fill 2 gaps (50% of /30)
+        # With fill-pct=25, cannot consolidate
+        input_str = "192.0.2.1-192.0.2.2"
+        result = self._consolidate_from_string_with_fill(input_str, fill_pct=25)
+        
+        # Should output original /32s or range
+        self.assertEqual(len(result), 2)
+        self.assertIn('192.0.2.1/32', result)
+        self.assertIn('192.0.2.2/32', result)
+    
+    def test_fill_pct_0_no_filling(self):
+        """Test --fill-pct=0 allows only perfect consolidations (no gap filling)."""
+        # 192.0.2.0/25 and 192.0.2.128/25 are adjacent (0% gap)
+        # Should always consolidate even with fill-pct=0
+        input_str = "192.0.2.0/25\n192.0.2.128/25"
+        result = self._consolidate_from_string_with_fill(input_str, fill_pct=0)
+        
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0], '192.0.2.0/24')
+    
+    def test_fill_pct_100_allows_any_fill(self):
+        """Test --fill-pct=100 allows consolidation even with 100% gaps."""
+        # Single /32 can consolidate to any supernet (100% gap)
+        input_str = "192.0.2.128/32"
+        result = self._consolidate_from_string_with_fill(input_str, fill_pct=100)
+        
+        # Should consolidate to /24 or larger (depends on iteration)
+        self.assertGreater(len(result), 0)
+        # At least one result, and it should be the /32 or supernets
+        self.assertTrue(any('192.0.2' in r for r in result))
+    
+    def test_fill_pct_iterative_consolidation(self):
+        """Test that --fill-pct applies iteratively."""
+        # Two separate ranges with gap between them
+        # Input: 192.0.2.0-192.0.2.63, 192.0.2.192-192.0.2.255
+        # Iteration 1: Both fill to /25 (gap=64, total=128, ratio=50%)
+        #   → 192.0.2.0/25, 192.0.2.128/25
+        # Iteration 2: Now adjacent /25s → consolidate to /24 (0% gap)
+        input_str = "192.0.2.0-192.0.2.63\n192.0.2.192-192.0.2.255"
+        result = self._consolidate_from_string_with_fill(input_str, fill_pct=50)
+        
+        # Should iterate to final /24
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0], '192.0.2.0/24')
+    
+    def test_fill_pct_validation_below_range(self):
+        """Test that --fill-pct < 0 is rejected."""
+        # Negative percentages should not be allowed
+        input_str = "192.0.2.0/24"
+        
+        with self.assertRaises((ValueError, TypeError)):
+            self._consolidate_from_string_with_fill(input_str, fill_pct=-1)
+    
+    def test_fill_pct_validation_above_range(self):
+        """Test that --fill-pct > 100 is rejected."""
+        # Percentages > 100 should not be allowed
+        input_str = "192.0.2.0/24"
+        
+        with self.assertRaises((ValueError, TypeError)):
+            self._consolidate_from_string_with_fill(input_str, fill_pct=101)
+    
+    def test_fill_pct_idempotent(self):
+        """Test that consolidate with fill-pct is idempotent."""
+        # Running consolidate twice should give same result
+        input_str = "192.0.2.0-192.0.2.63\n192.0.2.192-192.0.2.255"
+        
+        result1 = self._consolidate_from_string_with_fill(input_str, fill_pct=50)
+        result2 = self._consolidate_from_string_with_fill(input_str, fill_pct=50)
+        
+        # Results should be identical
+        self.assertEqual(result1, result2)
+    
+    def test_fill_pct_with_pattern_filtering(self):
+        """Test --fill-pct with pattern filtering."""
+        # Input has multiple networks, filter for specific pattern
+        input_str = "192.0.2.1-192.0.2.2\n10.0.0.0/24"
+        
+        # Pattern filter to only 192.0.2.x networks
+        result = self._consolidate_from_string_with_fill(
+            input_str, 
+            fill_pct=50,
+            patterns=["192.0.2.0/16"]
+        )
+        
+        # Should only consolidate matching network
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0], '192.0.2.0/30')

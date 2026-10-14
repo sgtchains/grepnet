@@ -1547,12 +1547,12 @@ A line is "extracted" (considered a match) if any network on the line has a `mat
 The `-v` flag inverts this logic: Show only lines that are NOT extracted (none of their networks match the active types).
 
 This extraction logic applies consistently across:
-- Text output (normal line display)
+- Text output in normal mode (normal line display)
 - JSON output (one object per extracted network)
 - Table output (one row per extracted network)
-- `-o` flag (only-matching: show only the network text from extracted lines)
-- `--extract` mode (list networks from extracted lines only)
-- `--consolidate` mode (consolidate networks from extracted lines only)
+- `-o` flag in normal mode (only-matching: show only the network text from matched lines)
+- `--extract` mode (list all unique networks from input files)
+- `--consolidate` mode (merge overlapping and adjacent networks from input files)
 
 ### Result Assembly
 
@@ -1647,9 +1647,9 @@ Results are excluded if their network overlaps with:
 - Example: `--exclude-cidr 192.0.0.0/16` excludes both `192.0.2.0/24` (subset) and `192.0.0.0/16` (equal)
 - Example: `--exclude-cidr 192.0.0.0/16` does NOT exclude `192.0.0.0/15` (superset)
 
-#### Future Enhancement: --exclude-cidr-behaviour (Not Yet Implemented)
+### CIDR Exclusion Behavior: --exclude-cidr-behaviour
 
-A future version will add `--exclude-cidr-behaviour` flag to control CIDR exclusion behavior:
+The `--exclude-cidr-behaviour` flag controls how excluded networks are matched against extracted or searched networks.
 
 **Flag Format**: `--exclude-cidr-behaviour={subset|superset|equals|related|cut}`
 
@@ -1668,7 +1668,7 @@ A future version will add `--exclude-cidr-behaviour` flag to control CIDR exclus
   - Note: "related" also includes equality
 
 - **cut**: Carve out excluded network(s) and return the remaining address space as minimal CIDR blocks
-  - **Scope**: Only valid with `--extract` and `--consolidate` (must error if used without these flags)
+  - **Scope**: Only valid with `--extract` and `--consolidate` (will error if used without these flags)
   - **Behavior**: When extracting networks, remove the excluded CIDR block(s) from the extracted networks and return all minimal non-overlapping CIDR blocks that represent what remains
   - **Result format**: Complete list of CIDR blocks covering the remaining address space with no gaps or overlaps
   - **Examples**:
@@ -1677,13 +1677,58 @@ A future version will add `--exclude-cidr-behaviour` flag to control CIDR exclus
   - **Use cases**: Computing network complements, finding gaps in allocations, inverse lists
 
 **Constraints**:
-- Multiple `--exclude-cidr-behaviour` flags are NOT allowed (last one wins)
+- Only one `--exclude-cidr-behaviour` flag allowed (last one wins if multiple specified)
 - The keywords "cut" and "related" are NOT cumulative; they represent specific behaviors
 - Behaviors apply to all `--exclude-cidr` patterns in the command
 - Behaviors apply consistently across CIDR and range formats
+- `cut` behavior requires `--extract` or `--consolidate` and will error otherwise
 
-**Future Implementation Architecture**:
-The exclusion filtering code is already architected to support multiple behaviors via a `behavior` parameter in the internal `_check_cidr_exclusion()` method. Adding the flag will simply map the user's choice to the appropriate behavior parameter.
+### Prefix Length Filtering: --ipv4-shorter-than, --ipv4-longer-than, --ipv6-shorter-than, --ipv6-longer-than
+
+These flags filter networks based on prefix length (number of network bits). Useful for finding networks of specific sizes.
+
+**Flag Format**: 
+- `--ipv4-shorter-than=N` - Include only IPv4 networks with prefix length < N
+- `--ipv4-longer-than=N` - Include only IPv4 networks with prefix length > N
+- `--ipv6-shorter-than=N` - Include only IPv6 networks with prefix length < N
+- `--ipv6-longer-than=N` - Include only IPv6 networks with prefix length > N
+
+**Scope**: Only valid with `--extract` and `--consolidate` (will error if used without these flags)
+
+**Prefix Length Semantics**:
+- "Shorter prefix" = fewer bits = larger address block (smaller prefix number)
+  - IPv4: `/8` is shorter than `/16` which is shorter than `/32`
+  - IPv6: `/32` is shorter than `/64` which is shorter than `/128`
+- "Longer prefix" = more bits = smaller address block (larger prefix number)
+- Bare IPs treated as `/32` (IPv4) or `/128` (IPv6) for comparison
+- IP ranges converted to smallest containing CIDR before comparison
+
+**Filter Application**:
+1. With `--extract`: Filter applied **after** extraction (on the output networks)
+2. With `--consolidate`: Filter applied **after** consolidation (on the consolidated output)
+
+**Examples**:
+- `echo "192.0.2.0/25 192.0.2.0/29 192.0.2.1 10.0.0.0/8" | ./grepnet --extract --ipv4-shorter-than=29 192.0.2.0/24`
+  - Input networks: `192.0.2.0/25` (25 bits), `192.0.2.0/29` (29 bits), `192.0.2.1` (/32), `10.0.0.0/8` (8 bits)
+  - Filter: prefix < 29 (shorter than /29)
+  - Output: `192.0.2.0/25` (25 < 29 ✓) and `10.0.0.0/8` (8 < 29 ✓)
+  - Excluded: `192.0.2.0/29` (29 NOT < 29) and `192.0.2.1` (/32 NOT < 29)
+
+- `echo "192.0.2.0/25 192.0.2.1 10.0.0.0/8" | ./grepnet --extract --ipv4-shorter-than=29`
+  - Filter: prefix < 29
+  - Output: `192.0.2.0/25` (25 < 29) and `10.0.0.0/8` (8 < 29)
+  - Excluded: `192.0.2.1` (/32 NOT < 29)
+
+**Multiple Filters**:
+- Can combine `--ipv4-shorter-than` and `--ipv4-longer-than` on same command
+- Result must satisfy both conditions: `longer_than < prefix < shorter_than`
+- Example: `--ipv4-longer-than=24 --ipv4-shorter-than=32` → 24 < prefix < 32
+- IPv4 and IPv6 filters are independent (filter one without affecting the other)
+
+**Constraints**:
+- Only one value per flag type (last one wins if multiple specified)
+- Only valid with `--extract` or `--consolidate` (will error if used without these modes)
+- Value must be valid prefix length: 0-32 for IPv4, 0-128 for IPv6
 
 ### Inversion (Negation)
 
@@ -1818,7 +1863,7 @@ grepnet 192.0.2.0/24 -v --extract file.txt    # Only networks that do NOT match 
 
 #### 3. Consolidate Mode
 
-With `--consolidate`, merge overlapping and adjacent networks:
+With `--consolidate`, extract all networks from files, then merge overlapping and adjacent networks:
 
 ```
 Consolidated 42 networks into 8 ranges:
@@ -1828,13 +1873,18 @@ Consolidated 42 networks into 8 ranges:
 ...
 ```
 
+**Process**: 
+1. Extract all networks from input (same as `--extract` mode)
+2. Merge overlapping and adjacent networks using RFC-compliant consolidation
+3. Output the consolidated result
+
 **Output format**: Networks are output in canonical form (CIDR notation or IP ranges).
 
 **Pattern filtering** (optional, **network-level**):
-- When no pattern is provided: consolidate all networks from all input
-- When a pattern is provided: consolidate only networks that match the pattern
+- When no pattern is provided: extract and consolidate all networks from all input
+- When a pattern is provided: extract and consolidate only networks that match the pattern
 - Match type flags (`-e`, `-s`, `-S`, `-O`, `-u`) control which networks match the pattern
-- `-v` inverts the filter: consolidate networks that do NOT match the pattern
+- `-v` inverts the filter: extract and consolidate networks that do NOT match the pattern
 
 **Example**:
 ```bash
@@ -1851,7 +1901,7 @@ grepnet --consolidate --format range file.txt         # Consolidated networks as
 grepnet 192.0.2.0/24 --extract --format short-range file.txt  # Matching networks as short-range
 ```
 
-**Consolidation algorithm**: Use `collapse_addresses()` to compute minimal CIDR set covering all selected addresses.
+**Consolidation algorithm**: Extract networks, then use `collapse_addresses()` to compute minimal CIDR set covering all selected addresses.
 
 #### 4. Count Mode
 
@@ -2161,10 +2211,74 @@ grepnet -A2 -m 3 '192.0.2.0/24' file.txt      # 3 matches + trailing context
 ```
 --extract                        Extract all networks from files
 --consolidate                    Consolidate overlapping networks
--o, --only-matching              Print only matched networks
+--fill-pct=N                     Allow consolidation to fill gaps up to N% (only with --consolidate)
 --show-content                   Show line content in extract mode
 --no-filter-comments [scope]     Do not filter comments (pattern|input|both|none; default: both)
 ```
+
+**Note**: `-o/--only-matching` is for normal mode only and cannot be used with `--extract` or `--consolidate`.
+
+**--fill-pct=N** (only valid with `--consolidate`): Allow consolidation to fill IP address gaps up to N percent of the network size.
+
+**Semantics**:
+- `N` is an integer from 0 to 100 (percentage)
+- When enabled, consolidate in a single pass:
+  1. Extract all networks from input
+  2. For each extracted network, find the first (smallest) supernet where `(gap_ips / supernet_total_ips) × 100 ≤ N`
+     - Stop at the first supernet that fits; do NOT continue searching for larger supernets
+     - If no supernet fits the threshold, keep the original network unchanged
+  3. Merge all filled networks using RFC-compliant `collapse_addresses()`
+  4. Return the consolidated result
+
+**Gap Calculation**:
+- For a network and a candidate supernet: `gap_ips = supernet_ips - original_network_ips`
+- Fill ratio: `(gap_ips / supernet_ips) × 100` must be ≤ N%
+- Example: Network `192.0.2.1-192.0.2.2` (2 IPs) can consolidate to `192.0.2.0/30` (4 IPs total)
+  - Gap: 4 - 2 = 2 IPs
+  - Fill ratio: (2 / 4) × 100 = 50%
+  - `--fill-pct=50` allows this consolidation
+  - `--fill-pct=25` rejects this consolidation
+
+**Consolidation Behavior**:
+- `--fill-pct` applies **once per extracted network**, not iteratively
+- Multiple adjacent networks may still merge after filling due to `collapse_addresses()`
+- Example: Two networks `192.0.2.1-192.0.2.2` and `192.0.2.4-192.0.2.5` with `--fill-pct=50`:
+  - Both expand to /30 networks: `192.0.2.0/30` and `192.0.2.4/30`
+  - These are now adjacent, so `collapse_addresses()` merges them to `192.0.2.0/29`
+  - This is a single-pass operation; no further fill-pct is applied to the /29 result
+
+**Examples**:
+```bash
+grepnet 192.0.2.1-192.0.2.2 --consolidate --fill-pct=50
+# Input: Range 192.0.2.1-192.0.2.2 expands to 192.0.2.1/32, 192.0.2.2/32
+# Fill-pct applied: 192.0.2.1/32 → 192.0.2.0/31 (50% fill), 192.0.2.2/32 → 192.0.2.0/31 (50% fill, but same network)
+# After collapse: Adjacent /31 networks merge to 192.0.2.0/30
+# Output: 192.0.2.0/30
+
+grepnet 192.0.2.1-192.0.2.2 --consolidate --fill-pct=25
+# Input: Range expands to 192.0.2.1/32, 192.0.2.2/32
+# Fill-pct applied: No supernet fits ≤ 25% fill threshold
+# Output: 192.0.2.1/32, 192.0.2.2/32 (unchanged)
+
+echo -e "192.0.2.1-192.0.2.2\n192.0.2.4-192.0.2.5\n192.0.2.9-192.0.2.10" | grepnet --consolidate --fill-pct=50
+# Input: Three ranges expand to six /32 networks
+# Fill-pct applied (single pass): Each /32 → /31 (50% fill)
+#   - 192.0.2.1-2 → 192.0.2.0/30, 192.0.2.4-5 → 192.0.2.4/30, 192.0.2.9-10 → 192.0.2.8/30
+# After collapse: Adjacent /30 networks merge
+#   - 192.0.2.0/30 (contains .0-.3) and 192.0.2.4/30 (contains .4-.7) → 192.0.2.0/29
+#   - 192.0.2.8/30 (contains .8-.11) remains separate
+# Output: 192.0.2.0/29, 192.0.2.8/30
+```
+
+**Interaction with other flags**:
+- Valid only with `--consolidate` (will error if used without it)
+- Pattern filtering: If a pattern is provided, consolidate only matching networks
+- Works with `--format` to control output notation (cidr, range, short-range)
+- Cannot be used with `--extract` alone (consolidation feature only)
+
+**Error handling**:
+- If `--fill-pct` is used without `--consolidate`, exit with error code 2
+- N must be 0-100; values outside this range are rejected
 
 **--no-filter-comments [scope]**: Control which scopes have comment filtering disabled.
 
@@ -2189,17 +2303,16 @@ Behavior with context flags (-A, -B, -C):
 - Example: `grepnet -o -C1 '192.0.2'` shows matched networks with `--` separators but no surrounding lines
 
 Interaction with other modes:
-- With --extract: Equivalent to normal extract mode (shows matched networks)
-- With --consolidate: Consolidates only the matched networks (excludes non-matching)
+- Only valid in normal search mode
+- Cannot be used with --extract (extract is a different mode of operation)
+- Cannot be used with --consolidate (consolidate is a different mode of operation)
 - Cannot be used with -l or -L (contradictory: -l shows files only, -o shows networks only)
 
-Examples:
+Examples (normal mode only):
 ```bash
-grepnet -o '192.0.2.0/24' file.txt                    # Just the matched networks
+grepnet -o '192.0.2.0/24' file.txt                    # Matched networks in order seen, with duplicates
 grepnet -o -n '192.0.2.0/24' file.txt                 # Networks with line numbers
-grepnet -o -C1 '192.0.2.0/24' file.txt                     # Networks with -- separators, no context lines
-grepnet 192.0.2.0/24 -o --extract file.txt            # Extract only matches (same as pattern filtering)
-grepnet 192.0.2.0/24 -o --consolidate file.txt        # Consolidate only matches
+grepnet -o -C1 '192.0.2.0/24' file.txt                # Networks with -- separators, no context lines
 ```
 
 ---

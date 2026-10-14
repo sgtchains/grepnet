@@ -297,6 +297,13 @@ def run():
         help='Consolidate overlapping and adjacent networks',
     )
     parser.add_argument(
+        '--fill-pct',
+        type=int,
+        default=None,
+        metavar='N',
+        help='Allow consolidation to fill gaps up to N%% (only with --consolidate)',
+    )
+    parser.add_argument(
         '--show-content',
         action='store_true',
         help='Show line content in extract/consolidate mode',
@@ -413,6 +420,32 @@ def run():
         default='subset',
         dest='exclude_cidr_behaviour',
         help='CIDR exclusion behavior: subset (default), superset, equals, related, or cut',
+    )
+    
+    # Prefix length filtering options
+    parser.add_argument(
+        '--ipv4-shorter-than',
+        type=int,
+        dest='ipv4_shorter_than',
+        help='Include only IPv4 networks with prefix length < N (for --extract/--consolidate)',
+    )
+    parser.add_argument(
+        '--ipv4-longer-than',
+        type=int,
+        dest='ipv4_longer_than',
+        help='Include only IPv4 networks with prefix length > N (for --extract/--consolidate)',
+    )
+    parser.add_argument(
+        '--ipv6-shorter-than',
+        type=int,
+        dest='ipv6_shorter_than',
+        help='Include only IPv6 networks with prefix length < N (for --extract/--consolidate)',
+    )
+    parser.add_argument(
+        '--ipv6-longer-than',
+        type=int,
+        dest='ipv6_longer_than',
+        help='Include only IPv6 networks with prefix length > N (for --extract/--consolidate)',
     )
     
     # File filtering options
@@ -560,6 +593,36 @@ def run():
             print('grepnet: error: --exclude-cidr-behaviour=cut requires --extract or --consolidate', file=sys.stderr)
         sys.exit(2)
     
+    # Validate --fill-pct: only valid with --consolidate
+    if args.fill_pct is not None and not args.consolidate:
+        if not args.no_messages:
+            print('grepnet: error: --fill-pct requires --consolidate', file=sys.stderr)
+        sys.exit(2)
+    
+    # Validate prefix length filters: only valid with --extract or --consolidate
+    prefix_length_flags = [
+        ('--ipv4-shorter-than', args.ipv4_shorter_than),
+        ('--ipv4-longer-than', args.ipv4_longer_than),
+        ('--ipv6-shorter-than', args.ipv6_shorter_than),
+        ('--ipv6-longer-than', args.ipv6_longer_than),
+    ]
+    
+    for flag_name, flag_value in prefix_length_flags:
+        if flag_value is not None and not (args.extract or args.consolidate):
+            if not args.no_messages:
+                print(f'grepnet: error: {flag_name} requires --extract or --consolidate', file=sys.stderr)
+            sys.exit(2)
+        # Validate range: 0-32 for IPv4, 0-128 for IPv6
+        if flag_value is not None:
+            if 'ipv4' in flag_name and not (0 <= flag_value <= 32):
+                if not args.no_messages:
+                    print(f'grepnet: error: {flag_name} must be between 0 and 32', file=sys.stderr)
+                sys.exit(2)
+            elif 'ipv6' in flag_name and not (0 <= flag_value <= 128):
+                if not args.no_messages:
+                    print(f'grepnet: error: {flag_name} must be between 0 and 128', file=sys.stderr)
+                sys.exit(2)
+    
     # Determine match type filter based on -e, -s, -S, -O, -u flags
     match_type_filter = []
     has_explicit_match_type = False
@@ -694,6 +757,10 @@ def run():
             exclude_cidr_behaviour=args.exclude_cidr_behaviour,
             output_format=args.format if args.format else 'cidr',  # Default to 'cidr' if not provided
             binary_files=args.binary_files,
+            ipv4_shorter_than=args.ipv4_shorter_than,
+            ipv4_longer_than=args.ipv4_longer_than,
+            ipv6_shorter_than=args.ipv6_shorter_than,
+            ipv6_longer_than=args.ipv6_longer_than,
         )
         
         # Validate strict CIDR in patterns if requested
@@ -819,6 +886,10 @@ def run():
                         if args.exclude_cidr_behaviour != 'cut' and grepnet._check_extraction_excluded(parsed_extraction):
                             continue
                         
+                        # Apply prefix length filters (after exclusion and cut)
+                        if not grepnet._passes_prefix_length_filter(parsed_extraction.network):
+                            continue
+                        
                         formatted_net = grepnet.format_network(parsed_extraction)
                         if args.show_content and line_content:
                             print(f'{formatted_net} {line_content}', end=output_delimiter)
@@ -830,7 +901,7 @@ def run():
                 elif args.consolidate:
                     # Consolidate mode: use grepnet.search(mode='consolidate')
                     # Returns consolidated network dictionary
-                    consolidated_dict = grepnet.search(input_sources, mode='consolidate')
+                    consolidated_dict = grepnet.search(input_sources, mode='consolidate', fill_pct=args.fill_pct)
                     
                     if not consolidated_dict:
                         sys.exit(1)
@@ -860,6 +931,11 @@ def run():
                                 was_normalized=False,
                                 matched_texts=[]
                             )
+                        
+                        # Apply prefix length filters (after consolidation and cut)
+                        if isinstance(net_obj, (IPv4Network, IPv6Network)):
+                            if not grepnet._passes_prefix_length_filter(net_obj):
+                                continue
                         
                         # format_network() handles output format conversion
                         formatted_net = grepnet.format_network(temp_extraction)

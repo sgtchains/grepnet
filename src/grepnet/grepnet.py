@@ -87,6 +87,10 @@ class GrepNet:
         exclude_cidr_behaviour: str = 'subset',
         output_format: str = 'cidr',
         binary_files: str = 'binary',
+        ipv4_shorter_than: Optional[int] = None,
+        ipv4_longer_than: Optional[int] = None,
+        ipv6_shorter_than: Optional[int] = None,
+        ipv6_longer_than: Optional[int] = None,
     ):
         """
         Initialize GrepNet.
@@ -107,6 +111,10 @@ class GrepNet:
             exclude_cidrs: List of network objects (IPv4Network/IPv6Network or ranges) to exclude
             exclude_cidr_behaviour: CIDR exclusion behavior ('subset', 'superset', 'equals', 'related', 'cut')
             output_format: Network output format for --extract/--consolidate ('cidr', 'range', 'short-range')
+            ipv4_shorter_than: Include only IPv4 networks with prefix_length < N
+            ipv4_longer_than: Include only IPv4 networks with prefix_length > N
+            ipv6_shorter_than: Include only IPv6 networks with prefix_length < N
+            ipv6_longer_than: Include only IPv6 networks with prefix_length > N
         """
         self.patterns = patterns
         self.filter_comments = filter_comments
@@ -130,6 +138,12 @@ class GrepNet:
         self.exclude_cidr_behaviour = exclude_cidr_behaviour
         self.output_format = output_format
         self.binary_files = binary_files
+        
+        # Prefix length filters
+        self.ipv4_shorter_than = ipv4_shorter_than
+        self.ipv4_longer_than = ipv4_longer_than
+        self.ipv6_shorter_than = ipv6_shorter_than
+        self.ipv6_longer_than = ipv6_longer_than
         
         # Store parse control parameters
         self.parse_cidr = parse_cidr
@@ -621,6 +635,25 @@ class GrepNet:
         
         return result
     
+    def _passes_prefix_length_filter(self, network: Union[IPv4Network, IPv6Network]) -> bool:
+        """
+        Check if a network passes the prefix length filters.
+        
+        Returns True if the network meets all specified prefix length criteria.
+        """
+        if isinstance(network, IPv4Network):
+            if self.ipv4_shorter_than is not None and network.prefixlen >= self.ipv4_shorter_than:
+                return False
+            if self.ipv4_longer_than is not None and network.prefixlen <= self.ipv4_longer_than:
+                return False
+        elif isinstance(network, IPv6Network):
+            if self.ipv6_shorter_than is not None and network.prefixlen >= self.ipv6_shorter_than:
+                return False
+            if self.ipv6_longer_than is not None and network.prefixlen <= self.ipv6_longer_than:
+                return False
+        
+        return True
+    
     def _check_match_type_against_pattern(self, matcher, pattern_start_or_net, pattern_end=None) -> MatchType:
         """
         Check matcher against pattern in priority order.
@@ -656,7 +689,7 @@ class GrepNet:
         
         return MatchType.UNMATCHED
     
-    def search(self, input_sources: List[InputSource], yield_all_lines: bool = False, mode: str = 'normal') -> Union[Iterator[MatchResult], dict]:
+    def search(self, input_sources: List[InputSource], yield_all_lines: bool = False, mode: str = 'normal', fill_pct: Optional[int] = None) -> Union[Iterator[MatchResult], dict]:
         """
         Search input sources for matching networks.
         
@@ -672,6 +705,7 @@ class GrepNet:
                  - 'normal': Yield MatchResult stream (standard mode)
                  - 'extract': Return dict of deduplicated networks (for extract mode)
                  - 'consolidate': Return dict of consolidated networks (for consolidate mode)
+            fill_pct: Optional percentage (0-100) for gap filling in consolidate mode
         
         Returns:
             - 'normal' mode: Iterator[MatchResult] objects
@@ -683,7 +717,7 @@ class GrepNet:
             return self.extract_networks(input_sources)
         elif mode == 'consolidate':
             # Consolidate mode: return consolidated networks dict
-            return self.consolidate_networks(input_sources)
+            return self.consolidate_networks(input_sources, fill_pct=fill_pct)
         else:  # mode == 'normal'
             # Standard mode: stream MatchResult objects
             return self._search_generator(input_sources, yield_all_lines)
@@ -1067,7 +1101,7 @@ class GrepNet:
         
         return networks_dict
     
-    def consolidate_networks(self, input_sources: List[InputSource]) -> dict:
+    def consolidate_networks(self, input_sources: List[InputSource], fill_pct: Optional[int] = None) -> dict:
         """
         Consolidate (merge overlapping/adjacent) networks.
         
@@ -1078,7 +1112,12 @@ class GrepNet:
         1. Extract deduplicated networks using extract_networks()
         2. Convert ranges to CIDR blocks
         3. Use RFC-compliant CIDR supernetting (collapse_addresses) to merge
-        4. Return consolidated network dictionary
+        4. If fill_pct is provided, iteratively fill gaps and re-consolidate until stable
+        5. Return consolidated network dictionary
+        
+        Args:
+            input_sources: List of InputSource objects to process
+            fill_pct: Optional percentage (0-100) for gap filling during consolidation
         
         Returns:
             dict: {consolidated_network_object -> (ParsedExtraction, line_content)}
@@ -1087,6 +1126,11 @@ class GrepNet:
             Values are ParsedExtraction + line_content from the first network in each supernet
         """
         from ipaddress import ip_network, collapse_addresses, IPv4Network, IPv6Network
+        
+        # Validate fill_pct
+        if fill_pct is not None:
+            if not isinstance(fill_pct, int) or fill_pct < 0 or fill_pct > 100:
+                raise ValueError(f"fill_pct must be an integer between 0 and 100, got {fill_pct}")
         
         # Step 1: Extract unique networks
         networks_dict = self.extract_networks(input_sources)
@@ -1115,7 +1159,13 @@ class GrepNet:
                 expanded_networks[net_obj] = str(net_obj)
                 network_metadata[net_obj] = (parsed_ext, line_content)
         
-        # Step 3: Use RFC-compliant collapse_addresses for proper CIDR supernetting
+        # If fill_pct is provided, iteratively fill gaps and consolidate
+        if fill_pct is not None:
+            return self._consolidate_with_fill_pct(
+                expanded_networks, network_metadata, fill_pct
+            )
+        
+        # Step 3 (no fill_pct): Use RFC-compliant collapse_addresses for proper CIDR supernetting
         # Separate IPv4 and IPv6 networks
         ipv4_networks = [net for net in expanded_networks.keys() if isinstance(net, IPv4Network)]
         ipv6_networks = [net for net in expanded_networks.keys() if isinstance(net, IPv6Network)]
@@ -1146,6 +1196,112 @@ class GrepNet:
                 consolidated_dict[consolidated_net] = (None, None)
         
         return consolidated_dict
+    
+    def _consolidate_with_fill_pct(self, expanded_networks: dict, network_metadata: dict, fill_pct: int) -> dict:
+        """
+        Consolidate networks with gap filling up to fill_pct threshold.
+        
+        Algorithm:
+        1. For each expanded network, find the supernet within fill_pct threshold
+        2. Use collapse_addresses() to merge adjacent/overlapping networks
+        3. Done (single pass, no iteration)
+        
+        Args:
+            expanded_networks: Dict of network_object -> cidr_string
+            network_metadata: Dict of network_object -> (ParsedExtraction, line_content)
+            fill_pct: Fill percentage threshold (0-100)
+        
+        Returns:
+            dict: {consolidated_network_object -> (ParsedExtraction, line_content)}
+        """
+        from ipaddress import ip_network, collapse_addresses, IPv4Network, IPv6Network
+        
+        current_networks = set(expanded_networks.keys())
+        
+        # Apply fill-pct to each network (single pass, no iteration)
+        filled_networks = set()
+        
+        for net in current_networks:
+            filled_net = self._find_supernet_within_fill_pct(net, current_networks, fill_pct)
+            filled_networks.add(filled_net)
+        
+        # Consolidate the filled networks using collapse_addresses
+        consolidated_list = []
+        ipv4_to_consolidate = [net for net in filled_networks if isinstance(net, IPv4Network)]
+        ipv6_to_consolidate = [net for net in filled_networks if isinstance(net, IPv6Network)]
+        
+        if ipv4_to_consolidate:
+            consolidated_list.extend(collapse_addresses(ipv4_to_consolidate))
+        if ipv6_to_consolidate:
+            consolidated_list.extend(collapse_addresses(ipv6_to_consolidate))
+        
+        # Map back to metadata
+        consolidated_dict = {}
+        for consolidated_net in consolidated_list:
+            # Find the first original network that maps to this result
+            for original_net, (parsed_ext, line_content) in network_metadata.items():
+                if (isinstance(consolidated_net, type(original_net)) and
+                    (consolidated_net == original_net or 
+                     original_net.subnet_of(consolidated_net))):
+                    consolidated_dict[consolidated_net] = (parsed_ext, line_content)
+                    break
+            else:
+                consolidated_dict[consolidated_net] = (None, None)
+        
+        return consolidated_dict
+    
+    def _find_supernet_within_fill_pct(self, network: 'IPv4Network | IPv6Network', all_networks: set, fill_pct: int) -> 'IPv4Network | IPv6Network':
+        """
+        Find the smallest supernet of a network where gap_fill <= fill_pct.
+        
+        Returns the first (smallest) supernet where (gap_ips / supernet_ips) * 100 <= fill_pct.
+        If no supernet meets the threshold, returns the original network.
+        
+        The algorithm tries progressively larger supernets (smaller prefix lengths) and
+        accepts the FIRST one that fits the threshold - preventing unbounded expansion.
+        
+        Args:
+            network: The IP network to find supernet for
+            all_networks: Set of all current networks (for context)
+            fill_pct: Fill percentage threshold
+        
+        Returns:
+            The smallest supernet that fits the fill_pct threshold, or original network
+        """
+        from ipaddress import ip_network, IPv4Network, IPv6Network
+        
+        # Try progressively larger supernets (smaller prefix length)
+        # Return the FIRST (smallest) supernet that fits the threshold
+        for prefix_len in range(network.prefixlen - 1, -1, -1):
+            try:
+                # Create supernet with this prefix length
+                supernet = ip_network((network.network_address, prefix_len), strict=False)
+                
+                # Calculate fill ratio
+                supernet_ips = supernet.num_addresses
+                original_ips = network.num_addresses
+                gap_ips = supernet_ips - original_ips
+                
+                if gap_ips == 0:
+                    # Perfect fit, continue searching for larger supernets with gaps
+                    continue
+                
+                fill_ratio = (gap_ips / supernet_ips) * 100
+                
+                if fill_ratio <= fill_pct:
+                    # Found a supernet that fits; return it immediately
+                    # This prevents unbounded expansion
+                    return supernet
+                else:
+                    # This supernet exceeds threshold; stop looking
+                    # Return the original network since no supernet fits
+                    return network
+            except ValueError:
+                # Skip invalid supernets
+                continue
+        
+        # Reached end of range without finding a fit
+        return network
     
     def _range_to_cidrs(self, start_int: int, end_int: int, version: int = 4) -> List[str]:
         """
