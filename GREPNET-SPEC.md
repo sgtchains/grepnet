@@ -2081,7 +2081,7 @@ Default if none specified: all four match types (any match)
 
 #### Network Output Format
 ```
---format {cidr|range|short-range|original}
+--format {cidr|range|short-range|ips|original}
                                  Network output format (--extract, --consolidate only; default: cidr)
 ```
 
@@ -2091,6 +2091,7 @@ Default if none specified: all four match types (any match)
 - `cidr` (default): Output networks as CIDR notation (e.g., `192.0.2.0/24`). Ranges are converted to equivalent CIDR blocks.
 - `range`: Output networks as IP ranges (e.g., `192.0.2.0-192.0.2.255`)
 - `short-range`: Output networks as abbreviated ranges (e.g., `192.0.2.0-255` where only the final octet is shown)
+- `ips` (--consolidate only): Output all individual IP addresses that compose the consolidated network(s). One IP per line. **Cannot be used with `--extract` alone; requires `--consolidate`.** ⚠️ Warning: Only practical for small networks; `/0` would output 4.3 billion IPs!
 - `original`: Output networks in their original parsed format (e.g., CIDR inputs as CIDR, ranges as ranges, subnet masks as subnet masks). **Cannot be used with `--consolidate` because consolidated networks lose their original format identity.**
 
 **Short-range format details**:
@@ -2098,6 +2099,13 @@ Default if none specified: all four match types (any match)
 - IPv4 ranges spanning multiple octets: When an IPv4 range spans beyond just the final octet, it defaults to full long-range notation. For example: `192.0.2.10-192.255.2.100` cannot be abbreviated, so it uses the full form.
 - IPv6 and other cases: When IPv6 addresses or other network types are encountered, the format defaults to full long-range notation (e.g., `2001:db8::-2001:db8::ffff`) since last-octet abbreviation is not practical for IPv6's 128-bit addresses.
 - Single IPs: Display as `/32` (IPv4) or `/128` (IPv6) in CIDR format even in range/short-range modes
+
+**IPS format details** (`--format=ips`, consolidate only):
+- Expands each consolidated network to its constituent IP addresses
+- One IP address per line
+- IPv4 addresses in dotted-quad notation (e.g., `192.0.2.0`, `192.0.2.1`, ..., `192.0.2.255`)
+- IPv6 addresses in canonical notation (e.g., `2001:db8::`, `2001:db8::1`, ..., `2001:db8::ffff`)
+- **Warning: Only practical for small networks.** A `/24` network has 256 IPs; a `/0` has 4,294,967,296 IPs. Use with caution on large networks or server loads may spike.
 
 ⚠️ **Warning: Short-range format is highly discouraged for most use cases** because:
   - Abbreviated notation is ambiguous and easy to misread (e.g., `192.0.2.0-4` vs `192.0.2.0-40`)
@@ -2111,6 +2119,26 @@ grepnet --extract --format cidr file.txt          # Output as CIDR (recommended)
 grepnet --consolidate --format range file.txt      # Output as ranges (recommended)
 grepnet --extract --format short-range file.txt    # Output as abbreviated ranges (not recommended)
 grepnet --extract --format original file.txt       # Output in original parsed format
+grepnet --consolidate --format ips file.txt        # Output all IPs in consolidated networks (consolidate only)
+
+# Example with --format=ips:
+# Input: 192.0.2.0-192.0.2.2
+# Output:
+#   192.0.2.0
+#   192.0.2.1
+#   192.0.2.2
+
+# Example with mixed networks and --format=ips:
+# Input: 192.0.2.0/30 192.0.3.0/30
+# Output:
+#   192.0.2.0
+#   192.0.2.1
+#   192.0.2.2
+#   192.0.2.3
+#   192.0.3.0
+#   192.0.3.1
+#   192.0.3.2
+#   192.0.3.3
 
 # Example with mixed formats in original format:
 # Input:

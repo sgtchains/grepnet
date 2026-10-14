@@ -344,6 +344,28 @@ class GrepNet:
             return str(ip_address(start_int))
         return f"{ip_address(start_int)}-{ip_address(end_int)}"
     
+    def expand_network_to_ips(self, network: Union[IPv4Network, IPv6Network, Tuple[int, int]]) -> Iterator[str]:
+        """
+        Expand a network to all its constituent IP addresses.
+        
+        Args:
+            network: IPv4Network, IPv6Network, or range tuple (start_int, end_int)
+        
+        Yields:
+            IP address strings, one per line
+        """
+        from ipaddress import IPv4Network, IPv6Network, ip_address
+        
+        if isinstance(network, (IPv4Network, IPv6Network)):
+            # CIDR network object
+            for ip in network:
+                yield str(ip)
+        else:
+            # Range tuple (start_int, end_int)
+            start_int, end_int = network
+            for ip_int in range(start_int, end_int + 1):
+                yield str(ip_address(ip_int))
+    
     def _parse_patterns(self) -> List[ParsedExtraction]:
         """
         Parse all pattern strings into network objects.

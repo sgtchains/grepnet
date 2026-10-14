@@ -355,3 +355,115 @@ class TestFillPct(unittest.TestCase):
         # Should only consolidate matching network
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0], '192.0.2.0/30')
+
+
+class TestFormatIps(unittest.TestCase):
+    """Test --format=ips output for consolidated networks."""
+    
+    def _get_ips_output(self, input_str: str, patterns: list = None, fill_pct: int = None) -> list:
+        """
+        Helper: get individual IPs from consolidation with --format=ips.
+        
+        Args:
+            input_str: Newline-separated networks
+            patterns: List of patterns to search for (defaults to extracting all)
+            fill_pct: Optional fill percentage for consolidation
+        
+        Returns:
+            List of IP strings in order
+        """
+        if patterns is None:
+            patterns = [line.strip() for line in input_str.strip().split('\n') if line.strip()]
+        
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+            f.write(input_str)
+            temp_file = f.name
+        
+        try:
+            grepnet = GrepNet(
+                patterns=patterns,
+                enable_colors=False,
+            )
+            
+            input_source = InputSource('file', file_path=temp_file)
+            consolidated_dict = grepnet.consolidate_networks([input_source], fill_pct=fill_pct)
+            
+            # Collect all IPs
+            ips = []
+            for net_obj in sorted(consolidated_dict.keys(), key=lambda n: (
+                isinstance(n, tuple),  # Sort CIDR before ranges
+                n if isinstance(n, tuple) else (int(n.network_address), n.prefixlen)
+            )):
+                for ip_str in grepnet.expand_network_to_ips(net_obj):
+                    ips.append(ip_str)
+            
+            return ips
+        finally:
+            os.unlink(temp_file)
+    
+    def test_format_ips_single_cidr(self):
+        """Test --format=ips with single CIDR network."""
+        input_str = "192.0.2.0/30"
+        ips = self._get_ips_output(input_str)
+        
+        expected = ['192.0.2.0', '192.0.2.1', '192.0.2.2', '192.0.2.3']
+        self.assertEqual(ips, expected)
+    
+    def test_format_ips_range(self):
+        """Test --format=ips with IP range."""
+        input_str = "192.0.2.0-192.0.2.2"
+        ips = self._get_ips_output(input_str)
+        
+        expected = ['192.0.2.0', '192.0.2.1', '192.0.2.2']
+        self.assertEqual(ips, expected)
+    
+    def test_format_ips_single_ip(self):
+        """Test --format=ips with single IP address."""
+        input_str = "192.0.2.5/32"
+        ips = self._get_ips_output(input_str)
+        
+        expected = ['192.0.2.5']
+        self.assertEqual(ips, expected)
+    
+    def test_format_ips_multiple_networks(self):
+        """Test --format=ips with multiple consolidated networks."""
+        input_str = "192.0.2.0/30\n192.0.2.4/30"
+        ips = self._get_ips_output(input_str)
+        
+        expected = [
+            '192.0.2.0', '192.0.2.1', '192.0.2.2', '192.0.2.3',
+            '192.0.2.4', '192.0.2.5', '192.0.2.6', '192.0.2.7'
+        ]
+        self.assertEqual(ips, expected)
+    
+    def test_format_ips_with_fill_pct(self):
+        """Test --format=ips with --fill-pct consolidation."""
+        input_str = "192.0.2.1-192.0.2.2"
+        ips = self._get_ips_output(input_str, fill_pct=50)
+        
+        # With fill-pct=50, range expands to 192.0.2.0/30 (4 IPs)
+        expected = ['192.0.2.0', '192.0.2.1', '192.0.2.2', '192.0.2.3']
+        self.assertEqual(ips, expected)
+    
+    def test_format_ips_adjacent_cidr_merge(self):
+        """Test --format=ips with adjacent CIDR networks that merge."""
+        # Two /31 networks that merge to /30
+        input_str = "192.0.2.0/31\n192.0.2.2/31"
+        ips = self._get_ips_output(input_str)
+        
+        # Should merge to 192.0.2.0/30
+        expected = ['192.0.2.0', '192.0.2.1', '192.0.2.2', '192.0.2.3']
+        self.assertEqual(ips, expected)
+    
+    def test_format_ips_larger_network(self):
+        """Test --format=ips with /24 network (256 IPs)."""
+        input_str = "192.0.2.0/24"
+        ips = self._get_ips_output(input_str)
+        
+        # Should have 256 IPs from .0 to .255
+        self.assertEqual(len(ips), 256)
+        self.assertEqual(ips[0], '192.0.2.0')
+        self.assertEqual(ips[255], '192.0.2.255')
+        # Check some middle values
+        self.assertEqual(ips[100], '192.0.2.100')
+        self.assertEqual(ips[255], '192.0.2.255')

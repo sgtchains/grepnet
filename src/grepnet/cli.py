@@ -310,7 +310,7 @@ def run():
     )
     parser.add_argument(
         '--format',
-        choices=['cidr', 'range', 'short-range', 'original'],
+        choices=['cidr', 'range', 'short-range', 'ips', 'original'],
         default=None,  # None means not provided; will validate before using
         help='Network output format for extract/consolidate (default: cidr)',
     )
@@ -834,10 +834,19 @@ def run():
     # Validate --format usage early (before search)
     # Only validate if --format was explicitly provided (args.format is not None)
     if args.format is not None:
+        # Check for ips-specific constraint first
+        if args.format == 'ips' and not args.consolidate:
+            if not args.no_messages:
+                print(f'grepnet: error: --format ips can only be used with --consolidate', file=sys.stderr)
+            sys.exit(2)
+        
+        # General constraint: --format requires --extract or --consolidate
         if not (args.extract or args.consolidate):
             if not args.no_messages:
                 print(f'grepnet: error: --format \'{args.format}\' can only be used with --extract or --consolidate', file=sys.stderr)
             sys.exit(2)
+        
+        # Cannot use 'original' with consolidate
         if args.format == 'original' and args.consolidate:
             if not args.no_messages:
                 print(f'grepnet: error: --format original cannot be used with --consolidate', file=sys.stderr)
@@ -913,7 +922,21 @@ def run():
                         extract_dict = grepnet._apply_cut_exclusion(extract_dict)
                         consolidated_dict = extract_dict
                     
-                    # Output consolidated networks
+                    # Handle --format=ips: expand networks to individual IPs
+                    if args.format == 'ips':
+                        for net_obj, (parsed_ext, line_content) in consolidated_dict.items():
+                            # Apply prefix length filters
+                            if isinstance(net_obj, (IPv4Network, IPv6Network)):
+                                if not grepnet._passes_prefix_length_filter(net_obj):
+                                    continue
+                            
+                            # Expand network to all IPs
+                            for ip_str in grepnet.expand_network_to_ips(net_obj):
+                                print(ip_str, end=output_delimiter)
+                        
+                        sys.exit(0)
+                    
+                    # Output consolidated networks (standard formats)
                     for net_obj, (parsed_ext, line_content) in consolidated_dict.items():
                         # Create temporary ParsedExtraction wrapper for consolidated networks
                         if isinstance(net_obj, (IPv4Network, IPv6Network)):
