@@ -776,35 +776,91 @@ Then validate 0 ≤ prefix ≤ 128 during parsing
 
 ### Parsing Strategy for Space-Separated Two-Value Patterns
 
-When a line contains two IPv4 addresses separated by one or more horizontal whitespace characters (spaces, tabs, or other horizontal space), the parser must determine if this is a subnet mask or inverse mask:
+When a line contains two IPv4 addresses separated by one or more horizontal whitespace characters (spaces, tabs, or other horizontal space), the parser must determine if this is a subnet mask, inverse mask, or two separate IPs.
 
 **Whitespace handling**: The separator must be one or more horizontal whitespace characters (horizontal space: ASCII space, tab, or Unicode horizontal whitespace). Do NOT split on vertical whitespace (newlines, carriage returns).
 
-**Algorithm**:
+**Pattern prerequisites**:
 1. Use a regex or parser that splits on one or more horizontal space characters
 2. Check if exactly two parts are produced (no dashes, no extra values)
 3. Check if first part is a valid IPv4 address (not CIDR, not containing `-`)
 4. Check if second part is a valid IPv4 address (not CIDR, not containing `-`)
-5. **SPECIAL CASE FIRST** (if `--parse-inverse` enabled): 
-   - If pattern is exactly `0.0.0.0 255.255.255.255`, treat as an exception: parse as `0.0.0.0/0` (entire IPv4 space)
-   - This overrides normal two-value parsing (which would produce `0.0.0.0/32`)
-   - If pattern is exactly `255.255.255.255 0.0.0.0`, treat as an exception: parse as `255.255.255.255/32` (single broadcast address)
-   - Only applies when `--parse-inverse` is NOT disabled
-6. If both are valid IPv4 (and not the special case above):
-   - Try subnet mask first: Check if second value is in netmask format (MSB is 1)
-   - If yes and is contiguous: Parse as subnet mask, mark format as `'subnet_mask'`, done
-   - If yes but not contiguous: Extraction fails, skip this pattern
-   - Try inverse mask second: Check if second value is in hostmask format (MSB is 0)
-   - If yes and is contiguous (after inversion): Parse as inverse mask, mark format as `'inverse_mask'`, done
-   - If yes but not contiguous: Extraction fails, skip this pattern
-   - If neither: Both values are plain IPv4 addresses → Extract both as separate IPs (each treated as /32)
-7. If exactly two parts are NOT produced (e.g., `192.0.2.0 - 192.0.2.1` splits into three parts), the mask format parser skips this pattern and continues to the next extraction format
+
+#### Special Cases for Two-Value Patterns
+
+These special cases must be checked BEFORE normal parsing logic. They represent edge cases where the standard MSB-based detection would produce unintuitive or conflicting results.
+
+**Special Case 1: `0.0.0.0 255.255.255.255` (Entire IPv4 Space)**
+- **Condition**: Pattern is exactly `0.0.0.0 255.255.255.255` AND `--parse-hostmask` is enabled
+- **Normal parsing would produce**: `0.0.0.0/32` (subnet mask: 255.255.255.255 is a /32 netmask)
+- **Special result**: `0.0.0.0/0` (entire IPv4 address space, all 4.3 billion addresses)
+- **Rationale**: This pattern appears in network configurations to represent "match all networks"
+- **Gate**: Only applies when `--parse-hostmask` is NOT `none`
+- **Implementation order**: Check this BEFORE normal two-value parsing
+
+**Special Case 2: `255.255.255.255 0.0.0.0` (Broadcast Address as Single Host)**
+- **Condition**: Pattern is exactly `255.255.255.255 0.0.0.0` AND `--parse-hostmask` is enabled
+- **Normal parsing would produce**: `255.255.255.255/32` (inverse mask: hostmask 0.0.0.0 inverts to /32)
+- **Special result**: `255.255.255.255/32` (same as normal parsing - this is documented for clarity)
+- **Rationale**: This pattern appears in network configurations; special case check clarifies the behavior
+- **Gate**: Only applies when `--parse-hostmask` is NOT `none`
+- **Implementation order**: Check alongside Special Case 1
+
+**Special Case 3: Second Value is `0.0.0.0` (Reserved for Inverse Mask)**
+- **Condition**: Second value is exactly `0.0.0.0` (regardless of first value)
+- **Normal parsing by MSB rule**: MSB=0 would normally attempt inverse mask parsing
+- **Rule**: `0.0.0.0` is explicitly reserved for inverse mask format and MUST NOT be parsed as a subnet mask
+- **With `--parse-hostmask` enabled**: Parse as inverse mask → Result is `first_ip/32`
+- **With `--parse-hostmask` disabled**: Extract both values as separate IPs (each /32)
+- **Rationale**: Even though `0.0.0.0` is a valid netmask (representing /0), using it as a netmask creates ambiguity. Reserve it for hostmask notation.
+- **Examples**:
+  - `192.0.2.1 0.0.0.0` with `--parse-hostmask=both` → `192.0.2.1/32` (inverse mask)
+  - `192.0.2.1 0.0.0.0` with `--parse-hostmask=none` → `192.0.2.1/32` and `0.0.0.0/32` (two IPs)
+  - `0.0.0.0 0.0.0.0` with `--parse-hostmask=both` → `0.0.0.0/32` (inverse mask)
+
+#### Normal Two-Value Parsing Algorithm
+
+After checking special cases above, apply this algorithm:
+
+**Step 1: Parse flag checks**
+- Determine if netmask parsing is enabled in this context (check `--parse-netmask` against context)
+- Determine if hostmask parsing is enabled in this context (check `--parse-hostmask` against context)
+- If both are disabled: Extract both values as separate IPs
+
+**Step 2: MSB analysis**
+- Determine MSB of second value: Is it 1 (netmask format) or 0 (hostmask format)?
+
+**Step 3: Try netmask format (MSB=1)**
+- If MSB is 1 AND netmask parsing is enabled:
+  - Check if second value is contiguous 1s-then-0s (valid netmask)
+  - If yes: Parse as subnet mask, mark format as `'subnet_mask'`, done
+  - If no (non-contiguous): Extraction fails, skip this pattern
+- If MSB is 1 but netmask parsing is disabled: Continue to Step 4
+
+**Step 4: Try hostmask format (MSB=0)**
+- If MSB is 0 AND hostmask parsing is enabled:
+  - Check if second value inverted is contiguous 0s-then-1s (valid hostmask inverted)
+  - If yes: Parse as inverse mask, mark format as `'inverse_mask'`, done
+  - If no (non-contiguous): Extraction fails, skip this pattern
+- If MSB is 0 but hostmask parsing is disabled: Continue to Step 5
+
+**Step 5: Neither format matched**
+- Extract both values as separate plain IPv4 addresses (each /32)
 
 **Critical constraints**:
 - Exactly two space-separated parts required (not three or more)
 - Neither value can contain `/` or `-` (these indicate CIDR or range, not mask format)
 - If a dash is present, range parsing handles it at the range extraction stage
-- Special cases `0.0.0.0 255.255.255.255` and `255.255.255.255 0.0.0.0` are parsed before normal two-value logic (gate: `--parse-inverse` enabled)
+- Cannot have both netmask and hostmask disabled in one context (at least one must be enabled to avoid all two-value patterns becoming two-IP fallback)
+
+**Examples with parsing flags**:
+- `192.0.2.1 255.255.255.0` with `--parse-netmask=both`: MSB=1, netmask enabled → Subnet mask: `192.0.2.0/24`
+- `192.0.2.1 255.255.255.0` with `--parse-netmask=none`: MSB=1, netmask disabled → Two IPs: `192.0.2.1/32` and `255.255.255.0/32`
+- `192.0.2.1 0.0.0.255` with `--parse-hostmask=both`: MSB=0, hostmask enabled → Inverse mask: `192.0.2.0/24`
+- `192.0.2.1 0.0.0.255` with `--parse-hostmask=none`: MSB=0, hostmask disabled → Two IPs: `192.0.2.1/32` and `0.0.0.255/32`
+- `192.0.2.1 255.255.255.255` with `--parse-netmask=none`: MSB=1, netmask disabled → Two IPs: `192.0.2.1/32` and `255.255.255.255/32`
+
+**Implementation note**: Extractors must have access to the parse flag settings (`--parse-netmask`, `--parse-hostmask`, context) so they can make context-aware decisions about which formats are valid in the current parsing mode.
 
 ### Inverse/Hostmask Parsing (Cisco Format)
 
@@ -1185,17 +1241,20 @@ Detects whether the input source contains binary data.
 **Contract**:
 - Returns `True` if the source appears to be binary; `False` if text-like
 - Lazy evaluation: Result is computed once on first call and cached for subsequent calls
-- **Stream protection**: For stdin and fd sources, reads and caches the first 8KB (8192 bytes) before returning. This buffer is stored internally and will be prepended during line iteration to prevent loss of data.
-- **File sources**: Delegates to `BinaryDetector.is_binary(file_path)` (does not consume file data)
+- **Peek buffer strategy (ALL input sources)**: Reads and caches the first 8KB (8192 bytes) from the source before analyzing. This buffer is stored internally and will be prepended during line iteration. This applies uniformly to all input types (files, stdin, fd) to be consistent with the "All Input Is Input" principle.
 
-**Binary detection algorithm**:
-1. Read first 8KB (8192 bytes) of source
+**Binary detection algorithm** (applies to ALL input sources uniformly):
+1. Read first 8KB (8192 bytes) of source and cache in peek buffer (internal `_peek_buffer`)
 2. Check for null bytes (0x00) — strong indicator of binary
 3. Count non-printable control characters (excluding common whitespace like \n, \r, \t)
 4. If null bytes present OR >30% non-printable characters, mark as binary
 5. Return boolean result
+6. Cached peek buffer will be used during line iteration (see below)
 
-**Critical design**: For stdin and file descriptor sources, the 8KB buffer read by this method is NOT lost. It is cached internally and prepended to line iteration output. This prevents the common bug where binary detection consumes the first 8KB of stdin, leaving the stream positioned at byte 8193 and losing data.
+**Critical design**: The 8KB buffer read during binary detection is NEVER lost. It is cached internally in the InputSource and will be prepended to line iteration output. This prevents inefficient double-reads:
+- For stdin/fd: Avoids the common bug where binary detection consumes the first 8KB, leaving the stream at byte 8193
+- For files: Avoids redundant file opens/reads for binary detection and line iteration by caching the first chunk
+- Unified approach: All input types (files, stdin, fd) use the same peek buffer mechanism
 
 ##### `lines() -> Iterator[Tuple[int, str, int]]`
 
@@ -1215,12 +1274,13 @@ Yields all lines from the input source in order.
 - Handles both Unix (`\n`) and Windows (`\r\n`) line endings
 - If the source ends without a trailing newline (incomplete final line), that final line is still yielded
 
-**Peek buffer integration** (stdin/fd only):
+**Peek buffer integration** (ALL input sources):
 - If `get_binary_status()` was called prior to line iteration:
-  - The first 8KB (peek buffer) was cached
+  - The first 8KB (peek buffer) was cached during binary detection
   - Line iteration automatically yields lines from the cached buffer first
-  - After cached lines are exhausted, continues reading remaining stream data
+  - After cached lines are exhausted, continues reading remaining source data
   - Caller is unaware of buffering; iteration appears seamless
+- Applies uniformly to files, stdin, and fd sources
 
 ##### `close() -> None`
 
@@ -1233,27 +1293,80 @@ Closes and cleans up resources associated with the input source.
 
 ### Peek Buffer Strategy (GREPNET-SPEC Implementation)
 
-**Problem**: For stdin and file descriptor sources, binary detection requires reading ahead without consuming the stream. Reading 8KB via `os.read(fd)` on a stream-based input leaves the stream positioned at byte 8193, losing the first 8KB of data during subsequent iteration.
+**Problem**: Binary detection requires reading ahead from the source without wasting that read:
+- For stdin/fd: `os.read(fd)` consumes stream data, leaving it at byte 8193 and losing the first 8KB
+- For files: Without caching, file must be opened twice (once for binary detection, once for iteration) - wasteful
 
-**Solution: Peek buffer caching**:
+**Solution: Unified peek buffer caching (applies to ALL input sources)**:
+
+**Principle**: Consistent with "All Input Is Input" - all input types use the same efficient approach.
+
+**Implementation**:
 
 1. **Early read** (`get_binary_status()` call):
-   - Call `_read_peek_buffer()` to read first 8KB from stdin/fd
+   - Read first 8KB (8192 bytes) from the source (file, stdin, or fd)
    - Store result in internal `_peek_buffer` (bytes object)
-   - Analyze buffer with `BinaryDetector.is_binary_from_buffer()` to avoid stream reading
+   - Analyze buffer with `BinaryDetector.is_binary_from_buffer()` to avoid additional stream reading
 
 2. **Cached analysis**:
    - New method `BinaryDetector.is_binary_from_buffer(buffer)` takes pre-read bytes and returns binary status
-   - Does NOT call `os.read()` or read from stream
-   - Prevents double-read problem
+   - Does NOT perform additional file opens or stream reads
+   - Works identically for files, stdin, and fd
 
 3. **Buffered iteration** (`lines()` method):
-   - Check if peek buffer exists
+   - Check if peek buffer exists (was cached during binary detection)
    - If yes, yield lines from buffer first (split on `\n`)
-   - Then continue yielding from remaining stream via normal iteration
+   - Then continue yielding from remaining source data via normal iteration
    - Caller sees seamless iteration; buffering is transparent
 
+**Benefits**:
+- **Files**: Single file open; 8KB read is reused for both binary detection and line iteration (no double-read)
+- **Stdin/fd**: First 8KB is cached and safely returned to caller during iteration (no data loss)
+- **Unified**: All input types behave consistently; same code path for all
+
 **This implements the directive**: "YOU HAVE SPECIFIC INSTRUCTIONS TO CACHE THE FIRST 8K, SCAN IT, UNLOAD IT AND CONTINUE TO READ THE FILE"
+
+### Mask Format Detection from Peek Buffer (--scan-mask flag)
+
+**Objective**: Use the cached 8KB peek buffer (from binary detection) to analyze what format predominates in the file/pattern - netmask or hostmask - and provide hints to the parser for more intelligent extraction decisions.
+
+**Mechanism**:
+
+1. **After 8KB peek buffer is cached**, analyze it for format indicators:
+   - Count two-value patterns with MSB=1 (netmask format indicators, e.g., `IP 255.x`, `IP 255.255.x`)
+   - Count two-value patterns with MSB=0 (hostmask format indicators, e.g., `IP 0.x`, `IP 0.0.x`)
+   - Calculate format dominance ratio
+
+2. **Cache format hint** in InputSource:
+   - Store detected format preference (`'netmask_dominant'`, `'hostmask_dominant'`, `'mixed'`, `'unknown'`)
+   - This is used during parsing to make context-aware decisions
+
+3. **Use hint during parsing**:
+   - When encountering ambiguous two-value patterns (e.g., `192.0.2.1 0.0.0.0`), the format hint MAY influence extraction strategy
+   - If format hint is `'netmask_dominant'` or `'hostmask_dominant'`, use it as a tie-breaker for edge cases
+   - If format hint is `'mixed'` or `'unknown'`, fall back to standard MSB-based two-value parsing algorithm (see "Normal Two-Value Parsing Algorithm" section)
+   - The hint is NEVER a directive; standard MSB-based logic is always the authoritative source
+
+   **Fallback behavior**:
+   - Format detection is best-effort; if unable to make determination, the hint is set to `'unknown'`
+   - When hint is `'unknown'`, parsing uses the standard MSB-based algorithm with no special heuristics
+   - When hint is `'mixed'`, both formats appear in the peek buffer; parsing uses standard algorithm to handle each pattern individually
+   - This ensures predictable, spec-compliant behavior when format cannot be determined
+
+**Gating with --scan-mask flag**:
+- `--scan-mask=both` (default): Analyze patterns and input files
+- `--scan-mask=input`: Analyze only input files
+- `--scan-mask=pattern`: Analyze only patterns
+- `--scan-mask=none`: Disable format detection (treat all two-value patterns with standard MSB-based logic)
+
+**Examples**:
+- File contains mostly `192.0.2.x 255.255.255.0` patterns → Detected as `'netmask_dominant'` → May use as tie-breaker hint
+- File contains mostly `10.0.0.x 0.0.0.255` patterns → Detected as `'hostmask_dominant'` → May use as tie-breaker hint
+- File contains mix of both → Detected as `'mixed'` → FALLBACK to standard MSB-based algorithm
+- File has no two-value patterns in first 8KB → Detected as `'unknown'` → FALLBACK to standard MSB-based algorithm
+- Pattern string has no detectable format → Detected as `'unknown'` → FALLBACK to standard MSB-based algorithm
+
+**Implementation note**: Format detection is a hint, not a directive. The standard MSB-based two-value parsing algorithm (see "Normal Two-Value Parsing Algorithm" section) is always the authoritative source. Format hints improve heuristics only when both `--parse-netmask` and `--parse-hostmask` are enabled AND the hint is conclusive (`'netmask_dominant'` or `'hostmask_dominant'`). Any uncertainty triggers fallback to standard algorithm.
 
 ### Code Pattern Elimination
 
@@ -2358,6 +2471,7 @@ grepnet -o -C1 '192.0.2.0/24' file.txt                # Networks with -- separat
 --parse-hostmask={pattern|input|both|none}  Where to accept hostmasks (default: both)
 --parse-ranges={pattern|input|both|none}    Where to accept IP ranges (default: both)
 --parse-bare-ip={pattern|input|both|none}    Where to accept single IP address (default: both)
+--scan-mask={pattern|input|both|none}       Scan peek buffer for format hints (default: both)
 --range-format={long|short}       Range format preference (default: both)
 ```
 
@@ -2368,6 +2482,12 @@ grepnet -o -C1 '192.0.2.0/24' file.txt                # Networks with -- separat
 - `none` - (parse-* only) Don't accept this format anywhere
 - `long` (range-format only) - Accept only long-form ranges (192.0.2.1-192.0.2.254)
 - `short` (range-format only) - Accept only short-form ranges (192.0.2.1-254)
+
+**--scan-mask options** (peek buffer format detection):
+- `pattern` - Scan patterns only (analyze pattern strings for netmask vs hostmask format hints)
+- `input` - Scan input files only (analyze first 8KB for format hints)
+- `both` - Scan both patterns and input (default, provides format hints for all sources)
+- `none` - Don't scan; disable format detection optimization
 
 #### Strict CIDR Validation (v2.0 API)
 ```
