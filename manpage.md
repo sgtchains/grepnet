@@ -504,25 +504,107 @@ grepnet --parse-cidr both \
 
 # PREFIX LENGTH FILTERING
 
+Prefix length (also called CIDR mask size or network mask bits) determines how many IP addresses a network block contains. Lower numbers = larger networks, higher numbers = smaller networks.
+
+**Prefix length basics**:
+- IPv4: `/0` to `/32` (0 = entire internet, 32 = single IP)
+- IPv6: `/0` to `/128` (0 = entire IPv6 space, 128 = single IP)
+- Each increment halves the network size: `/24` has 256 IPs, `/25` has 128 IPs
+
+**Why filter by prefix length**:
+- **Audit subnetting**: Find networks larger/smaller than policy allows
+- **Simplify output**: Extract only top-level aggregates or leaf subnets
+- **Validate consistency**: Ensure all networks are within expected size range
+- **Find anomalies**: Detect over-aggressive subnetting or under-utilized aggregates
+
+**Terminology clarification**:
+- **Shorter** prefix = fewer bits = LARGER network (more IPs)
+  - `/8` is "shorter" than `/24` (contains 65,536x more IPs)
+- **Longer** prefix = more bits = SMALLER network (fewer IPs)
+  - `/24` is "longer" than `/8` (contains fewer IPs)
+
+## Flags
+
 **--ipv4-shorter-than** *N*
-: Include only IPv4 networks with prefix length < N
+: Include only IPv4 networks with prefix length < N (larger networks)
 
 **--ipv4-longer-than** *N*
-: Include only IPv4 networks with prefix length > N
+: Include only IPv4 networks with prefix length > N (smaller networks)
 
 **--ipv6-shorter-than** *N*
-: Include only IPv6 networks with prefix length < N
+: Include only IPv6 networks with prefix length < N (larger networks)
 
 **--ipv6-longer-than** *N*
-: Include only IPv6 networks with prefix length > N
+: Include only IPv6 networks with prefix length > N (smaller networks)
 
-Filter extracted or consolidated networks by prefix length (CIDR mask size). Useful for finding smaller subnets or larger aggregates.
+## Common Use Cases
 
-**Examples**:
-- `--ipv4-longer-than=24` - Only networks with /25 or smaller (more specific)
-- `--ipv4-shorter-than=16` - Only networks with /0 to /15 (less specific)
-- `--ipv4-longer-than=24 --ipv4-shorter-than=32` - Networks between /25 and /31
-- `--ipv6-longer-than=64` - Only IPv6 with /65 or longer
+**Find small subnets (more specific)**:
+```bash
+# Only /25 or smaller (more granular subdivisions)
+grepnet --extract --ipv4-longer-than=24 networks.txt
+
+# Result: /25, /26, /27, ... /32 only
+```
+
+**Find large aggregates (less specific)**:
+```bash
+# Only /16 or larger (broad coverage)
+grepnet --extract --ipv4-shorter-than=16 networks.txt
+
+# Result: /0, /1, /2, ... /15 only
+```
+
+**Find networks in a specific size range**:
+```bash
+# Only class C or smaller (between /24 and /32)
+grepnet --extract --ipv4-longer-than=24 --ipv4-shorter-than=32 networks.txt
+
+# Result: /25, /26, /27, /28, /29, /30, /31 only
+```
+
+**Audit IPv6 allocation (common /64 boundary)**:
+```bash
+# Find subnets smaller than standard /64 allocation
+grepnet --extract --ipv6-longer-than=64 networks.txt
+
+# Result: /65, /66, ... /128 (unusual, needs review)
+```
+
+**Find policy violations**:
+```bash
+# Policy: allocate in /25 blocks minimum
+# Find anything smaller (over-subnetting)
+grepnet --extract --ipv4-longer-than=25 violations.txt
+```
+
+**Consolidation validation**:
+```bash
+# Consolidate, then show only large aggregates (verify reduction)
+grepnet --consolidate --ipv4-shorter-than=20 all_networks.txt
+
+# Result: Only /0 to /19 (summary-level networks)
+```
+
+## Prefix Length Reference
+
+| Prefix | IPv4 Addresses | Classful Name | Use Case |
+|--------|---|---|---|
+| /8 | 16,777,216 | Class A | ISP allocation |
+| /16 | 65,536 | Class B | Large network |
+| /24 | 256 | Class C | Standard subnet |
+| /25 | 128 | Half-C | Small subnet |
+| /26 | 64 | Quarter-C | Very small subnet |
+| /30 | 4 | Point-to-point | Router links |
+| /32 | 1 | Host | Single IP |
+
+| Prefix | IPv6 Addresses | Use Case |
+|--------|---|---|
+| /32 | 4.2 billion | ISP allocation |
+| /48 | 65,536 subnets | Organization |
+| /64 | 18 quintillion | Subnet (standard) |
+| /80 | 281 trillion | Rare |
+| /128 | 1 | Host |
 
 # STRICT CIDR VALIDATION
 
