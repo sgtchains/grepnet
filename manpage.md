@@ -586,26 +586,6 @@ grepnet --consolidate --ipv4-shorter-than=20 all_networks.txt
 # Result: Only /0 to /19 (summary-level networks)
 ```
 
-## Prefix Length Reference
-
-| Prefix | IPv4 Addresses | Classful Name | Use Case |
-|--------|---|---|---|
-| /8 | 16,777,216 | Class A | ISP allocation |
-| /16 | 65,536 | Class B | Large network |
-| /24 | 256 | Class C | Standard subnet |
-| /25 | 128 | Half-C | Small subnet |
-| /26 | 64 | Quarter-C | Very small subnet |
-| /30 | 4 | Point-to-point | Router links |
-| /32 | 1 | Host | Single IP |
-
-| Prefix | IPv6 Addresses | Use Case |
-|--------|---|---|
-| /32 | 4.2 billion | ISP allocation |
-| /48 | 65,536 subnets | Organization |
-| /64 | 18 quintillion | Subnet (standard) |
-| /80 | 281 trillion | Rare |
-| /128 | 1 | Host |
-
 # STRICT CIDR VALIDATION
 
 **--strict-cidr** {**pattern**|**input**|**both**|**none**}
