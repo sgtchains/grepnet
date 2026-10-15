@@ -593,7 +593,7 @@ CIDR validation ensures that network addresses don't have "host bits" set. For e
 **Why strict validation matters**:
 - **Consistency**: Ensures all networks are represented canonically
 - **Debugging**: Catches typos (e.g., pattern meant to be `192.0.2.0/24` but written as `192.0.2.1/24`)
-- **Compliance**: Some tools/standards require strict CIDR notation
+- **Compliance**: Some network configurations use CIDR notation to denote both the interface IP address and the network in one string (e.g., `192.0.2.1/24` means "configure IP 192.0.2.1 on the 192.0.2.0/24 network"). Strict CIDR validation distinguishes between these uses.
 - **Safety**: Avoid ambiguous network definitions
 
 **Default behavior**: Non-strict (normalize silently). Malformed CIDRs like `192.0.2.1/24` are automatically corrected to `192.0.2.0/24` without warning. This provides flexibility but may hide mistakes.
