@@ -711,22 +711,86 @@ grepnet --extract --format cidr config.txt
 
 # COMMENT FILTERING
 
-By default, grepnet ignores commented lines and removes inline comments from processing.
+Comment filtering prevents networks inside comments from being matched, but **comments are always preserved in output**. By default, grepnet strips comments during network extraction (to avoid false matches) but prints the full original line including comments in results.
+
+**How it works**:
+1. **Extraction phase**: Comments are identified and removed before searching for networks
+2. **Matching phase**: Networks are only matched in the searchable (non-comment) portion
+3. **Output phase**: The original line WITH comments is printed, comments appear uncolorized
+
+**Recognized comment markers**: `#`, `!`, `--`, `//`, `/* */`, `;`
+
+Support includes:
+- Line comments: Start from marker to end of line
+- Block comments: `/* ... */` (comments can span multiple lines)
+- Multiple markers: First marker encountered ends searchable content
+
+**Example - Default behavior**:
+```
+Input line: server 192.0.2.1 # production
+
+Search for: 192.0.2.0/24
+Result: MATCH (192.0.2.1 is found and printed with its comment)
+
+Output:
+server [GREEN]192.0.2.1[RESET] # production
+             ↑ matched, highlighted    ↑ not highlighted, preserved
+```
+
+**Example - Network in comment (ignored)**:
+```
+Input line: # TODO: configure 192.0.3.0/24
+
+Search for: 192.0.3.0/24
+Result: NO MATCH (network is inside comment, ignored)
+```
+
+## Flags
 
 **--no-filter-comments**
-: Include commented lines in search
+: Disable comment filtering; include comments in network extraction
 
-Recognized comment markers: `#`, `!`, `--`, `//`, `;`
+When enabled, networks inside comments are also matched and highlighted.
 
-Cisco keywords like `remark` and `description` are also recognized as comment markers.
+**Use case**: When working with files where comments contain actual network data (e.g., documentation with network addresses, commented-out configuration examples).
 
-**Example**: 
-
+**Example - With --no-filter-comments**:
 ```
-# Default behavior: this line is ignored
-server 192.0.2.1 # production
+Input line: # TODO: configure 192.0.3.0/24
 
-# With --no-filter-comments: both lines included
+Search for: 192.0.3.0/24
+Result: MATCH (with --no-filter-comments enabled)
+
+Output:
+# TODO: configure [GREEN]192.0.3.0/24[RESET]
+                   ↑ matched and highlighted (even in comment)
+```
+
+## Common Use Cases
+
+**Normal configuration auditing** (comments disabled by default):
+```bash
+# Search config files; ignore networks in comments
+grepnet '192.0.0.0/16' firewall.conf
+
+# Only networks in actual config lines are matched
+# Comments like "# old setting: 192.0.2.0/24" are ignored
+```
+
+**Auditing documentation with network examples** (comments enabled):
+```bash
+# Extract networks from docs that include networks in comments
+grepnet --extract --no-filter-comments architecture.md
+
+# Finds networks both in main text and in commented examples
+```
+
+**Finding active configurations only**:
+```bash
+# Ensure you're not matching networks in commented-out rules
+grepnet -r '192.0.2.0/24' rules.conf
+
+# Default: commented lines like "# allow 192.0.2.0/24" are skipped
 ```
 
 # COLOR OUTPUT
