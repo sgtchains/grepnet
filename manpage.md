@@ -323,36 +323,84 @@ grepnet --extract --exclude-cidr-behaviour cut --exclude-cidr '10.10.0.0/16' \
 
 # FILE DISCOVERY
 
+File discovery controls which files are scanned when searching directories. This is critical for large directory trees where you need to focus on specific file types or exclude large backup/archive sections.
+
+**Default behavior**: When no include/exclude filters specified, all files in the directory tree are scanned.
+
+**Include patterns** (`--include`): Whitelist files matching glob patterns. Only files matching at least one include pattern are scanned. Can be specified multiple times (OR'd together).
+
+**Exclude patterns** (`--exclude`): Blacklist files matching glob patterns. Files matching any exclude pattern are skipped. Can be specified multiple times. Applied after include filtering.
+
+**Directory-level exclusion** (`--exclude-dir`): Faster alternative to `--exclude`. Skips entire directories without traversing them. More efficient than glob patterns on deep directory trees.
+
+**Symlink handling**:
+- `-r` (default): Don't follow symlinks (safer, faster)
+- `-R`: Follow symlinks (can cause infinite loops if circular links exist)
+
+**Glob pattern syntax**: Uses standard glob wildcards:
+- `*` matches anything except `/` (doesn't cross directory boundaries)
+- `?` matches single character
+- `[abc]` matches character class
+- `**` matches any path including `/` (if supported)
+
+**Example precedence**: 
+```
+Input: /var/log/2024/archived/app.log
+--include '*.log' → Matches ✓
+--exclude '*/archived/*' → Excluded ✗
+Result: File NOT scanned
+```
+
+## Flags
+
 **-r**, **--recursive**
-: Search directories recursively (don't follow symlinks)
+: Search directories recursively (don't follow symlinks; faster, safer)
 
 **-R**, **--dereference-recursive**
-: Search directories recursively (follow symlinks)
+: Search directories recursively (follow symlinks; can cause infinite loops)
 
 **--include** *GLOB*
-: Include only files matching glob (repeatable)
+: Include only files matching glob pattern (repeatable; patterns OR'd together)
 
 **--exclude** *GLOB*
-: Exclude files matching glob (repeatable)
+: Exclude files matching glob pattern (repeatable; patterns OR'd together)
 
 **--exclude-from** *FILE*
-: Load exclude patterns from file
+: Load exclude patterns from file, one per line
 
 **--exclude-dir** *PATTERN*
-: Exclude directories matching glob (repeatable)
+: Exclude directories matching glob pattern (repeatable; doesn't traverse excluded dirs)
 
-**Examples**:
+## Common Patterns
 
+**Configuration auditing**:
 ```bash
-# Search all .conf files recursively
-grepnet -r --include '*.conf' '192.0.0.0/16' /etc/
-
-# Search everywhere except backups
-grepnet -r --exclude-dir 'backup' '10.0.0.0/8' /var/
-
-# Search logs excluding old archive subdirectories
-grepnet -r --exclude '*/old/*' '192.0.2.0/24' /var/log/
+# Search only .conf and .yaml files
+grepnet -r --include '*.conf' --include '*.yaml' '192.0.0.0/16' /etc/
 ```
+
+**Log analysis**:
+```bash
+# Search logs excluding old archives and backups
+grepnet -r --exclude-dir 'archive' --exclude-dir 'backup' \
+  --exclude '*.gz' --exclude '*.zip' '192.0.2.0/24' /var/log/
+```
+
+**Backup exclusion**:
+```bash
+# Search everywhere except backups and cache
+grepnet -r --exclude-dir '.git' --exclude-dir '__pycache__' \
+  --exclude-dir 'node_modules' '10.0.0.0/8' /home/
+```
+
+**Whitelist-based scanning**:
+```bash
+# Only scan source code files
+grepnet -r --include '*.py' --include '*.js' --include '*.go' \
+  '192.0.0.0/16' src/
+```
+
+**Performance tip**: Use `--exclude-dir` instead of `--exclude` for large directories—it skips traversal entirely instead of checking each file.
 
 # PARSING CONTROL
 
