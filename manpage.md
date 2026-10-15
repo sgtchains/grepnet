@@ -160,6 +160,20 @@ By default, grepnet finds all matches. Use these flags to filter by relationship
 
 # EXTRACTION AND CONSOLIDATION
 
+Network extraction and consolidation are two related operations for analyzing and simplifying network data:
+
+**Extraction** (`--extract`): Scans input and finds all unique network objects (CIDR blocks, IP ranges, subnets, individual IPs). Deduplicates by network value (same network in different formats counts as one). Useful for discovering what networks are referenced in files, configurations, or logs.
+
+**Consolidation** (`--consolidate`): Merges overlapping and adjacent networks into larger blocks, reducing complexity. For example, `192.0.2.0/25` and `192.0.2.128/25` merge into `192.0.2.0/24`. This simplifies network inventories and highlights coverage gaps.
+
+**Gap Filling** (`--fill-pct`): Optional consolidation enhancement. Instead of merging only adjacent networks, allows filling small gaps if the gap is ≤ N% of the combined network size. Useful for simplifying "nearly complete" network ranges. For example, with `--fill-pct=10`:
+- `192.0.2.0/25` and `192.0.2.192/26` (gap of 64 IPs = 12.5% of /24) merge into `192.0.2.0/24`
+- `192.0.2.0/25` and `192.0.2.200/26` (gap of 8 IPs = 1.5% of /24) merge into `192.0.2.0/24`
+
+**Output Formats**: Extracted/consolidated networks can be output in multiple formats (CIDR, IP ranges, short-ranges, individual IPs, or original format).
+
+## Flags
+
 **--extract**
 : Extract all unique networks found in input (deduplicated)
 
