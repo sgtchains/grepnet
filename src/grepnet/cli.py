@@ -422,10 +422,10 @@ def run():
     )
     parser.add_argument(
         '--exclude-cidr-behaviour',
-        choices=['subset', 'superset', 'equals', 'related', 'cut'],
+        choices=['subset', 'subset-strict', 'superset', 'superset-strict', 'equals', 'related', 'cut'],
         default='subset',
         dest='exclude_cidr_behaviour',
-        help='CIDR exclusion behavior: subset (default), superset, equals, related, or cut',
+        help='CIDR exclusion behavior: subset (default), subset-strict, superset, superset-strict, equals, related, or cut',
     )
     
     # Prefix length filtering options
@@ -503,6 +503,24 @@ def run():
     )
     
     args = parser.parse_args()
+    
+    # Handle flag precedence: if both -H and --no-filename are specified,
+    # whichever came last in the command line takes precedence
+    if args.with_filename and args.no_filename:
+        # Check which flag came last in sys.argv
+        h_index = -1
+        no_filename_index = -1
+        for i, arg in enumerate(sys.argv):
+            if arg == '-H' or arg == '--with-filename':
+                h_index = i
+            elif arg == '--no-filename':
+                no_filename_index = i
+        # The flag that appears last in sys.argv wins
+        if h_index > no_filename_index:
+            args.no_filename = False  # -H wins
+        else:
+            args.with_filename = False  # --no-filename wins
+    
     if args.context > 0:
         args.after_context = args.context
         args.before_context = args.context
@@ -1004,14 +1022,15 @@ def run():
             before_buf = deque(maxlen=args.before_context)  # Last N lines
             after_count = 0  # Number of lines to output after next match
             last_match_line = None  # Track previous match line for gap detection
-            lines_output = set()  # Track which line numbers we've already output (to avoid dupes)
+            lines_output = set()  # Track which (filename, line_number) pairs we've already output (to avoid dupes)
             
             for result in grepnet.search(input_sources, yield_all_lines=True):
                 current_line = result.line_number
                 
                 if result.is_match:
-                    # Skip if we've already output this line (handles multiple matches per line)
-                    if current_line in lines_output:
+                    # Skip if we've already output this line in this file (handles multiple matches per line)
+                    # Use (filename, line_number) as key to allow same line number in different files
+                    if (result.filename, current_line) in lines_output:
                         continue
                     
                     # Check for gap between previous after-context and current before-context
@@ -1037,9 +1056,11 @@ def run():
                             else:
                                 prefix_parts.append(str(ctx_line_num))
                         
-                        # Choose separator: tab for -T, colon for normal
+                        # Choose separator: tab for -T, null for -Z, colon for normal
                         if args.initial_tab and prefix_parts:
                             sep = '\t'
+                        elif args.null_output:
+                            sep = '\x00'
                         elif enable_colors:
                             sep = grepnet.colorizer.colorize_separator(':')
                         else:
@@ -1048,7 +1069,7 @@ def run():
                         prefix = sep.join(prefix_parts)
                         
                         if prefix:
-                            # Use tab as separator if -T and single prefix, colon if multiple
+                            # Use tab as separator if -T and single prefix, null for -Z, colon if multiple
                             ctx_prefix_count = 0
                             if args.with_filename and ctx_filename:
                                 ctx_prefix_count += 1
@@ -1056,6 +1077,8 @@ def run():
                                 ctx_prefix_count += 1
                             if args.initial_tab and ctx_prefix_count == 1:
                                 output = f'{prefix}\t{ctx_content}'
+                            elif args.null_output:
+                                output = f'{prefix}\x00{ctx_content}'
                             else:
                                 output = f'{prefix}:{ctx_content}'
                         else:
@@ -1082,8 +1105,10 @@ def run():
                     line_num_str = None
                     filename_str = None
                     
-                    if args.with_filename and filename:
-                        filename_str = filename if not enable_colors else filename
+                    if args.with_filename:
+                        # Use default "(standard input)" label if filename is None (stdin)
+                        display_name = filename if filename else "(standard input)"
+                        filename_str = display_name if not enable_colors else display_name
                     if args.line_number:
                         line_num_str = (grepnet.colorizer.colorize_line_number(str(current_line))
                                       if enable_colors else str(current_line))
@@ -1102,14 +1127,16 @@ def run():
                             prefix_parts.append(filename_str)
                         sep = '\t'
                     else:
-                        # For normal mode: filename, line, byte order with colon separators
+                        # For normal mode: filename, line, byte order with separators (null for -Z, colon for normal)
                         if filename_str:
                             prefix_parts.append(filename_str)
                         if line_num_str:
                             prefix_parts.append(line_num_str)
                         if byte_offset_str:
                             prefix_parts.append(byte_offset_str)
-                        if enable_colors:
+                        if args.null_output:
+                            sep = '\x00'
+                        elif enable_colors:
                             sep = grepnet.colorizer.colorize_separator(':')
                         else:
                             sep = ':'
@@ -1129,9 +1156,11 @@ def run():
                                 if marked_block:
                                     output_text = grepnet.colorizer.finalize_markup(marked_block.group(0), enable_colors=True)
                             if prefix:
-                                # Use tab as separator if -T and single prefix, colon if multiple
+                                # Use tab as separator if -T and single prefix, null for -Z, colon if multiple
                                 if args.initial_tab and len(prefix_parts) == 1:
                                     output = f'{prefix}\t{output_text}'
+                                elif args.null_output:
+                                    output = f'{prefix}\x00{output_text}'
                                 else:
                                     output = f'{prefix}:{output_text}'
                             else:
@@ -1145,9 +1174,11 @@ def run():
                         # Full line output
                         line_output = result.content_colored if enable_colors else result.line_content
                         if prefix:
-                            # Use tab as separator if -T and single prefix, colon if multiple
+                            # Use tab as separator if -T and single prefix, null for -Z, colon if multiple
                             if args.initial_tab and len(prefix_parts) == 1:
                                 output = f'{prefix}\t{line_output}'
+                            elif args.null_output:
+                                output = f'{prefix}\x00{line_output}'
                             else:
                                 output = f'{prefix}:{line_output}'
                         else:
@@ -1156,8 +1187,8 @@ def run():
                             print(output, end=output_delimiter)
                         match_count += 1
                     
-                    # Track this line and match for next iteration's gap check
-                    lines_output.add(current_line)
+                    # Track this (filename, line_number) pair for next iteration's gap check
+                    lines_output.add((result.filename, current_line))
                     last_match_line = current_line
                     after_count = args.after_context
                 
@@ -1254,130 +1285,142 @@ def run():
                         break
                         
                     line_results = results_by_line[line_number]
-                    filename, first_result = line_results[0]
                     
                     # Skip output for -l and -L (handled at end)
                     if args.files_with_matches or args.files_without_match:
                         continue
                     
-                    # Skip line output for binary files in 'binary' mode (they were already reported as "Binary file X matches")
-                    if first_result.is_binary_file and args.binary_files == 'binary':
-                        # Only count the matches, don't output line content
-                        if not args.count:  # -c mode already counted above
-                            match_count += len(line_results)
-                        continue
-                    
-                    # For -c (count), just count and skip output
-                    if args.count:
-                        match_count += len(line_results)
-                        continue
-                    
-                    # Build prefix parts (used by all output modes)
-                    prefix_parts = []
-                    byte_offset_str = None
-                    line_num_str = None
-                    filename_str = None
-                    
-                    if args.with_filename and filename:
-                        filename_str = (grepnet.colorizer.colorize_filename(filename)
-                                      if enable_colors else filename)
-                    if args.line_number:
-                        line_num_str = (grepnet.colorizer.colorize_line_number(str(line_number))
-                                      if enable_colors else str(line_number))
-                    if args.byte_offset:
-                        byte_offset_str = (grepnet.colorizer.colorize_byte_offset(str(first_result.byte_offset))
-                                         if enable_colors else str(first_result.byte_offset))
-                    
-                    # Build prefix in the correct order for -T or normal mode
-                    if args.initial_tab:
-                        # For -T mode: byte, line, filename order with tab separators
-                        if byte_offset_str:
-                            prefix_parts.append(byte_offset_str)
-                        if line_num_str:
-                            prefix_parts.append(line_num_str)
-                        if filename_str:
-                            prefix_parts.append(filename_str)
-                        sep = '\t'
-                    else:
-                        # For normal mode: filename, line, byte order with colon separators
-                        if filename_str:
-                            prefix_parts.append(filename_str)
-                        if line_num_str:
-                            prefix_parts.append(line_num_str)
-                        if byte_offset_str:
-                            prefix_parts.append(byte_offset_str)
-                        if enable_colors:
-                            sep = grepnet.colorizer.colorize_separator(':')
-                        else:
-                            sep = ':'
-                    
-                    prefix = sep.join(prefix_parts)
-                    
-                    # Output phase: -o mode (only matched texts)
-                    if args.only_matching:
-                        # Extract networks in order from the marked content
-                        marked_content = line_results[0][1].content_marked
-                        pattern = r'\uE000TYPE:[A-Z_]+\|OBJ:[A-Z_]+\|NORM:\w+\uE001(.*?)\uE000/TYPE\uE001'
-                        networks_in_order = re.findall(pattern, marked_content)
+                    # Process each (filename, result) pair separately so each gets its own prefix
+                    for filename, result in line_results:
+                        # Skip line output for binary files in 'binary' mode (they were already reported as "Binary file X matches")
+                        if result.is_binary_file and args.binary_files == 'binary':
+                            # Only count the match, don't output line content
+                            if not args.count:  # -c mode already counted above
+                                match_count += 1
+                            continue
                         
-                        for network_text in networks_in_order:
-                            output_text = network_text
-                            
-                            # Colorize if enabled (find markup block and colorize just that)
-                            if enable_colors:
-                                markup_pattern = r'\uE000TYPE:[A-Z_]+\|OBJ:[A-Z_]+\|NORM:\w+\uE001' + re.escape(network_text) + r'\uE000/TYPE\uE001'
-                                marked_block = re.search(markup_pattern, marked_content)
-                                if marked_block:
-                                    output_text = grepnet.colorizer.finalize_markup(marked_block.group(0), enable_colors=True)
-                            
-                            # Add prefix
-                            if prefix:
-                                # Use tab as separator if -T and single prefix, colon if multiple
-                                if args.initial_tab and len(prefix_parts) == 1:
-                                    output = f'{prefix}\t{output_text}'
-                                else:
-                                    output = f'{prefix}:{output_text}'
-                            else:
-                                output = output_text
-                            
-                            if not args.quiet:
-                                print(output, end=output_delimiter)
+                        # For -c (count), just count and skip output
+                        if args.count:
                             match_count += 1
-                            
-                            # Check max_count after each match in -o mode
-                            if args.max_count > 0 and match_count >= args.max_count:
-                                break
+                            continue
                     
-                    # Normal mode (full line output)
-                    else:
-                        output_key = line_number
-                        if output_key not in seen_output:
-                            line_output = first_result.content_colored if enable_colors else first_result.line_content
-                            
-                            if prefix:
-                                # Use tab as separator if -T and single prefix, colon if multiple
-                                if args.initial_tab and len(prefix_parts) == 1:
-                                    output = f'{prefix}\t{line_output}'
-                                else:
-                                    output = f'{prefix}:{line_output}'
+                    # Process each (filename, result) pair and output it with its own prefix
+                    for filename, result in line_results:
+                        # Build prefix parts for this specific result
+                        prefix_parts = []
+                        byte_offset_str = None
+                        line_num_str = None
+                        filename_str = None
+                        
+                        if args.with_filename:
+                            # Use default "(standard input)" label if filename is None (stdin)
+                            display_name = filename if filename else "(standard input)"
+                            filename_str = (grepnet.colorizer.colorize_filename(display_name)
+                                          if enable_colors else display_name)
+                        if args.line_number:
+                            line_num_str = (grepnet.colorizer.colorize_line_number(str(line_number))
+                                          if enable_colors else str(line_number))
+                        if args.byte_offset:
+                            byte_offset_str = (grepnet.colorizer.colorize_byte_offset(str(result.byte_offset))
+                                             if enable_colors else str(result.byte_offset))
+                        
+                        # Build prefix in the correct order for -T or normal mode
+                        if args.initial_tab:
+                            # For -T mode: byte, line, filename order with tab separators
+                            if byte_offset_str:
+                                prefix_parts.append(byte_offset_str)
+                            if line_num_str:
+                                prefix_parts.append(line_num_str)
+                            if filename_str:
+                                prefix_parts.append(filename_str)
+                            sep = '\t'
+                        else:
+                            # For normal mode: filename, line, byte order with separators (null for -Z, colon for normal)
+                            if filename_str:
+                                prefix_parts.append(filename_str)
+                            if line_num_str:
+                                prefix_parts.append(line_num_str)
+                            if byte_offset_str:
+                                prefix_parts.append(byte_offset_str)
+                            if args.null_output:
+                                sep = '\x00'
+                            elif enable_colors:
+                                sep = grepnet.colorizer.colorize_separator(':')
                             else:
-                                output = line_output
+                                sep = ':'
+                        
+                        prefix = sep.join(prefix_parts)
+                        
+                        # Output phase: -o mode (only matched texts)
+                        if args.only_matching:
+                            # Extract networks in order from the marked content
+                            marked_content = result.content_marked
+                            pattern = r'\uE000TYPE:[A-Z_]+\|OBJ:[A-Z_]+\|NORM:\w+\uE001(.*?)\uE000/TYPE\uE001'
+                            networks_in_order = re.findall(pattern, marked_content)
                             
-                            # Debug output if requested
-                            if args.debug == 'markup':
-                                print('=== MARKUP ===', file=sys.stderr)
-                                print(repr(first_result.content_marked), file=sys.stderr)
-                                print('=== OUTPUT ===', file=sys.stderr)
-                            
-                            if not args.quiet:
-                                print(output, end=output_delimiter)
-                            
-                            seen_output.add(output_key)
-                            match_count += 1
-                            
-                            # Check max_count
-                            if args.max_count > 0 and match_count >= args.max_count:
-                                break
+                            for network_text in networks_in_order:
+                                output_text = network_text
+                                
+                                # Colorize if enabled (find markup block and colorize just that)
+                                if enable_colors:
+                                    markup_pattern = r'\uE000TYPE:[A-Z_]+\|OBJ:[A-Z_]+\|NORM:\w+\uE001' + re.escape(network_text) + r'\uE000/TYPE\uE001'
+                                    marked_block = re.search(markup_pattern, marked_content)
+                                    if marked_block:
+                                        output_text = grepnet.colorizer.finalize_markup(marked_block.group(0), enable_colors=True)
+                                
+                                # Add prefix
+                                if prefix:
+                                    # Use tab as separator if -T and single prefix, null for -Z, colon if multiple
+                                    if args.initial_tab and len(prefix_parts) == 1:
+                                        output = f'{prefix}\t{output_text}'
+                                    elif args.null_output:
+                                        output = f'{prefix}\x00{output_text}'
+                                    else:
+                                        output = f'{prefix}:{output_text}'
+                                else:
+                                    output = output_text
+                                
+                                if not args.quiet:
+                                    print(output, end=output_delimiter)
+                                match_count += 1
+                                
+                                # Check max_count after each match in -o mode
+                                if args.max_count > 0 and match_count >= args.max_count:
+                                    break
+                        
+                        # Normal mode (full line output)
+                        else:
+                            # Use (filename, line_number) as key to avoid dedup across files
+                            output_key = (filename, line_number)
+                            if output_key not in seen_output:
+                                line_output = result.content_colored if enable_colors else result.line_content
+                                
+                                if prefix:
+                                    # Use tab as separator if -T and single prefix, null for -Z, colon if multiple
+                                    if args.initial_tab and len(prefix_parts) == 1:
+                                        output = f'{prefix}\t{line_output}'
+                                    elif args.null_output:
+                                        output = f'{prefix}\x00{line_output}'
+                                    else:
+                                        output = f'{prefix}:{line_output}'
+                                else:
+                                    output = line_output
+                                
+                                # Debug output if requested
+                                if args.debug == 'markup':
+                                    print('=== MARKUP ===', file=sys.stderr)
+                                    print(repr(result.content_marked), file=sys.stderr)
+                                    print('=== OUTPUT ===', file=sys.stderr)
+                                
+                                if not args.quiet:
+                                    print(output, end=output_delimiter)
+                                
+                                seen_output.add(output_key)
+                                match_count += 1
+                                
+                                # Check max_count
+                                if args.max_count > 0 and match_count >= args.max_count:
+                                    break
         
         # Handle -l (files-with-matches): print only filenames with matches
         if args.files_with_matches:

@@ -265,13 +265,13 @@ class TestStreamingBehavior(unittest.TestCase):
     def test_streaming_with_context_lines(self):
         """Test streaming behavior with context flags (-B/-A/-C)."""
         temp_file = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt')
-        content = '\n'.join([f'line {i}' if i % 10 != 5 else f'192.0.2.{i%256}' 
+        content = '\n'.join([f'line {i}' if i % 10 != 5 else f'192.0.2.{i%256}/32' 
                             for i in range(100)])
         temp_file.write(content)
         temp_file.close()
         
         try:
-            cmd = [str(self.grepnet_script), '-A', '2', '192.0.2.', str(temp_file.name)]
+            cmd = [str(self.grepnet_script), '-A', '2', '192.0.2.0/24', str(temp_file.name)]
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
             
             # Should include matches and context
@@ -438,5 +438,41 @@ class TestInputSourceAbstraction(unittest.TestCase):
         self.assertIn('0:', result2.stdout)
 
 
+class TestPatternValidation(unittest.TestCase):
+    """Test that grepnet properly validates and rejects invalid patterns."""
+    
+    def setUp(self):
+        """Set up test fixtures."""
+        self.grepnet_script = Path(__file__).parent.parent / 'bin' / 'grepnet'
+    
+    def test_invalid_pattern_incomplete_cidr(self):
+        """Test that incomplete CIDR patterns are rejected with error."""
+        # '192.0.2.' is not a valid CIDR - should error
+        cmd = [str(self.grepnet_script), '192.0.2.']
+        result = subprocess.run(cmd, input='192.0.2.1\n', capture_output=True, text=True)
+        
+        # Should exit with error code 2 (error)
+        self.assertEqual(result.returncode, 2, 
+                        f"Invalid pattern should exit with code 2, got {result.returncode}")
+        # Should output error message to stderr
+        self.assertIn('no patterns to search for', result.stderr,
+                     f"Should mention pattern error, got stderr: {result.stderr}")
+    
+    def test_invalid_input_with_valid_pattern(self):
+        """Test that invalid input (bare '192.0.2.') is ignored by valid pattern."""
+        # File contains bare '192.0.2.' which is not a valid network
+        # Pattern '0.0.0.0/0' is valid and should match actual networks
+        cmd = [str(self.grepnet_script), '0.0.0.0/0']
+        result = subprocess.run(cmd, input='192.0.2.\n', capture_output=True, text=True)
+        
+        # Should exit with code 1 (no matches)
+        self.assertEqual(result.returncode, 1,
+                        f"No matches should exit with code 1, got {result.returncode}")
+        # Should have no output (no valid networks to match)
+        self.assertEqual(result.stdout.strip(), '',
+                        f"Should have no output, got: {result.stdout}")
+
+
 if __name__ == '__main__':
     unittest.main()
+

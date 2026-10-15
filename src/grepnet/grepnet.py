@@ -457,7 +457,8 @@ class GrepNet:
         Args:
             file_network: Network from file (CIDR or Range tuple)
             exclude_net: Network to exclude (CIDR or Range tuple)
-            behavior: Exclusion behavior ('subset', 'superset', 'equals', 'related', 'cut')
+            behavior: Exclusion behavior ('subset', 'subset-strict', 'superset', 'superset-strict', 
+                     'equals', 'related', 'cut')
                      Default 'subset': exclude if file_network is subset of exclude_net
         
         Returns:
@@ -489,6 +490,27 @@ class GrepNet:
                         exclude_end = int(exclude_net.broadcast_address)
                     return file_start >= exclude_start and file_end <= exclude_end
             
+            elif behavior == 'subset-strict':
+                # Exclude if file network is a STRICT subset of exclude network (no equality)
+                if file_is_cidr and exclude_is_cidr:
+                    return file_network.subnet_of(exclude_net) and file_network != exclude_net
+                elif not file_is_cidr and not exclude_is_cidr:
+                    file_start, file_end = file_network
+                    exclude_start, exclude_end = exclude_net
+                    return (file_start >= exclude_start and file_end <= exclude_end and
+                            not (file_start == exclude_start and file_end == exclude_end))
+                else:
+                    if file_is_cidr:
+                        file_start = int(file_network.network_address)
+                        file_end = int(file_network.broadcast_address)
+                        exclude_start, exclude_end = exclude_net
+                    else:
+                        file_start, file_end = file_network
+                        exclude_start = int(exclude_net.network_address)
+                        exclude_end = int(exclude_net.broadcast_address)
+                    return (file_start >= exclude_start and file_end <= exclude_end and
+                            not (file_start == exclude_start and file_end == exclude_end))
+            
             elif behavior == 'superset':
                 # Exclude if file network is a superset of (or equal to) exclude network
                 if file_is_cidr and exclude_is_cidr:
@@ -507,6 +529,27 @@ class GrepNet:
                         exclude_start = int(exclude_net.network_address)
                         exclude_end = int(exclude_net.broadcast_address)
                     return exclude_start >= file_start and exclude_end <= file_end
+            
+            elif behavior == 'superset-strict':
+                # Exclude if file network is a STRICT superset of exclude network (no equality)
+                if file_is_cidr and exclude_is_cidr:
+                    return exclude_net.subnet_of(file_network) and file_network != exclude_net
+                elif not file_is_cidr and not exclude_is_cidr:
+                    file_start, file_end = file_network
+                    exclude_start, exclude_end = exclude_net
+                    return (exclude_start >= file_start and exclude_end <= file_end and
+                            not (file_start == exclude_start and file_end == exclude_end))
+                else:
+                    if file_is_cidr:
+                        file_start = int(file_network.network_address)
+                        file_end = int(file_network.broadcast_address)
+                        exclude_start, exclude_end = exclude_net
+                    else:
+                        file_start, file_end = file_network
+                        exclude_start = int(exclude_net.network_address)
+                        exclude_end = int(exclude_net.broadcast_address)
+                    return (exclude_start >= file_start and exclude_end <= file_end and
+                            not (file_start == exclude_start and file_end == exclude_end))
             
             elif behavior == 'equals':
                 # Exclude if networks are equal

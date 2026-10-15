@@ -1819,21 +1819,31 @@ Results are excluded if their network overlaps with:
 
 The `--exclude-cidr-behaviour` flag controls how excluded networks are matched against extracted or searched networks.
 
-**Flag Format**: `--exclude-cidr-behaviour={subset|superset|equals|related|cut}`
+**Flag Format**: `--exclude-cidr-behaviour={subset|subset-strict|superset|superset-strict|equals|related|cut}`
 
 **Behaviors**:
-- **subset** (default): Exclude if file network is subset of (or equal to) excluded network
+- **subset** (default): Exclude if file network is subset of (or equal to) excluded network (⊆)
+  - Includes exact equality matches
   - Example: `--exclude-cidr-behaviour=subset --exclude-cidr 192.0.0.0/16` excludes `192.0.2.0/24` and `192.0.0.0/16`, but not `10.0.0.0/8`
 
-- **superset**: Exclude if file network is superset of (or equal to) excluded network
+- **subset-strict**: Exclude if file network is a strict subset of excluded network (⊂, no equality)
+  - Excludes only networks strictly contained within the excluded network, not exact matches
+  - Example: `--exclude-cidr-behaviour=subset-strict --exclude-cidr 192.0.0.0/16` excludes `192.0.2.0/24`, but NOT `192.0.0.0/16` or `10.0.0.0/8`
+
+- **superset**: Exclude if file network is superset of (or equal to) excluded network (⊇)
+  - Includes exact equality matches
   - Example: `--exclude-cidr-behaviour=superset --exclude-cidr 192.0.2.0/24` excludes `192.0.0.0/16` and `192.0.2.0/24`, but not `10.0.0.0/8`
+
+- **superset-strict**: Exclude if file network is a strict superset of excluded network (⊃, no equality)
+  - Excludes only networks that strictly contain the excluded network, not exact matches
+  - Example: `--exclude-cidr-behaviour=superset-strict --exclude-cidr 192.0.2.0/24` excludes `192.0.0.0/16`, but NOT `192.0.2.0/24` or `10.0.0.0/8`
 
 - **equals**: Exclude only if file network exactly equals excluded network
   - Example: `--exclude-cidr-behaviour=equals --exclude-cidr 192.0.2.0/24` excludes only exact matches of `192.0.2.0/24`
 
 - **related**: Exclude if networks overlap or have any subset/superset relationship (union of subset+superset+overlap)
+  - Includes overlaps, containment, and exact equality
   - Example: `--exclude-cidr-behaviour=related --exclude-cidr 192.0.2.0/24` excludes any network that touches, contains, or is contained by `192.0.2.0/24`
-  - Note: "related" also includes equality
 
 - **cut**: Carve out excluded network(s) and return the remaining address space as minimal CIDR blocks
   - **Scope**: Only valid with `--extract` and `--consolidate` (will error if used without these flags)
@@ -1850,6 +1860,7 @@ The `--exclude-cidr-behaviour` flag controls how excluded networks are matched a
 - Behaviors apply to all `--exclude-cidr` patterns in the command
 - Behaviors apply consistently across CIDR and range formats
 - `cut` behavior requires `--extract` or `--consolidate` and will error otherwise
+- Strict variants (`subset-strict`, `superset-strict`) exclude equality matching; use these when you want pure subset/superset relationships only
 
 ### Prefix Length Filtering: --ipv4-shorter-than, --ipv4-longer-than, --ipv6-shorter-than, --ipv6-longer-than
 
