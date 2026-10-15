@@ -121,8 +121,9 @@ class TestOutputFormattingFlags(unittest.TestCase):
         lines = stdout.strip().split('\n')
         
         # Should have at least one result from each file
-        file1_results = [l for l in lines if l.startswith('file1.txt:')]
-        file2_results = [l for l in lines if l.startswith('file2.txt:')]
+        # Use endswith to match regardless of absolute/relative path
+        file1_results = [l for l in lines if 'file1.txt:' in l]
+        file2_results = [l for l in lines if 'file2.txt:' in l]
         
         self.assertGreater(len(file1_results), 0,
                           "Should have results from file1.txt with prefix")
@@ -318,7 +319,7 @@ class TestOutputFormattingFlags(unittest.TestCase):
         stdout, stderr, returncode = self.run_grepnet(
             '0.0.0.0/0',
             '-H',
-            '-',
+            files=['-'],
             stdin_data=self.stdin_data
         )
         
@@ -333,7 +334,7 @@ class TestOutputFormattingFlags(unittest.TestCase):
             '0.0.0.0/0',
             '--label=custom_input',
             '-H',
-            '-',
+            files=['-'],
             stdin_data=self.stdin_data
         )
         
@@ -351,7 +352,7 @@ class TestOutputFormattingFlags(unittest.TestCase):
             '0.0.0.0/0',
             '-H',
             '--label=test_input',
-            '-',
+            files=['-'],
             stdin_data=self.stdin_data
         )
         
@@ -462,8 +463,7 @@ class TestOutputFormattingFlags(unittest.TestCase):
         stdout, stderr, returncode = self.run_grepnet(
             '0.0.0.0/0',
             '-H',
-            str(self.file1),
-            '-',
+            files=[str(self.file1), '-'],
             stdin_data=self.stdin_data
         )
         

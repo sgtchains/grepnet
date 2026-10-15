@@ -1197,9 +1197,16 @@ def run():
         
         else:
             # No context: original simple approach
+            # Count results as we collect them so we can stop early with max_count
+            collection_match_count = 0
             for result in grepnet.search(input_sources):
                 if not result.is_match:
                     continue
+                
+                # Check if we've hit max_count limit BEFORE processing this result
+                # This allows us to stop consuming from stdin/files early
+                if args.max_count > 0 and collection_match_count >= args.max_count:
+                    break
                     
                 filename = result.filename
                 if filename not in file_matches:
@@ -1213,6 +1220,9 @@ def run():
                 if result.line_number not in results_by_line:
                     results_by_line[result.line_number] = []
                 results_by_line[result.line_number].append((filename, result))
+                
+                # Increment local counter to track when we've hit the limit
+                collection_match_count += 1
         
         # Skip output phase if context mode already output all results
         if not use_context:

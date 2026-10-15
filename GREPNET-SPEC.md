@@ -1083,10 +1083,24 @@ Before scanning, validate all files:
 
 Before scanning a file, detect if it is binary:
 
-**Detection method**: Read the first chunk (e.g., 8KB) and check for:
+**Detection method**: Read the first chunk (8KB) and check for:
 - Null bytes (strong indicator of binary)
 - Lack of printable text markers
 - High percentage of non-printable control characters (>30%)
+
+**Critical Optimization: Single 8KB Buffer for Multiple Operations**
+
+The first 8KB is read ONCE and cached. This buffer is reused for BOTH:
+1. **Binary detection** — scanned for null bytes and non-printable characters
+2. **Mask format hint detection** — analyzed to determine netmask vs hostmask preference
+
+Then the file continues to be read sequentially from byte 8KB onward. This eliminates:
+- No redundant file reads
+- No file close/reopen cycles
+- No seeking back to the beginning
+- One file handle open for the entire scan
+
+The file remains open from initial 8KB read through complete line iteration.
 
 **VTY Protection**: grepnet applies VTY (Virtual Terminal) protection for binary input, similar to grep:
 - Binary files are **always searched** to find matches (this matches grep's default behavior)
@@ -1115,32 +1129,51 @@ Before scanning a file, detect if it is binary:
 2. When matches are found but contain null bytes or improperly encoded data, suppress line output
 3. Report "Binary file <filename> matches" to indicate matches exist but output is suppressed
 
-### Implementation Note: VTY Protection Strategy
+### Implementation Note: VTY Protection Strategy with Single 8KB Buffer
 
 **Recommended approach** for implementers:
 
-1. **Early detection**: Check if file is binary **before** processing begins (not during line iteration)
-   - Avoid reading entire binary file searching for networks (expensive)
-   - Single ~8KB chunk read is sufficient for detection
+1. **Unified 8KB buffer workflow**:
+   - Read first 8KB from file and cache it
+   - Keep file handle open (do NOT close after reading 8KB)
+   - Use cached 8KB buffer for BOTH binary detection AND mask format hint detection
+   - Continue reading the file sequentially from byte 8KB onward
+   - This ensures single file open, zero file seeks, zero redundant reads
 
-2. **Mode-based handling**:
+2. **Early detection**: Check if file is binary **before** processing begins (not during line iteration)
+   - Avoid reading entire binary file searching for networks (expensive)
+   - Single 8KB chunk read is sufficient for detection
+   - Reuse this same 8KB for format detection (masked format patterns)
+
+3. **Mode-based handling**:
    - **Mode `binary` (default)**: Always search and iterate, but suppress line output when improperly-encoded data detected. Report "Binary file X matches" if matches found.
    - **Mode `text`**: Process normally, output as text (user accepts terminal risk)
    - **Mode `without-match`**: Iterate normally to find matches, but replace output with "Binary file X matches" if matches found
 
-3. **Integration with InputSource abstraction**:
+4. **Integration with InputSource abstraction**:
    - Each InputSource knows its binary status (`get_binary_status()` method)
+   - Each InputSource caches mask format hint via `get_mask_format_hint()` method
+   - Both methods use the SAME cached 8KB buffer
    - Caller decides action: skip, process, or report
    - No binary-specific code in main processing loop
+   - Mask format hint is applied to all line parsing after 8KB
 
-4. **Error handling**:
+5. **Error handling**:
    - Malformed UTF-8 in text/without-match modes: Use replacement characters or skip line
    - Null bytes in text mode: Preserve or replace depending on output format
    - Graceful degradation: Continue processing even with binary-safe encoding errors
 
 **Example implementation**:
 ```
-if input_source.is_binary():
+source = InputSource('file', file_path='example.txt')
+
+# Both of these call get_binary_status() which reads and caches 8KB
+is_binary = source.get_binary_status()
+mask_hint = source.get_mask_format_hint(scan_mask='both')
+
+# File handle is still open, positioned at byte 8KB
+# Now iterate lines, which continues reading from 8KB onward
+if is_binary:
     if args.binary_files == "binary":
         skip_file()  # Return immediately
     elif args.binary_files == "without_match":
@@ -1151,7 +1184,10 @@ if input_source.is_binary():
     # else: text mode, fall through to normal processing
 
 # Normal processing (text files or binary in text mode)
-for line in input_source.lines():
+# Apply mask_hint to all parse_line() calls
+for line_number, line_content, byte_offset in source.lines():
+    # Use mask_hint when parsing this line
+    extractions = parser.parse_line(line_content, mask_format_hint=mask_hint)
     ...
 ```
 
@@ -1330,20 +1366,27 @@ Closes and cleans up resources associated with the input source.
 
 **Objective**: Use the cached 8KB peek buffer (from binary detection) to analyze what format predominates in the file/pattern - netmask or hostmask - and provide hints to the parser for more intelligent extraction decisions.
 
-**Critical**: Mask format scanning happens **ONCE PER INPUT SOURCE**, analyzed on the cached 8KB peek buffer, with the result cached and reused for parsing all lines from that source.
+**Critical Optimization**: Mask format scanning reuses the SAME cached 8KB peek buffer populated during binary detection. This ensures single 8KB read for both binary detection AND format hint detection, with ZERO redundant file reads.
 
 **Mechanism**:
 
-1. **After 8KB peek buffer is cached** (during binary detection):
+1. **Reuse cached 8KB peek buffer from binary detection**:
+   - During binary detection, first 8KB is read and cached in InputSource
+   - Format detection analyzes this SAME cached buffer (no new read)
    - Analyze the buffer for format indicators (separate from binary detection analysis)
-   - Count two-value patterns with MSB=1 (netmask format indicators, e.g., `IP 255.x`, `IP 255.255.x`)
-   - Count two-value patterns with MSB=0 (hostmask format indicators, e.g., `IP 0.x`, `IP 0.0.x`)
-   - Calculate format dominance ratio (threshold: >66% for dominance)
+   - Scan two-value patterns and classify each second value:
+     - **Clearly netmask**: Contiguous 1-bits from MSB followed by 0-bits (e.g., 255.255.255.0)
+     - **Clearly hostmask**: Contiguous 0-bits from MSB followed by 1-bits (e.g., 0.0.0.255)
+     - **Ambiguous**: All zeros (0.0.0.0), all ones (255.255.255.255), non-contiguous, or invalid
+   - Count only clearly netmask and clearly hostmask patterns
+   - Skip all ambiguous patterns (hoping neighboring patterns provide clarity)
+   - Calculate format dominance ratio from counted patterns (threshold: >66% for dominance)
 
 2. **Cache format hint** in InputSource:
    - Store detected format preference (`'netmask_dominant'`, `'hostmask_dominant'`, `'mixed'`, `'unknown'`)
    - This hint is cached per InputSource instance and reused for all parsing of that source
-   - No re-scanning occurs; one analysis per input source
+   - No re-scanning occurs; one analysis per input source using the cached buffer
+   - `'unknown'` is returned if no clearly-identifiable patterns found (≤1 total patterns)
 
 3. **Use hint during parsing** (for all lines from that source):
    - The cached format hint applies to all lines parsed from this input source
@@ -1353,7 +1396,7 @@ Closes and cleans up resources associated with the input source.
    - The hint is NEVER a directive; standard MSB-based logic is always the authoritative source
 
    **Fallback behavior**:
-   - Format detection is best-effort; if unable to make determination, the hint is set to `'unknown'`
+   - Format detection is best-effort; ambiguous patterns don't contribute to the hint
    - When hint is `'unknown'`, parsing uses the standard MSB-based algorithm with no special heuristics
    - When hint is `'mixed'`, both formats appear in the peek buffer; parsing uses standard algorithm to handle each pattern individually
    - This ensures predictable, spec-compliant behavior when format cannot be determined
@@ -1365,13 +1408,12 @@ Closes and cleans up resources associated with the input source.
 - `--scan-mask=none`: Disable format detection (treat all two-value patterns with standard MSB-based logic)
 
 **Examples**:
-- File contains mostly `192.0.2.x 255.255.255.0` patterns → Detected as `'netmask_dominant'` → May use as tie-breaker hint
-- File contains mostly `10.0.0.x 0.0.0.255` patterns → Detected as `'hostmask_dominant'` → May use as tie-breaker hint
-- File contains mix of both → Detected as `'mixed'` → FALLBACK to standard MSB-based algorithm
-- File has no two-value patterns in first 8KB → Detected as `'unknown'` → FALLBACK to standard MSB-based algorithm
-- Pattern string has no detectable format → Detected as `'unknown'` → FALLBACK to standard MSB-based algorithm
+- File contains `0.0.0.0 0.0.0.0` and `192.0.2.1 0.0.0.255` → Skip first (all zeros), count second as hostmask → Detected as `'hostmask_dominant'`
+- File contains `192.0.2.1 0.0.0.0` only → Skip (all zeros) → No clear patterns → Detected as `'unknown'` → FALLBACK
+- File contains `192.0.2.0 0.0.0.255` and `192.0.2.0 255.255.255.0` → Conflicting formats → Detected as `'mixed'` → FALLBACK
+- File contains `192.0.2.0 255.255.255.0` patterns → All clearly netmask → Detected as `'netmask_dominant'`
 
-**Implementation note**: Format detection is a hint, not a directive. The standard MSB-based two-value parsing algorithm (see "Normal Two-Value Parsing Algorithm" section) is always the authoritative source. Format hints improve heuristics only when both `--parse-netmask` and `--parse-hostmask` are enabled AND the hint is conclusive (`'netmask_dominant'` or `'hostmask_dominant'`). Any uncertainty triggers fallback to standard algorithm.
+**Implementation note**: Format detection is a hint, not a directive. Ambiguous patterns (all zeros, all ones, non-contiguous) are excluded from analysis. The standard MSB-based two-value parsing algorithm (see "Normal Two-Value Parsing Algorithm" section) is always the authoritative source. Format hints improve heuristics only when both `--parse-netmask` and `--parse-hostmask` are enabled AND the hint is conclusive (`'netmask_dominant'` or `'hostmask_dominant'`). Any uncertainty triggers fallback to standard algorithm.
 
 ### Code Pattern Elimination
 

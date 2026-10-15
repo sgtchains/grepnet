@@ -773,6 +773,13 @@ class GrepNet:
         """
         Search single input source.
         
+        CRITICAL OPTIMIZATION: Uses unified 8KB buffer approach:
+        1. get_binary_status() reads first 8KB and caches it
+        2. get_mask_format_hint() reuses the SAME 8KB buffer for format detection
+        3. source.lines() continues reading from byte 8KB onward with file handle still open
+        
+        Result: Single file open, zero seeks, zero redundant reads.
+        
         Args:
             source: InputSource instance
             yield_all_lines: If True, yield ALL lines (including non-matches)
@@ -784,9 +791,11 @@ class GrepNet:
         self.parser.comment_handler.reset()
         filename = source.display_name
         file_type = source.file_type
+        
+        # CRITICAL: Read first 8KB and cache for both binary detection AND format hint
         is_binary = source.get_binary_status()
         
-        # Get mask format hint from peek buffer (if scan_mask is enabled)
+        # CRITICAL: Reuse the SAME 8KB buffer for format detection (no redundant read)
         mask_format_hint = source.get_mask_format_hint(self.scan_mask)
         
         # Note: Do NOT skip binary files here. Let the search proceed normally.

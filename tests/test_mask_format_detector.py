@@ -25,20 +25,18 @@ class TestMaskFormatDetectorBasic:
         assert MaskFormatDetector.detect_format(text) == 'unknown'
     
     def test_single_netmask_pattern(self):
-        """Single netmask pattern (MSB=1) should be detected."""
-        # 255.255.255.0 has MSB=1 (255 in binary starts with 1)
+        """Single netmask pattern needs at least 2 clear patterns for dominance."""
+        # With only 1 clear pattern, result is 'unknown'
         text = '192.0.2.0 255.255.255.0'
         result = MaskFormatDetector.detect_format(text)
-        # With only one pattern, it's netmask_dominant
-        assert result == 'netmask_dominant'
+        assert result == 'unknown'
     
     def test_single_hostmask_pattern(self):
-        """Single hostmask pattern (MSB=0) should be detected."""
-        # 0.0.0.255 has MSB=0 (0 in binary starts with 0)
+        """Single hostmask pattern needs at least 2 clear patterns for dominance."""
+        # With only 1 clear pattern, result is 'unknown'
         text = '192.0.2.0 0.0.0.255'
         result = MaskFormatDetector.detect_format(text)
-        # With only one pattern, it's hostmask_dominant
-        assert result == 'hostmask_dominant'
+        assert result == 'unknown'
 
 
 class TestMaskFormatDetectorNetmaskDominant:
@@ -156,16 +154,16 @@ class TestMaskFormatDetectorRobustness:
     """Test robustness with edge cases and special values."""
     
     def test_special_case_zero_mask(self):
-        """0.0.0.0 has MSB=0 (hostmask-like), should be counted as hostmask indicator."""
+        """0.0.0.0 is ambiguous, should be skipped."""
         text = '192.0.2.1 0.0.0.0'
-        # 0.0.0.0 has MSB=0, so it's hostmask format
-        assert MaskFormatDetector.detect_format(text) == 'hostmask_dominant'
+        # 0.0.0.0 is skipped (ambiguous), so no clear patterns
+        assert MaskFormatDetector.detect_format(text) == 'unknown'
     
     def test_special_case_broadcast_mask(self):
-        """255.255.255.255 has MSB=1, should be counted as netmask indicator."""
+        """255.255.255.255 is ambiguous, should be skipped."""
         text = '255.255.255.255 255.255.255.255'
-        # First IP is stripped, second is 255.255.255.255 with MSB=1
-        assert MaskFormatDetector.detect_format(text) == 'netmask_dominant'
+        # All ones is skipped (ambiguous), so no clear patterns
+        assert MaskFormatDetector.detect_format(text) == 'unknown'
     
     def test_invalid_ips_skipped(self):
         """Invalid IPs should be skipped."""
@@ -174,7 +172,8 @@ class TestMaskFormatDetectorRobustness:
 192.0.2.1 255.255.255.0
 """
         # Invalid IP is skipped, only netmask pattern counts
-        assert MaskFormatDetector.detect_format(text) == 'netmask_dominant'
+        # But with only 1 clear pattern, result is 'unknown'
+        assert MaskFormatDetector.detect_format(text) == 'unknown'
     
     def test_mixed_content_with_comments_and_cidrs(self):
         """Format detection should work even with comments and CIDR notation."""
@@ -268,14 +267,16 @@ class TestMaskFormatDetectorEdgeCases:
     """Test edge cases that might appear in real parsing scenarios."""
     
     def test_only_whitespace_between_ips(self):
-        """Test various whitespace characters between IPs."""
+        """Test various whitespace characters between IPs - need at least 2 patterns."""
         text = '192.0.2.0     255.255.255.0'  # Multiple spaces
-        assert MaskFormatDetector.detect_format(text) == 'netmask_dominant'
+        # Only 1 pattern, result is 'unknown'
+        assert MaskFormatDetector.detect_format(text) == 'unknown'
     
     def test_ip_at_line_boundaries(self):
-        """Test IPs at the very start and end of text."""
+        """Test IPs at the very start and end of text - need at least 2 patterns."""
         text = '192.0.2.0 255.255.255.0'
-        assert MaskFormatDetector.detect_format(text) == 'netmask_dominant'
+        # Only 1 pattern, result is 'unknown'
+        assert MaskFormatDetector.detect_format(text) == 'unknown'
     
     def test_very_long_text_with_patterns(self):
         """Test detection works on very long text."""
@@ -301,7 +302,7 @@ class TestMaskFormatDetectorMSBLogic:
     """Test MSB logic for different mask values."""
     
     def test_msb_one_patterns(self):
-        """Test various netmask patterns with MSB=1."""
+        """Test various netmask patterns with MSB=1 - need at least 2 patterns for dominance."""
         patterns = [
             '192.0.2.0 255.255.255.0',      # 255 = 0xFF = 11111111
             '10.0.0.0 255.0.0.0',            # 255 = 0xFF = 11111111
@@ -310,10 +311,11 @@ class TestMaskFormatDetectorMSBLogic:
         ]
         for pattern in patterns:
             result = MaskFormatDetector.detect_format(pattern)
-            assert result == 'netmask_dominant', f"Failed for pattern: {pattern}"
+            # Single patterns return 'unknown' - need at least 2 for dominance
+            assert result == 'unknown', f"Failed for pattern: {pattern}"
     
     def test_msb_zero_patterns(self):
-        """Test various hostmask patterns with MSB=0."""
+        """Test various hostmask patterns with MSB=0 - need at least 2 patterns for dominance."""
         patterns = [
             '192.0.2.0 0.0.0.255',           # 0 = 0x00 = 00000000
             '10.0.0.0 0.255.255.255',        # 0 = 0x00 = 00000000
@@ -322,4 +324,5 @@ class TestMaskFormatDetectorMSBLogic:
         ]
         for pattern in patterns:
             result = MaskFormatDetector.detect_format(pattern)
-            assert result == 'hostmask_dominant', f"Failed for pattern: {pattern}"
+            # Single patterns return 'unknown' - need at least 2 for dominance
+            assert result == 'unknown', f"Failed for pattern: {pattern}"

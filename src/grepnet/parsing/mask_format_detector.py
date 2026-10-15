@@ -26,6 +26,9 @@ class MaskFormatDetector:
         """
         Detect dominant mask format in text.
         
+        Only counts "clearly netmask" or "clearly hostmask" patterns.
+        Skips ambiguous patterns (all zeros, all ones, non-contiguous).
+        
         Args:
             text: Text to analyze (typically first 8KB of file)
         
@@ -46,15 +49,23 @@ class MaskFormatDetector:
                 second_value = IPv4Address(second_value_str)
                 second_value_int = int(second_value)
                 
-                # Check MSB to determine format
-                has_msb_one = bool(second_value_int & 0x80000000)
+                # Skip ambiguous patterns: all zeros (0.0.0.0) or all ones (255.255.255.255)
+                if second_value_int == 0 or second_value_int == 0xffffffff:
+                    continue
                 
-                if has_msb_one:
-                    # MSB=1 indicates netmask format
+                # Check if this is a clearly contiguous pattern
+                # Netmask: contiguous 1-bits from left, then 0-bits (e.g., 255.255.255.0)
+                # Hostmask: contiguous 0-bits from left, then 1-bits (e.g., 0.0.0.255)
+                
+                binary = bin(second_value_int)[2:].zfill(32)
+                
+                # Check for clearly netmask (1+0* pattern)
+                if re.match(r'^1+0*$', binary):
                     netmask_count += 1
-                else:
-                    # MSB=0 indicates hostmask format
+                # Check for clearly hostmask (0+1+ pattern, but not all 0s which we already skipped)
+                elif re.match(r'^0+1+$', binary):
                     hostmask_count += 1
+                # Otherwise: non-contiguous or invalid, skip it
             except (AddressValueError, ValueError):
                 # Invalid IP, skip
                 continue
@@ -62,7 +73,8 @@ class MaskFormatDetector:
         # Determine result based on counts
         total = netmask_count + hostmask_count
         
-        if total == 0:
+        if total <= 1:
+            # Not enough clearly-identified patterns to determine format
             return 'unknown'
         
         # Calculate ratio

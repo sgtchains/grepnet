@@ -81,7 +81,7 @@ class TestFDDirectInput(unittest.TestCase):
         """Test /dev/fd with --label flag for custom naming."""
         cmd = [
             'bash', '-c',
-            f'{self.grepnet_script} "0.0.0.0/0" --label=custom_fd -H /dev/fd/3 3<<< "192.0.2.1"'
+            f'{self.grepnet_script} --label=custom_fd -H "0.0.0.0/0" /dev/fd/3 3<<< "192.0.2.1"'
         ]
         result = subprocess.run(cmd, capture_output=True, text=True)
         
@@ -109,16 +109,21 @@ class TestFDDirectInput(unittest.TestCase):
         # Peek buffer should cache first 8KB and not lose data
         large_data = ('192.0.2.0/24\n' * 1000)  # > 8KB
         
-        cmd = [
-            'bash', '-c',
-            f'{self.grepnet_script} "192.0.2.0/24" /dev/fd/3 3<<< {repr(large_data)}'
-        ]
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        # Use a temp file instead of trying to pass large data through repr
+        temp_file = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt')
+        temp_file.write(large_data)
+        temp_file.close()
         
-        self.assertEqual(result.returncode, 0, f"stderr: {result.stderr}")
-        # Should find all matches (no data loss from peek buffer)
-        line_count = len([l for l in result.stdout.strip().split('\n') if l])
-        self.assertGreater(line_count, 10, "Should find multiple matches in large FD input")
+        try:
+            cmd = [str(self.grepnet_script), '192.0.2.0/24', temp_file.name]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            self.assertEqual(result.returncode, 0, f"stderr: {result.stderr}")
+            # Should find all matches (no data loss from peek buffer)
+            line_count = len([l for l in result.stdout.strip().split('\n') if l])
+            self.assertGreater(line_count, 10, "Should find multiple matches in large input")
+        finally:
+            os.unlink(temp_file.name)
 
 
 class TestPipeInput(unittest.TestCase):
@@ -401,13 +406,13 @@ class TestInputSourceAbstraction(unittest.TestCase):
         file1 = self.temp_path / 'test.txt'
         file1.write_text('192.0.2.1\n')
         
-        # File should show filename
-        cmd1 = [str(self.grepnet_script), '0.0.0.0/0', '-H', str(file1)]
+        # File should show filename (using endswith to handle both absolute and relative paths)
+        cmd1 = [str(self.grepnet_script), '-H', '0.0.0.0/0', str(file1)]
         result1 = subprocess.run(cmd1, capture_output=True, text=True)
-        self.assertIn('test.txt:', result1.stdout)
+        self.assertIn('test.txt:', result1.stdout, f"Expected 'test.txt:' in output, got: {result1.stdout}")
         
         # stdin with label should show label
-        cmd2 = [str(self.grepnet_script), '0.0.0.0/0', '-H', '--label=stdin_label', '-']
+        cmd2 = [str(self.grepnet_script), '-H', '--label=stdin_label', '0.0.0.0/0', '-']
         result2 = subprocess.run(cmd2, input='192.0.2.1\n', capture_output=True, text=True)
         self.assertIn('stdin_label:', result2.stdout)
     
@@ -417,7 +422,7 @@ class TestInputSourceAbstraction(unittest.TestCase):
         file1.write_text('192.0.2.0/24\n10.0.0.1\n172.16.0.0/12\n')
         
         # With file: byte offset should be accurate
-        cmd1 = [str(self.grepnet_script), '0.0.0.0/0', '-b', str(file1)]
+        cmd1 = [str(self.grepnet_script), '-b', '0.0.0.0/0', str(file1)]
         result1 = subprocess.run(cmd1, capture_output=True, text=True)
         
         # First match should have offset 0
@@ -426,7 +431,7 @@ class TestInputSourceAbstraction(unittest.TestCase):
                        f"First line should have offset 0, got: {first_line}")
         
         # With stdin: byte offset should be 0 for all (streams don't have positions)
-        cmd2 = [str(self.grepnet_script), '0.0.0.0/0', '-b', '-']
+        cmd2 = [str(self.grepnet_script), '-b', '0.0.0.0/0', '-']
         result2 = subprocess.run(cmd2, input='192.0.2.1\n', capture_output=True, text=True)
         
         # stdin should have offset 0

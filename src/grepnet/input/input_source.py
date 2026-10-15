@@ -7,7 +7,8 @@ Single InputSource class handles all input types:
 - File descriptors (process substitution)
 
 All sources yield identical (line_number, line_content, byte_offset) tuples.
-First 8KB is cached for binary detection before line iteration begins.
+Critical optimization: First 8KB is read ONCE and cached, reused for BOTH binary detection
+and mask format hint detection. File handle remains open throughout iteration.
 """
 
 import sys
@@ -26,8 +27,14 @@ class InputSource:
     All sources yield identical (line_number, line_content, byte_offset) tuples.
     Line numbers are 1-based.
     
-    For stdin/fd: First 8KB is read and cached before iteration to support binary detection
-    without consuming the stream. The cached buffer is prepended during line iteration.
+    Critical optimization: First 8KB is read ONCE and cached, then reused for BOTH:
+    1. Binary detection (get_binary_status())
+    2. Mask format hint detection (get_mask_format_hint())
+    
+    File handle remains open throughout, positioned at byte 8KB after initial read.
+    Subsequent line iteration continues sequentially from byte 8KB onward.
+    
+    For stdin/fd: Cached 8KB buffer is prepended during line iteration.
     """
     
     def __init__(
@@ -87,20 +94,27 @@ class InputSource:
         Check if source contains binary data.
         
         Lazy evaluation: checks only once and caches result.
-        For all sources: reads and caches first 8KB for analysis and format detection.
+        For all sources: reads and caches first 8KB for analysis.
+        
+        CRITICAL: Keeps file handle open for subsequent line iteration.
+        This same 8KB buffer is reused by get_mask_format_hint() for format detection.
         
         Returns:
             True if source appears to be binary
         """
         if self._is_binary is None:
             if self.source_type == 'file':
-                # For files, read first 8KB for binary detection
+                # For files, open and read first 8KB for binary detection
+                # Keep file handle open for subsequent line iteration (unified "input is input")
                 try:
-                    with open(self.file_path, 'rb') as f:
-                        self._peek_buffer = f.read(BinaryDetector.DETECTION_SIZE)
+                    self._file_handle = open(self.file_path, 'rb')
+                    self._peek_buffer = self._file_handle.read(BinaryDetector.DETECTION_SIZE)
                     self._is_binary = BinaryDetector.is_binary_from_buffer(self._peek_buffer)
                 except (IOError, OSError):
                     self._is_binary = False
+                    if self._file_handle:
+                        self._file_handle.close()
+                        self._file_handle = None
             else:
                 # stdin or fd: read and cache first 8KB for binary detection
                 self._peek_buffer = self._read_peek_buffer()
@@ -112,8 +126,13 @@ class InputSource:
         Get cached mask format hint from peek buffer analysis.
         
         Lazy evaluation: scans only once and caches result.
-        For files: reads first 8KB to detect format.
-        For stdin/fd: reuses peek buffer from binary detection.
+        CRITICAL: Reuses the SAME cached 8KB buffer populated by get_binary_status().
+        If get_binary_status() hasn't been called yet, this will call it to populate the buffer.
+        
+        This optimization ensures:
+        - Single 8KB read for both binary detection AND format hint detection
+        - Zero redundant file reads
+        - File handle remains open throughout
         
         Args:
             scan_mask: Control flag ('both', 'input', 'pattern', 'none')
@@ -129,21 +148,13 @@ class InputSource:
         if self._mask_format_hint is not None:
             return self._mask_format_hint
         
-        # Ensure peek buffer is loaded
-        if self.source_type == 'file':
-            # For files, read first 8KB
-            try:
-                with open(self.file_path, 'rb') as f:
-                    peek_bytes = f.read(BinaryDetector.DETECTION_SIZE)
-            except (IOError, OSError):
-                self._mask_format_hint = 'unknown'
-                return self._mask_format_hint
-        else:
-            # For stdin/fd, ensure peek buffer exists from binary detection
-            if self._peek_buffer is None:
-                # Binary detection wasn't called yet, read it now
-                self._peek_buffer = self._read_peek_buffer()
-            peek_bytes = self._peek_buffer
+        # Ensure peek buffer is loaded (unified for all source types)
+        # This must happen BEFORE line iteration, so get_binary_status() is called first
+        if self._peek_buffer is None:
+            # If binary detection hasn't been called yet, call it now to populate peek buffer
+            self.get_binary_status()
+        
+        peek_bytes = self._peek_buffer if self._peek_buffer else b''
         
         # Decode peek buffer to text
         try:
@@ -172,6 +183,10 @@ class InputSource:
         """
         Iterate over lines from source.
         
+        CRITICAL: Continues reading from the file handle positioned at byte 8KB
+        after initial binary detection and format hint analysis. This ensures single-file-open
+        behavior and eliminates redundant seeks.
+        
         Yields:
             (line_number, line_content, byte_offset) tuples
             line_number: 1-based
@@ -192,8 +207,9 @@ class InputSource:
         """
         Read lines/records from file with byte offset tracking.
         
-        Uses cached peek buffer if available (from binary detection),
-        ensuring uniform "All Input Is Input" behavior with stdin/fd.
+        CRITICAL: Reuses cached peek buffer (first 8KB) from binary detection.
+        File handle is already open and positioned at byte 8KB (if peek buffer was read).
+        This ensures single file open, zero reseeks, zero redundant reads.
         """
         try:
             if self.null_delimited:
@@ -205,20 +221,20 @@ class InputSource:
                     content = self._peek_buffer
                 
                 # Read remaining content from file (seek past the peek buffer if possible)
-                try:
+                if not self._file_handle:
+                    # If file handle doesn't exist (e.g., binary detection wasn't called),
+                    # open it now for record iteration
                     self._file_handle = open(self.file_path, 'rb')
-                    # Try to seek past the peek buffer to avoid re-reading it
-                    if self._peek_buffer:
-                        try:
-                            self._file_handle.seek(len(self._peek_buffer))
-                        except (OSError, IOError):
-                            # File/stream not seekable (e.g., /dev/stdin), can't continue
-                            pass
-                    content += self._file_handle.read()
-                except IOError:
-                    # If we can't open file but have peek buffer, use just that
-                    if not content:
-                        raise
+                
+                # Try to seek past the peek buffer to avoid re-reading it
+                if self._peek_buffer:
+                    try:
+                        self._file_handle.seek(len(self._peek_buffer))
+                    except (OSError, IOError):
+                        # File not seekable, won't happen for regular files but handle gracefully
+                        pass
+                
+                content += self._file_handle.read()
                 
                 records = content.split(b'\0')
                 
@@ -267,22 +283,20 @@ class InputSource:
                         partial_line = buffer_lines[-1]
                         byte_offset += len(partial_line)  # Account for the incomplete line
                 
-                # Now open file and read remaining content
-                self._file_handle = open(self.file_path, 'rb')
+                # Now read remaining content from open file handle
+                # File handle was opened in get_binary_status() and kept open
+                if not self._file_handle:
+                    # If file handle doesn't exist (e.g., binary detection wasn't called),
+                    # open it now for line iteration
+                    self._file_handle = open(self.file_path, 'rb')
                 
-                # Try to seek past the peek buffer to avoid re-reading it
-                # Some sources (like /dev/stdin) are not seekable, so handle gracefully
+                # Seek past the peek buffer to avoid re-reading it (unified approach)
                 if self._peek_buffer:
                     try:
                         self._file_handle.seek(len(self._peek_buffer))
                     except (OSError, IOError):
-                        # File/stream not seekable, we'll just use peek buffer and skip rest
-                        # Don't read from file_handle in this case
-                        if partial_line:
-                            line = partial_line.decode('utf-8', errors='replace')
-                            line_content = line.rstrip('\r')
-                            yield line_num, line_content, byte_offset
-                        return
+                        # File not seekable, won't happen for regular files but handle gracefully
+                        pass
                 
                 # If we have a partial line from peek buffer, prepend it to first read
                 for line_bytes in self._file_handle:
