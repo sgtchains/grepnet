@@ -711,86 +711,122 @@ grepnet --extract --format cidr config.txt
 
 # COMMENT FILTERING
 
-Comment filtering prevents networks inside comments from being matched, but **comments are always preserved in output**. By default, grepnet strips comments during network extraction (to avoid false matches) but prints the full original line including comments in results.
+Comment filtering controls whether networks inside comments are extracted and matched. By default, comments are stripped during network extraction to prevent false matches from commented-out configurations or documentation.
 
 **How it works**:
-1. **Extraction phase**: Comments are identified and removed before searching for networks
-2. **Matching phase**: Networks are only matched in the searchable (non-comment) portion
-3. **Output phase**: The original line WITH comments is printed, comments appear uncolorized
+1. **Extraction phase**: Comments are identified using recognized markers
+2. **Parsing phase**: Networks are extracted only from the searchable (non-comment) portion
+3. **Output phase**: The original line WITH comments is printed (comments appear uncolorized; see COLOR OUTPUT section)
 
 **Recognized comment markers**: `#`, `!`, `--`, `//`, `/* */`, `;`
 
-Support includes:
-- Line comments: Start from marker to end of line
-- Block comments: `/* ... */` (comments can span multiple lines)
-- Multiple markers: First marker encountered ends searchable content
-
-**Example - Default behavior**:
-```
-Input line: server 192.0.2.1 # production
-
-Search for: 192.0.2.0/24
-Result: MATCH (192.0.2.1 is found and printed with its comment)
-
-Output:
-server [GREEN]192.0.2.1[RESET] # production
-             ↑ matched, highlighted    ↑ not highlighted, preserved
-```
-
-**Example - Network in comment (ignored)**:
-```
-Input line: # TODO: configure 192.0.3.0/24
-
-Search for: 192.0.3.0/24
-Result: NO MATCH (network is inside comment, ignored)
-```
+**Critical distinction**: The entire line is output when matched, but networks in the comment portion are NOT extracted or counted.
 
 ## Flags
 
 **--no-filter-comments**
-: Disable comment filtering; include comments in network extraction
+: Disable comment filtering; extract and match networks even if they appear in comments
 
-When enabled, networks inside comments are also matched and highlighted.
+## Realistic Examples
 
-**Use case**: When working with files where comments contain actual network data (e.g., documentation with network addresses, commented-out configuration examples).
-
-**Example - With --no-filter-comments**:
+**Configuration file with commented defaults**:
 ```
-Input line: # TODO: configure 192.0.3.0/24
+Input file:
+allow 192.0.2.0/24         # active rule
+# allow 192.0.3.0/24       # commented rule
 
-Search for: 192.0.3.0/24
-Result: MATCH (with --no-filter-comments enabled)
+grepnet '192.0.0.0/16' config.txt
+
+Default (comments filtered):
+allow [highlighted]192.0.2.1[reset]          # active rule
+(commented line skipped entirely)
+
+With --no-filter-comments:
+allow [highlighted]192.0.2.0/24[reset]       # active rule
+# allow [highlighted]192.0.3.0/24[reset]     # commented rule
+```
+
+**Why this matters for matching**:
+- **Default**: Only active configurations are matched (commented rules are ignored)
+- **--no-filter-comments**: Both active and commented rules are matched (useful for auditing all references)
+
+## Impact on --extract and --consolidate
+
+Comment filtering significantly affects data extraction and consolidation:
+
+**Default behavior (comments filtered)**:
+```bash
+grepnet --extract network.conf
+
+Input file:
+192.0.2.0/25
+# 192.0.2.128/25
+192.0.2.0/24
 
 Output:
-# TODO: configure [GREEN]192.0.3.0/24[RESET]
-                   ↑ matched and highlighted (even in comment)
+192.0.2.0/25
+192.0.2.0/24
+(commented 192.0.2.128/25 is excluded)
+
+Then consolidate:
+192.0.2.0/24 (result: 192.0.2.0/25 + 192.0.2.0/24 merge)
 ```
+
+**With --no-filter-comments**:
+```bash
+grepnet --extract --no-filter-comments network.conf
+
+Same input, but commented network IS extracted:
+192.0.2.0/25
+192.0.2.128/25
+192.0.2.0/24
+
+Then consolidate:
+192.0.2.0/24 (result: all three merge into single /24)
+```
+
+**Impact on network inventory**:
+- **Default**: Your network inventory excludes commented configurations (cleaner, reflects "active" state)
+- **--no-filter-comments**: Your inventory includes all configurations (useful for compliance audits or finding forgotten commented entries)
 
 ## Common Use Cases
 
-**Normal configuration auditing** (comments disabled by default):
+**Normal configuration auditing** (comments filtered by default):
 ```bash
-# Search config files; ignore networks in comments
-grepnet '192.0.0.0/16' firewall.conf
+# Extract active networks from config files
+grepnet --extract --consolidate firewall.conf
 
-# Only networks in actual config lines are matched
-# Comments like "# old setting: 192.0.2.0/24" are ignored
+# Result: Only networks in active (non-commented) lines
+# Commented networks like "# old: 192.0.2.0/25" are excluded
 ```
 
-**Auditing documentation with network examples** (comments enabled):
+**Full inventory audit** (including commented configurations):
 ```bash
-# Extract networks from docs that include networks in comments
-grepnet --extract --no-filter-comments architecture.md
+# Extract ALL networks including commented ones
+grepnet --extract --no-filter-comments --consolidate firewall.conf
 
-# Finds networks both in main text and in commented examples
+# Result: Comprehensive inventory including "dormant" commented networks
+# Helps find forgotten commented-out entries
 ```
 
-**Finding active configurations only**:
+**Verifying consolidation impact**:
 ```bash
-# Ensure you're not matching networks in commented-out rules
-grepnet -r '192.0.2.0/24' rules.conf
+# Show difference between filtered and unfiltered
+echo "=== Active only ==="
+grepnet --extract --consolidate --format cidr config.txt
 
-# Default: commented lines like "# allow 192.0.2.0/24" are skipped
+echo "=== All including commented ==="
+grepnet --extract --no-filter-comments --consolidate --format cidr config.txt
+
+# Difference highlights networks only in comments
+```
+
+**Documentation extraction** (with commented examples):
+```bash
+# Extract code examples from documentation that show network usage
+grepnet --extract --no-filter-comments *.md *.rst
+
+# Captures both networks in prose and in code/comments
 ```
 
 # COLOR OUTPUT
