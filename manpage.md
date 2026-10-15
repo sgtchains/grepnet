@@ -711,21 +711,26 @@ grepnet --extract --format cidr config.txt
 
 # COMMENT FILTERING
 
-Comment filtering controls whether networks inside comments are extracted and matched. By default, comments are stripped during network extraction to prevent false matches from commented-out configurations or documentation.
+Comment filtering controls whether networks inside comments are parsed and matched. By default, comments are stripped during network parsing to prevent false matches from commented-out configurations or documentation.
+
+**What gets filtered**:
+- **Pattern parsing**: Comments in pattern arguments (e.g., `grepnet '192.0.2.0/24 # my network' file.txt` → comment stripped from pattern)
+- **File content parsing**: Comments in searched files (e.g., `allow 192.0.2.0/24 # production` → comment stripped before matching)
 
 **How it works**:
-1. **Extraction phase**: Comments are identified using recognized markers
-2. **Parsing phase**: Networks are extracted only from the searchable (non-comment) portion
-3. **Output phase**: The original line WITH comments is printed (comments appear uncolorized; see COLOR OUTPUT section)
+1. **Pattern parsing phase**: Pattern arguments parsed; comments stripped; networks extracted from non-comment portion
+2. **File parsing phase**: File lines parsed; comments stripped; networks extracted from non-comment portion  
+3. **Matching phase**: Extracted networks from patterns matched against extracted networks from files
+4. **Output phase**: The original file line WITH comments is printed (comments appear uncolorized; see COLOR OUTPUT section)
 
 **Recognized comment markers**: `#`, `!`, `--`, `//`, `/* */`, `;`
 
-**Critical distinction**: The entire line is output when matched, but networks in the comment portion are NOT extracted or counted.
+**Critical distinction**: The entire line is output when matched, but networks in the comment portion are NOT parsed, extracted, or counted in results.
 
 ## Flags
 
 **--no-filter-comments**
-: Disable comment filtering; extract and match networks even if they appear in comments
+: Disable comment filtering; parse and match networks even if they appear in comments (applies to both patterns and file content)
 
 ## Realistic Examples
 
