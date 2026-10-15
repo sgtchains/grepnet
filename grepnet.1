@@ -111,17 +111,17 @@ See \[lq]Multiple Patterns\[rq] below for how to specify more than one.
 Files to search.
 If omitted, reads from stdin.
 .TP
-\f[B]-P\f[R], \f[B]\[en]pattern\f[R] \f[I]PATTERN\f[R]
+\f[B]-P\f[R], \f[V]--pattern\f[R] \f[I]PATTERN\f[R]
 Specify additional patterns beyond the first (repeatable for multiple
 patterns).
 Each pattern can be in any supported format independently.
 .TP
-\f[B]-f\f[R], \f[B]\[en]patterns-file\f[R] \f[I]PATTERN_FILE\f[R]
+\f[B]-f\f[R], \f[V]--patterns-file\f[R] \f[I]PATTERN_FILE\f[R]
 Read patterns from file, one per line.
 Each line is treated as a separate pattern in any supported format
 (repeatable to load multiple pattern files).
 .TP
-\f[B]-F\f[R], \f[B]\[en]input-file\f[R] \f[I]FILE\f[R]
+\f[B]-F\f[R], \f[V]--input-file\f[R] \f[I]FILE\f[R]
 Specify input file explicitly (alternative to positional FILE arguments)
 .PP
 \f[B]Note on pattern flexibility\f[R]: Each pattern is independent and
@@ -137,79 +137,79 @@ needed when searching for multiple different networks.
 By default, grepnet finds all matches.
 Use these flags to filter by relationship type:
 .TP
-\f[B]-e\f[R], \f[B]\[en]equal\f[R]
+\f[B]-e\f[R], \f[V]--equal\f[R]
 Match only networks that are exactly equal
 .TP
-\f[B]-s\f[R], \f[B]\[en]subset\f[R]
+\f[B]-s\f[R], \f[V]--subset\f[R]
 Match only when file network is smaller than pattern (contained within)
 .TP
-\f[B]-S\f[R], \f[B]\[en]superset\f[R]
+\f[B]-S\f[R], \f[V]--superset\f[R]
 Match only when file network is larger than pattern (contains pattern)
 .TP
-\f[B]-O\f[R], \f[B]\[en]overlap\f[R]
+\f[B]-O\f[R], \f[V]--overlap\f[R]
 Match only when networks partially overlap
 .TP
-\f[B]-u\f[R], \f[B]\[en]unmatched\f[R]
+\f[B]-u\f[R], \f[V]--unmatched\f[R]
 Include networks that don\[cq]t match any pattern (for use with other
 match type flags)
 .TP
-\f[B]-v\f[R], \f[B]\[en]invert-match\f[R]
+\f[B]-v\f[R], \f[V]--invert-match\f[R]
 Show lines that do NOT match (inverse logic)
 .PP
 \f[B]Example\f[R]: \f[V]grepnet -s \[aq]192.0.0.0/16\[aq] data.txt\f[R]
 finds all /24 or /25 networks within 192.0.0.0/16
 .SH OUTPUT OPTIONS
 .TP
-\f[B]-o\f[R], \f[B]\[en]only-matching\f[R]
+\f[B]-o\f[R], \f[V]--only-matching\f[R]
 Print only the matched networks, not the entire line
 .TP
-\f[B]-n\f[R], \f[B]\[en]line-number\f[R]
+\f[B]-n\f[R], \f[V]--line-number\f[R]
 Prefix output with 1-based line numbers
 .TP
-\f[B]-b\f[R], \f[B]\[en]byte-offset\f[R]
+\f[B]-b\f[R], \f[V]--byte-offset\f[R]
 Prefix output with 0-based byte offsets
 .TP
-\f[B]-H\f[R], \f[B]\[en]with-filename\f[R]
+\f[B]-H\f[R], \f[V]--with-filename\f[R]
 Include filename in output (default when multiple files)
 .TP
-\f[B]\[en]no-filename\f[R]
+\f[B]\f[VB]--no-filename\f[B]\f[R]
 Suppress filename in output
 .TP
-\f[B]-T\f[R], \f[B]\[en]initial-tab\f[R]
+\f[B]-T\f[R], \f[V]--initial-tab\f[R]
 Insert tab after line number/byte offset for alignment
 .TP
-\f[B]-c\f[R], \f[B]\[en]count\f[R]
+\f[B]-c\f[R], \f[V]--count\f[R]
 Print count of matching lines instead of lines
 .TP
-\f[B]-l\f[R], \f[B]\[en]files-with-matches\f[R]
+\f[B]-l\f[R], \f[V]--files-with-matches\f[R]
 Print only filenames containing matches (useful for scripting)
 .TP
-\f[B]-L\f[R], \f[B]\[en]files-without-match\f[R]
+\f[B]-L\f[R], \f[V]--files-without-match\f[R]
 Print only filenames without matches
 .TP
-\f[B]-q\f[R], \f[B]\[en]quiet\f[R], \f[B]\[en]silent\f[R]
+\f[B]-q\f[R], \f[V]--quiet\f[R], \f[V]--silent\f[R]
 Suppress output (exit code only)
 .TP
-\f[B]\[en]label\f[R] \f[I]LABEL\f[R]
+\f[B]\f[VB]--label\f[B]\f[R] \f[I]LABEL\f[R]
 Display stdin as \f[I]LABEL\f[R] instead of \[lq](standard input)\[rq]
 .TP
-\f[B]-m\f[R] \f[I]NUM\f[R], \f[B]\[en]max-count\f[R] \f[I]NUM\f[R]
+\f[B]-m\f[R] \f[I]NUM\f[R], \f[V]--max-count\f[R] \f[I]NUM\f[R]
 Stop searching after \f[I]NUM\f[R] matches
 .SH CONTEXT OPTIONS
 .TP
-\f[B]-A\f[R] \f[I]NUM\f[R], \f[B]\[en]after-context\f[R] \f[I]NUM\f[R]
+\f[B]-A\f[R] \f[I]NUM\f[R], \f[V]--after-context\f[R] \f[I]NUM\f[R]
 Print \f[I]NUM\f[R] lines after each match
 .TP
-\f[B]-B\f[R] \f[I]NUM\f[R], \f[B]\[en]before-context\f[R] \f[I]NUM\f[R]
+\f[B]-B\f[R] \f[I]NUM\f[R], \f[V]--before-context\f[R] \f[I]NUM\f[R]
 Print \f[I]NUM\f[R] lines before each match
 .TP
-\f[B]-C\f[R] \f[I]NUM\f[R], \f[B]\[en]context\f[R] \f[I]NUM\f[R]
+\f[B]-C\f[R] \f[I]NUM\f[R], \f[V]--context\f[R] \f[I]NUM\f[R]
 Print \f[I]NUM\f[R] lines before and after each match
 .TP
-\f[B]\[en]group-separator\f[R] \f[I]SEP\f[R]
+\f[B]\f[VB]--group-separator\f[B]\f[R] \f[I]SEP\f[R]
 Print \f[I]SEP\f[R] between match groups (default: \[lq]\[en]\[rq])
 .TP
-\f[B]\[en]no-group-separator\f[R]
+\f[B]\f[VB]--no-group-separator\f[B]\f[R]
 Suppress group separator
 .PP
 \f[B]Example\f[R]:
@@ -250,13 +250,13 @@ in multiple formats (CIDR, IP ranges, short-ranges, individual IPs, or
 original format).
 .SS Flags
 .TP
-\f[B]\[en]extract\f[R]
+\f[B]\f[VB]--extract\f[B]\f[R]
 Extract all unique networks found in input (deduplicated)
 .TP
-\f[B]\[en]consolidate\f[R]
+\f[B]\f[VB]--consolidate\f[B]\f[R]
 Consolidate overlapping and adjacent networks into larger blocks
 .TP
-\f[B]\[en]fill-pct\f[R] \f[I]N\f[R]
+\f[B]\f[VB]--fill-pct\f[B]\f[R] \f[I]N\f[R]
 Allow consolidation to fill gaps up to N% of network size (only with
 \f[V]--consolidate\f[R]; range 0-100)
 .IP \[bu] 2
@@ -268,10 +268,10 @@ merge via \f[V]collapse_addresses()\f[R]
 Examples: \f[V]--fill-pct=50\f[R] allows up to 50% gap filling;
 \f[V]--fill-pct=0\f[R] disallows any gap
 .TP
-\f[B]\[en]show-content\f[R]
+\f[B]\f[VB]--show-content\f[B]\f[R]
 Include original line content in extract/consolidate output
 .TP
-\f[B]\[en]format\f[R] {\f[B]cidr\f[R]|\f[B]range\f[R]|\f[B]short-range\f[R]|\f[B]ips\f[R]|\f[B]original\f[R]}
+\f[B]\f[VB]--format\f[B]\f[R] {\f[B]cidr\f[R]|\f[B]range\f[R]|\f[B]short-range\f[R]|\f[B]ips\f[R]|\f[B]original\f[R]}
 Output format for networks (default: \f[B]cidr\f[R])
 .IP \[bu] 2
 \f[B]cidr\f[R] - CIDR notation: \f[V]192.0.2.0/24\f[R]
@@ -343,11 +343,11 @@ network is in 192.168.0.0/16 - Multiple \f[V]--exclude-string\f[R] or
 \f[V]--exclude-cidr\f[R] flags accumulate (any match causes exclusion)
 .SS Text Filtering
 .TP
-\f[B]\[en]exclude-string\f[R] \f[I]PATTERN\f[R]
+\f[B]\f[VB]--exclude-string\f[B]\f[R] \f[I]PATTERN\f[R]
 Exclude network matches whose matched text matches regex PATTERN
 (repeatable)
 .TP
-\f[B]\[en]exclude-strings-file\f[R] \f[I]FILE\f[R]
+\f[B]\f[VB]--exclude-strings-file\f[B]\f[R] \f[I]FILE\f[R]
 Load text patterns to exclude from file
 .PP
 \f[B]Behavior\f[R]: For each network match found, test the matched text
@@ -357,13 +357,13 @@ If a line\[cq]s last network match is excluded by text filtering, the
 entire line is removed from output.
 .SS Network Filtering
 .TP
-\f[B]\[en]exclude-cidr\f[R] \f[I]NETWORK\f[R]
+\f[B]\f[VB]--exclude-cidr\f[B]\f[R] \f[I]NETWORK\f[R]
 Exclude specific networks (repeatable)
 .TP
-\f[B]\[en]exclude-cidrs-file\f[R] \f[I]FILE\f[R]
+\f[B]\f[VB]--exclude-cidrs-file\f[B]\f[R] \f[I]FILE\f[R]
 Load networks to exclude from file
 .TP
-\f[B]\[en]exclude-cidr-behaviour\f[R] {\f[B]subset\f[R]|\f[B]subset-strict\f[R]|\f[B]superset\f[R]|\f[B]superset-strict\f[R]|\f[B]equals\f[R]|\f[B]related\f[R]|\f[B]cut\f[R]}
+\f[B]\f[VB]--exclude-cidr-behaviour\f[B]\f[R] {\f[B]subset\f[R]|\f[B]subset-strict\f[R]|\f[B]superset\f[R]|\f[B]superset-strict\f[R]|\f[B]equals\f[R]|\f[B]related\f[R]|\f[B]cut\f[R]}
 How to match excluded networks (default: \f[B]subset\f[R])
 .SS Exclusion Behaviors
 .PP
@@ -522,26 +522,26 @@ Result: File NOT scanned
 .fi
 .SS Flags
 .TP
-\f[B]-r\f[R], \f[B]\[en]recursive\f[R]
+\f[B]-r\f[R], \f[V]--recursive\f[R]
 Search directories recursively (don\[cq]t follow symlinks; faster,
 safer)
 .TP
-\f[B]-R\f[R], \f[B]\[en]dereference-recursive\f[R]
+\f[B]-R\f[R], \f[V]--dereference-recursive\f[R]
 Search directories recursively (follow symlinks; can cause infinite
 loops)
 .TP
-\f[B]\[en]include\f[R] \f[I]GLOB\f[R]
+\f[B]\f[VB]--include\f[B]\f[R] \f[I]GLOB\f[R]
 Include only files matching glob pattern (repeatable; patterns OR\[cq]d
 together)
 .TP
-\f[B]\[en]exclude\f[R] \f[I]GLOB\f[R]
+\f[B]\f[VB]--exclude\f[B]\f[R] \f[I]GLOB\f[R]
 Exclude files matching glob pattern (repeatable; patterns OR\[cq]d
 together)
 .TP
-\f[B]\[en]exclude-from\f[R] \f[I]FILE\f[R]
+\f[B]\f[VB]--exclude-from\f[B]\f[R] \f[I]FILE\f[R]
 Load exclude patterns from file, one per line
 .TP
-\f[B]\[en]exclude-dir\f[R] \f[I]PATTERN\f[R]
+\f[B]\f[VB]--exclude-dir\f[B]\f[R] \f[I]PATTERN\f[R]
 Exclude directories matching glob pattern (repeatable; doesn\[cq]t
 traverse excluded dirs)
 .SS Common Patterns
@@ -629,27 +629,27 @@ Each format flag accepts one of four modes:
 \f[B]none\f[R]: Disable format entirely
 .SS Flags
 .TP
-\f[B]\[en]parse-cidr\f[R] {\f[B]pattern\f[R]|\f[B]input\f[R]|\f[B]both\f[R]|\f[B]none\f[R]}
+\f[B]\f[VB]--parse-cidr\f[B]\f[R] {\f[B]pattern\f[R]|\f[B]input\f[R]|\f[B]both\f[R]|\f[B]none\f[R]}
 Accept CIDR notation (e.g., \f[V]192.0.2.0/24\f[R]; default:
 \f[B]both\f[R])
 .TP
-\f[B]\[en]parse-netmask\f[R] {\f[B]pattern\f[R]|\f[B]input\f[R]|\f[B]both\f[R]|\f[B]none\f[R]}
+\f[B]\f[VB]--parse-netmask\f[B]\f[R] {\f[B]pattern\f[R]|\f[B]input\f[R]|\f[B]both\f[R]|\f[B]none\f[R]}
 Accept subnet mask notation (e.g., \f[V]192.0.2.0 255.255.255.0\f[R];
 default: \f[B]both\f[R])
 .TP
-\f[B]\[en]parse-hostmask\f[R] {\f[B]pattern\f[R]|\f[B]input\f[R]|\f[B]both\f[R]|\f[B]none\f[R]}
+\f[B]\f[VB]--parse-hostmask\f[B]\f[R] {\f[B]pattern\f[R]|\f[B]input\f[R]|\f[B]both\f[R]|\f[B]none\f[R]}
 Accept inverse/host mask notation (e.g., \f[V]192.0.2.0 0.0.0.255\f[R];
 default: \f[B]both\f[R])
 .TP
-\f[B]\[en]parse-ranges\f[R] {\f[B]pattern\f[R]|\f[B]input\f[R]|\f[B]both\f[R]|\f[B]none\f[R]}
+\f[B]\f[VB]--parse-ranges\f[B]\f[R] {\f[B]pattern\f[R]|\f[B]input\f[R]|\f[B]both\f[R]|\f[B]none\f[R]}
 Accept IP range notation (e.g., \f[V]192.0.2.0-192.0.2.255\f[R];
 default: \f[B]both\f[R])
 .TP
-\f[B]\[en]parse-bare-ip\f[R] {\f[B]pattern\f[R]|\f[B]input\f[R]|\f[B]both\f[R]|\f[B]none\f[R]}
+\f[B]\f[VB]--parse-bare-ip\f[B]\f[R] {\f[B]pattern\f[R]|\f[B]input\f[R]|\f[B]both\f[R]|\f[B]none\f[R]}
 Accept single IP addresses without CIDR notation (e.g.,
 \f[V]192.0.2.1\f[R]; default: \f[B]both\f[R])
 .TP
-\f[B]\[en]range-format\f[R] {\f[B]long\f[R]|\f[B]short\f[R]|\f[B]both\f[R]|\f[B]none\f[R]}
+\f[B]\f[VB]--range-format\f[B]\f[R] {\f[B]long\f[R]|\f[B]short\f[R]|\f[B]both\f[R]|\f[B]none\f[R]}
 Accept long/short range formats (default: \f[B]both\f[R]) -
 \f[B]long\f[R]: \f[V]192.0.2.0-192.0.2.255\f[R] - \f[B]short\f[R]:
 \f[V]192.0.2.0-255\f[R]
@@ -851,7 +851,7 @@ to \f[V]192.0.2.0/24\f[R] without warning.
 This provides flexibility but may hide mistakes.
 .SS Flags
 .TP
-\f[B]\[en]strict-cidr\f[R] {\f[B]pattern\f[R]|\f[B]input\f[R]|\f[B]both\f[R]|\f[B]none\f[R]}
+\f[B]\f[VB]--strict-cidr\f[B]\f[R] {\f[B]pattern\f[R]|\f[B]input\f[R]|\f[B]both\f[R]|\f[B]none\f[R]}
 Where to apply strict CIDR validation (default: \f[B]none\f[R])
 .IP \[bu] 2
 \f[B]pattern\f[R]: Validate search patterns only (reject malformed
@@ -864,7 +864,7 @@ networks found in files)
 .IP \[bu] 2
 \f[B]none\f[R]: No strict validation (default; silently normalize)
 .TP
-\f[B]\[en]strict-cidr-action\f[R] {\f[B]fail\f[R]|\f[B]normalize\f[R]|\f[B]ignore\f[R]|\f[B]warn\f[R]}
+\f[B]\f[VB]--strict-cidr-action\f[B]\f[R] {\f[B]fail\f[R]|\f[B]normalize\f[R]|\f[B]ignore\f[R]|\f[B]warn\f[R]}
 Action when invalid CIDR detected (default: \f[B]normalize\f[R])
 .IP \[bu] 2
 \f[B]fail\f[R] - Exit with error code 2 (stop processing)
@@ -982,13 +982,13 @@ grepnet --extract --format cidr config.txt
 .fi
 .SH BINARY FILE HANDLING
 .TP
-\f[B]-a\f[R], \f[B]\[en]text\f[R]
+\f[B]-a\f[R], \f[V]--text\f[R]
 Treat all files as text
 .TP
 \f[B]-I\f[R]
 Skip binary files
 .TP
-\f[B]\[en]binary-files\f[R] {\f[B]binary\f[R]|\f[B]text\f[R]|\f[B]without-match\f[R]}
+\f[B]\f[VB]--binary-files\f[B]\f[R] {\f[B]binary\f[R]|\f[B]text\f[R]|\f[B]without-match\f[R]}
 How to handle binary files (default: \f[B]binary\f[R])
 .SH COMMENT FILTERING
 .PP
@@ -1026,7 +1026,7 @@ but networks in the comment portion are NOT parsed, extracted, or
 counted in results.
 .SS Flags
 .TP
-\f[B]\[en]no-filter-comments\f[R]
+\f[B]\f[VB]--no-filter-comments\f[B]\f[R]
 Disable comment filtering; parse and match networks even if they appear
 in comments (applies to both patterns and file content)
 .SS Realistic Examples
@@ -1053,7 +1053,7 @@ allow [highlighted]192.0.2.0/24[reset]       # active rule
 .PP
 \f[B]Why this matters for matching\f[R]: - \f[B]Default\f[R]: Only
 active configurations are matched (commented rules are ignored) -
-\f[B]\[en]no-filter-comments\f[R]: Both active and commented rules are
+\f[V]--no-filter-comments\f[R]: Both active and commented rules are
 matched (useful for auditing all references)
 .SS Impact on \[en]extract and \[en]consolidate
 .PP
@@ -1099,9 +1099,9 @@ Then consolidate:
 .PP
 \f[B]Impact on network inventory\f[R]: - \f[B]Default\f[R]: Your network
 inventory excludes commented configurations (cleaner, reflects
-\[lq]active\[rq] state) - \f[B]\[en]no-filter-comments\f[R]: Your
-inventory includes all configurations (useful for compliance audits or
-finding forgotten commented entries)
+\[lq]active\[rq] state) - \f[V]--no-filter-comments\f[R]: Your inventory
+includes all configurations (useful for compliance audits or finding
+forgotten commented entries)
 .SS Common Use Cases
 .PP
 \f[B]Normal configuration auditing\f[R] (comments filtered by default):
@@ -1178,7 +1178,7 @@ equals/subset/superset/overlap/unmatched relationships -
 context (non-matching) lines
 .SS Flags
 .TP
-\f[B]\[en]color\f[R] {\f[B]auto\f[R]|\f[B]always\f[R]|\f[B]never\f[R]}
+\f[B]\f[VB]--color\f[B]\f[R] {\f[B]auto\f[R]|\f[B]always\f[R]|\f[B]never\f[R]}
 When to use colored output (default: \f[B]auto\f[R])
 .IP \[bu] 2
 \f[B]auto\f[R]: Colors on terminal output, plain text when output is
@@ -1470,10 +1470,10 @@ are preserved (useful for \f[V]less -R\f[R], \f[V]more\f[R], etc.)
 captured output
 .SH DATA FORMATS
 .TP
-\f[B]-z\f[R], \f[B]\[en]null-data\f[R]
+\f[B]-z\f[R], \f[V]--null-data\f[R]
 Treat input/output as NUL-terminated records instead of newlines
 .TP
-\f[B]-Z\f[R], \f[B]\[en]null\f[R]
+\f[B]-Z\f[R], \f[V]--null\f[R]
 Output NUL after filename instead of colon
 .PP
 Useful for safe handling of filenames with special characters:
@@ -1481,7 +1481,7 @@ Useful for safe handling of filenames with special characters:
 .SH DEBUGGING
 .SH DEBUGGING
 .TP
-\f[B]\[en]debug\f[R] [\f[I]FUNCTIONS\f[R]] \f[B](DEPRECATED)\f[R]
+\f[B]\f[VB]--debug\f[B]\f[R] [\f[I]FUNCTIONS\f[R]] \f[B](DEPRECATED)\f[R]
 Enable debug output to stderr
 .PP
 Produces verbose output useful for troubleshooting pattern matching,
@@ -1494,18 +1494,18 @@ removed in a future version.
 Use stderr redirection or external debugging tools instead.
 .SH MESSAGES AND INFORMATION
 .TP
-\f[B]\[en]no-messages\f[R]
+\f[B]\f[VB]--no-messages\f[B]\f[R]
 Suppress error and warning messages
 .PP
 Useful in scripts or automated workflows where you want to rely on exit
 status codes without stderr output.
 .TP
-\f[B]\[en]version\f[R]
+\f[B]\f[VB]--version\f[B]\f[R]
 Show version and exit
 .PP
 Displays grepnet version number and exits.
 .TP
-\f[B]-h\f[R], \f[B]\[en]help\f[R]
+\f[B]-h\f[R], \f[V]--help\f[R]
 Show help and exit
 .PP
 Displays command-line help and exits.

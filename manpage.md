@@ -41,8 +41,11 @@ A single `grepnet '192.0.2.0/24'` command finds all of these.
 # QUICK START
 
 ```bash
-# Find any reference to a network
-grepnet '192.0.2.0/24' config.txt
+# Find any reference to a network (pattern can be any format)
+grepnet '192.0.2.0/24' config.txt            # CIDR
+grepnet '192.0.2.0 255.255.255.0' config.txt # Subnet mask
+grepnet '192.0.2.0-192.0.2.255' config.txt   # IP range
+grepnet '192.0.2.1' config.txt                # Single IP
 
 # Search from stdin
 echo "server 192.0.2.1" | grepnet '192.0.2.0/24'
@@ -63,97 +66,99 @@ grepnet --consolidate networks.txt
 # PATTERN AND FILE INPUT
 
 *PATTERN*
-: Network pattern to search for (CIDR, IP range, subnet mask, bare IP, or file glob with `-f`)
+: A single network address in any supported format. A pattern can be a CIDR block (e.g., `192.0.2.0/24`), an IP range (e.g., `192.0.2.0-192.0.2.255`), a subnet mask (e.g., `192.0.2.0 255.255.255.0`), or a single bare IP address (e.g., `192.0.2.1`). The tool automatically recognizes the format. You need only one pattern to search; use `-P`/`--pattern` for additional patterns if needed. See "Multiple Patterns" below for how to specify more than one.
 
 *FILE*...
 : Files to search. If omitted, reads from stdin.
 
-**-P**, **--pattern** *PATTERN*
-: Specify additional patterns (repeatable: `-P net1 -P net2`)
+**-P**, `--pattern` *PATTERN*
+: Specify additional patterns beyond the first (repeatable for multiple patterns). Each pattern can be in any supported format independently.
 
-**-f**, **--patterns-file** *PATTERN_FILE*
-: Read patterns from file, one per line (repeatable)
+**-f**, `--patterns-file` *PATTERN_FILE*
+: Read patterns from file, one per line. Each line is treated as a separate pattern in any supported format (repeatable to load multiple pattern files).
 
-**-F**, **--input-file** *FILE*
+**-F**, `--input-file` *FILE*
 : Specify input file explicitly (alternative to positional FILE arguments)
+
+**Note on pattern flexibility**: Each pattern is independent and can be any supported format. You don't need to define every possible format or provide multiple patterns. A single pattern like `192.0.2.1` or `192.0.2.0/24` is sufficient for most searches. Patterns with `-P` or `-f` are purely optional and only needed when searching for multiple different networks.
 
 # MATCH TYPES
 
 By default, grepnet finds all matches. Use these flags to filter by relationship type:
 
-**-e**, **--equal**
+**-e**, `--equal`
 : Match only networks that are exactly equal
 
-**-s**, **--subset**
+**-s**, `--subset`
 : Match only when file network is smaller than pattern (contained within)
 
-**-S**, **--superset**
+**-S**, `--superset`
 : Match only when file network is larger than pattern (contains pattern)
 
-**-O**, **--overlap**
+**-O**, `--overlap`
 : Match only when networks partially overlap
 
-**-u**, **--unmatched**
+**-u**, `--unmatched`
 : Include networks that don't match any pattern (for use with other match type flags)
 
-**-v**, **--invert-match**
+**-v**, `--invert-match`
 : Show lines that do NOT match (inverse logic)
 
 **Example**: `grepnet -s '192.0.0.0/16' data.txt` finds all /24 or /25 networks within 192.0.0.0/16
 
 # OUTPUT OPTIONS
 
-**-o**, **--only-matching**
+**-o**, `--only-matching`
 : Print only the matched networks, not the entire line
 
-**-n**, **--line-number**
+**-n**, `--line-number`
 : Prefix output with 1-based line numbers
 
-**-b**, **--byte-offset**
+**-b**, `--byte-offset`
 : Prefix output with 0-based byte offsets
 
-**-H**, **--with-filename**
+**-H**, `--with-filename`
 : Include filename in output (default when multiple files)
 
-**--no-filename**
+**`--no-filename`**
 : Suppress filename in output
 
-**-T**, **--initial-tab**
+**-T**, `--initial-tab`
 : Insert tab after line number/byte offset for alignment
 
-**-c**, **--count**
+**-c**, `--count`
 : Print count of matching lines instead of lines
 
-**-l**, **--files-with-matches**
+**-l**, `--files-with-matches`
 : Print only filenames containing matches (useful for scripting)
 
-**-L**, **--files-without-match**
+**-L**, `--files-without-match`
 : Print only filenames without matches
 
-**-q**, **--quiet**, **--silent**
+**-q**, `--quiet`, `--silent`
 : Suppress output (exit code only)
 
-**--label** *LABEL*
+**`--label`** *LABEL*
 : Display stdin as *LABEL* instead of "(standard input)"
 
-**-m** *NUM*, **--max-count** *NUM*
+**-m** *NUM*, `--max-count` *NUM*
 : Stop searching after *NUM* matches
 
 # CONTEXT OPTIONS
 
-**-A** *NUM*, **--after-context** *NUM*
+**-A** *NUM*, `--after-context` *NUM*
 : Print *NUM* lines after each match
 
-**-B** *NUM*, **--before-context** *NUM*
+**-B** *NUM*, `--before-context` *NUM*
 : Print *NUM* lines before each match
 
-**-C** *NUM*, **--context** *NUM*
+**-C** *NUM*, `--context` *NUM*
 : Print *NUM* lines before and after each match
 
-**--group-separator** *SEP*
+**`--group-separator`** *SEP*
 : Print *SEP* between match groups (default: "--")
 
-**--no-group-separator**
+**`--no-group-separator`**
 : Suppress group separator
 
 **Example**: `grepnet -C 2 '192.0.2.0/24' config.txt` shows each match with 2 lines of context
@@ -174,23 +179,23 @@ Network extraction and consolidation are two related operations for analyzing an
 
 ## Flags
 
-**--extract**
+**`--extract`**
 : Extract all unique networks found in input (deduplicated)
 
-**--consolidate**
+**`--consolidate`**
 : Consolidate overlapping and adjacent networks into larger blocks
 
-**--fill-pct** *N*
+**`--fill-pct`** *N*
 : Allow consolidation to fill gaps up to N% of network size (only with `--consolidate`; range 0-100)
 
 - Finds the smallest supernet for each network where gap_ratio ≤ N%
 - Single-pass: fill-pct applies once per extracted network, then networks merge via `collapse_addresses()`
 - Examples: `--fill-pct=50` allows up to 50% gap filling; `--fill-pct=0` disallows any gap
 
-**--show-content**
+**`--show-content`**
 : Include original line content in extract/consolidate output
 
-**--format** {**cidr**|**range**|**short-range**|**ips**|**original**}
+**`--format`** {**cidr**|**range**|**short-range**|**ips**|**original**}
 : Output format for networks (default: **cidr**)
 
 - **cidr** - CIDR notation: `192.0.2.0/24`
@@ -238,23 +243,23 @@ Filtering allows you to narrow or refine search results by excluding networks or
 
 ## Text Filtering
 
-**--exclude-string** *PATTERN*
+**`--exclude-string`** *PATTERN*
 : Exclude network matches whose matched text matches regex PATTERN (repeatable)
 
-**--exclude-strings-file** *FILE*
+**`--exclude-strings-file`** *FILE*
 : Load text patterns to exclude from file
 
 **Behavior**: For each network match found, test the matched text against each regex pattern. If any match, exclude that result. If a line's last network match is excluded by text filtering, the entire line is removed from output.
 
 ## Network Filtering
 
-**--exclude-cidr** *NETWORK*
+**`--exclude-cidr`** *NETWORK*
 : Exclude specific networks (repeatable)
 
-**--exclude-cidrs-file** *FILE*
+**`--exclude-cidrs-file`** *FILE*
 : Load networks to exclude from file
 
-**--exclude-cidr-behaviour** {**subset**|**subset-strict**|**superset**|**superset-strict**|**equals**|**related**|**cut**}
+**`--exclude-cidr-behaviour`** {**subset**|**subset-strict**|**superset**|**superset-strict**|**equals**|**related**|**cut**}
 : How to match excluded networks (default: **subset**)
 
 ### Exclusion Behaviors
@@ -353,22 +358,22 @@ Result: File NOT scanned
 
 ## Flags
 
-**-r**, **--recursive**
+**-r**, `--recursive`
 : Search directories recursively (don't follow symlinks; faster, safer)
 
-**-R**, **--dereference-recursive**
+**-R**, `--dereference-recursive`
 : Search directories recursively (follow symlinks; can cause infinite loops)
 
-**--include** *GLOB*
+**`--include`** *GLOB*
 : Include only files matching glob pattern (repeatable; patterns OR'd together)
 
-**--exclude** *GLOB*
+**`--exclude`** *GLOB*
 : Exclude files matching glob pattern (repeatable; patterns OR'd together)
 
-**--exclude-from** *FILE*
+**`--exclude-from`** *FILE*
 : Load exclude patterns from file, one per line
 
-**--exclude-dir** *PATTERN*
+**`--exclude-dir`** *PATTERN*
 : Exclude directories matching glob pattern (repeatable; doesn't traverse excluded dirs)
 
 ## Common Patterns
@@ -426,22 +431,22 @@ Each format flag accepts one of four modes:
 
 ## Flags
 
-**--parse-cidr** {**pattern**|**input**|**both**|**none**}
+**`--parse-cidr`** {**pattern**|**input**|**both**|**none**}
 : Accept CIDR notation (e.g., `192.0.2.0/24`; default: **both**)
 
-**--parse-netmask** {**pattern**|**input**|**both**|**none**}
+**`--parse-netmask`** {**pattern**|**input**|**both**|**none**}
 : Accept subnet mask notation (e.g., `192.0.2.0 255.255.255.0`; default: **both**)
 
-**--parse-hostmask** {**pattern**|**input**|**both**|**none**}
+**`--parse-hostmask`** {**pattern**|**input**|**both**|**none**}
 : Accept inverse/host mask notation (e.g., `192.0.2.0 0.0.0.255`; default: **both**)
 
-**--parse-ranges** {**pattern**|**input**|**both**|**none**}
+**`--parse-ranges`** {**pattern**|**input**|**both**|**none**}
 : Accept IP range notation (e.g., `192.0.2.0-192.0.2.255`; default: **both**)
 
-**--parse-bare-ip** {**pattern**|**input**|**both**|**none**}
+**`--parse-bare-ip`** {**pattern**|**input**|**both**|**none**}
 : Accept single IP addresses without CIDR notation (e.g., `192.0.2.1`; default: **both**)
 
-**--range-format** {**long**|**short**|**both**|**none**}
+**`--range-format`** {**long**|**short**|**both**|**none**}
 : Accept long/short range formats (default: **both**)
 - **long**: `192.0.2.0-192.0.2.255`
 - **short**: `192.0.2.0-255`
@@ -600,7 +605,7 @@ CIDR validation ensures that network addresses don't have "host bits" set. For e
 
 ## Flags
 
-**--strict-cidr** {**pattern**|**input**|**both**|**none**}
+**`--strict-cidr`** {**pattern**|**input**|**both**|**none**}
 : Where to apply strict CIDR validation (default: **none**)
 
 - **pattern**: Validate search patterns only (reject malformed patterns)
@@ -608,7 +613,7 @@ CIDR validation ensures that network addresses don't have "host bits" set. For e
 - **both**: Validate both patterns and input
 - **none**: No strict validation (default; silently normalize)
 
-**--strict-cidr-action** {**fail**|**normalize**|**ignore**|**warn**}
+**`--strict-cidr-action`** {**fail**|**normalize**|**ignore**|**warn**}
 : Action when invalid CIDR detected (default: **normalize**)
 
 - **fail** - Exit with error code 2 (stop processing)
@@ -700,13 +705,13 @@ grepnet --extract --format cidr config.txt
 
 # BINARY FILE HANDLING
 
-**-a**, **--text**
+**-a**, `--text`
 : Treat all files as text
 
 **-I**
 : Skip binary files
 
-**--binary-files** {**binary**|**text**|**without-match**}
+**`--binary-files`** {**binary**|**text**|**without-match**}
 : How to handle binary files (default: **binary**)
 
 # COMMENT FILTERING
@@ -729,7 +734,7 @@ Comment filtering controls whether networks inside comments are parsed and match
 
 ## Flags
 
-**--no-filter-comments**
+**`--no-filter-comments`**
 : Disable comment filtering; parse and match networks even if they appear in comments (applies to both patterns and file content)
 
 ## Realistic Examples
@@ -753,7 +758,7 @@ allow [highlighted]192.0.2.0/24[reset]       # active rule
 
 **Why this matters for matching**:
 - **Default**: Only active configurations are matched (commented rules are ignored)
-- **--no-filter-comments**: Both active and commented rules are matched (useful for auditing all references)
+- `--no-filter-comments`: Both active and commented rules are matched (useful for auditing all references)
 
 ## Impact on --extract and --consolidate
 
@@ -792,7 +797,7 @@ Then consolidate:
 
 **Impact on network inventory**:
 - **Default**: Your network inventory excludes commented configurations (cleaner, reflects "active" state)
-- **--no-filter-comments**: Your inventory includes all configurations (useful for compliance audits or finding forgotten commented entries)
+- `--no-filter-comments`: Your inventory includes all configurations (useful for compliance audits or finding forgotten commented entries)
 
 ## Common Use Cases
 
@@ -852,7 +857,7 @@ Different elements can be styled independently:
 
 ## Flags
 
-**--color** {**auto**|**always**|**never**}
+**`--color`** {**auto**|**always**|**never**}
 : When to use colored output (default: **auto**)
 
 - **auto**: Colors on terminal output, plain text when output is piped or redirected
@@ -1007,10 +1012,10 @@ file.txt:42:[highlighted]192.0.2.0/24[reset] other text
 
 # DATA FORMATS
 
-**-z**, **--null-data**
+**-z**, `--null-data`
 : Treat input/output as NUL-terminated records instead of newlines
 
-**-Z**, **--null**
+**-Z**, `--null`
 : Output NUL after filename instead of colon
 
 Useful for safe handling of filenames with special characters: `grepnet -lZ '192.0.0.0/16' *.txt | xargs -0 cat`
@@ -1019,24 +1024,26 @@ Useful for safe handling of filenames with special characters: `grepnet -lZ '192
 
 # DEBUGGING
 
-**--debug** [*FUNCTIONS*]
+**`--debug`** [*FUNCTIONS*] **(DEPRECATED)**
 : Enable debug output to stderr
 
 Produces verbose output useful for troubleshooting pattern matching, network extraction, and filtering logic. Debug output goes to stderr to avoid interfering with normal stdout results.
 
+**⚠ Deprecation notice**: This flag is deprecated and may be removed in a future version. Use stderr redirection or external debugging tools instead.
+
 # MESSAGES AND INFORMATION
 
-**--no-messages**
+**`--no-messages`**
 : Suppress error and warning messages
 
 Useful in scripts or automated workflows where you want to rely on exit status codes without stderr output.
 
-**--version**
+**`--version`**
 : Show version and exit
 
 Displays grepnet version number and exits.
 
-**-h**, **--help**
+**-h**, `--help`
 : Show help and exit
 
 Displays command-line help and exits.
@@ -1056,186 +1063,702 @@ Displays command-line help and exits.
 
 ## Basic Searching
 
+**Find all references to a network in a file:**
 ```bash
-# Find all references to a network in a file
 grepnet '192.0.2.0/24' config.txt
+```
+Searches for all lines in config.txt containing any IP address within the 192.0.2.0/24 network.
 
-# Match a single IP against a CIDR pattern
+**Match a single IP against a CIDR pattern:**
+```bash
 echo "192.0.2.50" | grepnet '192.0.2.0/24'
+```
+Accepts input from stdin; tests if 192.0.2.50 is within the pattern network.
 
-# Search multiple files
+**Search multiple files:**
+```bash
 grepnet '10.0.0.0/8' server1.txt server2.txt server3.txt
 ```
+Searches all three files for any IP in the 10.0.0.0/8 range, with output grouped by file.
+
+**Search entire directory tree:**
+```bash
+grepnet -r '192.0.0.0/16' /etc/
+```
+Recursively searches all files under /etc/ for networks in the 192.0.0.0/16 block.
 
 ## Multiple Patterns
 
-```bash
-# Search for either network
-grepnet -P '192.0.2.0/24' -P '10.0.0.0/8' data.txt
+**Using a single pattern is most common:**
 
-# Read patterns from file
+For most use cases, you only need one pattern. The pattern can be any format:
+```bash
+# CIDR notation
+grepnet '192.0.2.0/24' data.txt
+
+# IP range
+grepnet '192.0.2.0-192.0.2.255' data.txt
+
+# Subnet mask
+grepnet '192.0.2.0 255.255.255.0' data.txt
+
+# Single IP
+grepnet '192.0.2.1' data.txt
+```
+
+**When you need multiple patterns, use `-P` or `-f`:**
+
+Search for lines matching ANY of multiple patterns (logical OR):
+```bash
+grepnet -P '192.0.2.0/24' -P '10.0.0.0/8' data.txt
+```
+Each pattern can be in a different format:
+```bash
+grepnet -P '192.0.2.0/24' -P '10.0.0.0-10.255.255.255' data.txt
+```
+
+**Read multiple patterns from file:**
+```bash
 grepnet -f allowed_networks.txt config.txt
 ```
+Reads patterns from allowed_networks.txt (one per line). Each line is a separate pattern in any supported format:
+
+**Example allowed_networks.txt:**
+```
+192.0.2.0/24
+203.0.113.0 255.255.255.0
+198.51.100.0-198.51.100.255
+10.0.0.0/8
+```
+All four patterns are valid; each can be a different format. The file has 4 patterns total, not 4 copies of the same pattern.
 
 ## Match Type Filtering
 
+**Find only exact matches:**
 ```bash
-# Find only exact matches
 grepnet -e '192.0.2.0/24' networks.txt
+```
+Returns only lines containing exactly 192.0.2.0/24 (no 192.0.2.0/25, no 192.0.2.1, no 192.0.0.0/16).
 
-# Find networks contained within the pattern
+**Find networks contained within the pattern:**
+```bash
 grepnet -s '192.0.0.0/16' all_networks.txt
+```
+Finds all subnets that fit inside 192.0.0.0/16: returns 192.0.2.0/24, 192.0.3.0/24, etc. Useful for policy audits: "which smaller networks have been allocated from this block?"
 
-# Find networks that contain the pattern
+**Find networks that contain the pattern:**
+```bash
 grepnet -S '192.0.2.1' subnets.txt
 ```
+Finds all networks where 192.0.2.1 is a member. If subnets.txt contains 192.0.0.0/16, 192.0.2.0/24, 192.0.2.128/25, all three match. Useful for traceability: "which networks claim this IP?"
+
+**Show all matches with their match types:**
+```bash
+grepnet -P '192.0.0.0/16' -P '10.0.0.0/8' networks.txt
+```
+Uses grepnet's default match-type coloring (if colors enabled) to show EQUALS (⊆⊇), SUBSET (⊆), SUPERSET (⊇), OVERLAP, or UNMATCHED.
 
 ## Output Formatting
 
+**Show line numbers:**
 ```bash
-# Show line numbers
 grepnet -n '192.0.2.0/24' config.txt
+```
+Prepends line numbers to output. Useful for referencing specific matches in large config files.
 
-# Show only the matched networks
+**Show only the matched networks:**
+```bash
 grepnet -o '192.0.2.0/24' data.txt
+```
+Extracts just the matching network/IP strings, one per line. Removes line numbers and context. Useful for creating lists of found networks for further processing.
 
-# Count matching lines
+**Count matching lines:**
+```bash
 grepnet -c '192.0.2.0/24' *.txt
+```
+Outputs count of matching lines per file. Use when you need statistics: "how many rules reference this subnet?"
 
-# Show only filenames with matches
+**Show only filenames with matches:**
+```bash
 grepnet -l '192.0.0.0/16' *.conf
 ```
+Lists only files containing matches (without the actual lines). Efficient for large file sets. Useful in scripts: `grepnet -l pattern files | xargs process_files`.
+
+**Count total matches across all files:**
+```bash
+grepnet -c '192.0.2.0/24' *.txt | awk -F: '{sum+=$2} END {print sum}'
+```
+Combines -c with awk to get total matches across multiple files.
 
 ## Context Display
 
+**Show 2 lines of context around matches:**
 ```bash
-# Show 2 lines of context around matches
 grepnet -C 2 '192.0.2.0/24' config.txt
+```
+Displays the matched line plus 2 lines before and 2 lines after. Useful for understanding configuration context (e.g., seeing which rule/policy a network belongs to).
 
-# Show 1 line before, 3 lines after
+**Show 1 line before, 3 lines after:**
+```bash
 grepnet -B 1 -A 3 '192.0.2.0/24' audit.log
+```
+Asymmetric context: 1 line before (often the timestamp/event header) and 3 lines after (related details). Efficient for log analysis.
 
-# Context without group separator
+**Context without group separator:**
+```bash
 grepnet -C 1 --no-group-separator '192.0.2.0/24' file.txt
 ```
+Displays context continuously without `--` separators between groups. Cleaner output for piping or log analysis.
+
+**Display context with line numbers and colored matches:**
+```bash
+grepnet -nC 2 --color always '192.0.2.0/24' audit.log | head -50
+```
+Combines line numbers, context, and colors for visual identification in large logs.
 
 ## Network Extraction
 
+**Extract all unique networks from file:**
 ```bash
-# Extract all unique networks from file
 grepnet --extract firewall_rules.txt
+```
+Scans the file, finds all network objects (CIDR blocks, ranges, bare IPs), and outputs each unique network once. Useful for inventory: "what networks are referenced in this config?"
 
-# Extract networks matching a pattern
+**Extract and normalize to CIDR:**
+```bash
+grepnet --extract --format cidr firewall_rules.txt
+```
+Converts all formats (netmask notation, ranges, bare IPs) to CIDR. Output is color-coded (if colors enabled): normalized CIDRs are underlined by default.
+
+**Extract networks matching a pattern:**
+```bash
 grepnet --extract -P '192.0.0.0/16' all_networks.txt
+```
+Extracts only networks that are subsets of 192.0.0.0/16. Useful for extracting allocated subnets from a larger block.
 
-# Consolidate overlapping networks
+**Consolidate overlapping networks:**
+```bash
 grepnet --consolidate all_subnets.txt
+```
+Merges overlapping/adjacent networks into minimal set. Input might have 192.0.2.0/24 and 192.0.3.0/24 as separate entries; output combines into 192.0.2.0/23 (if adjacent).
 
-# Output consolidated networks as ranges
+**Output consolidated networks as ranges:**
+```bash
 grepnet --consolidate --format range networks.txt
+```
+Shows consolidated result in IP range format (e.g., 192.0.2.0-192.0.3.255) instead of CIDR. Useful for some firewall/ACL formats.
 
-# Extract and show source lines
+**Extract and show source lines:**
+```bash
 grepnet --extract --show-content config.txt
 ```
+Outputs both extracted networks AND the original config lines they came from. Useful for traceability: "this network is from this config line."
+
+**Extract, consolidate, and save as new config:**
+```bash
+grepnet --extract --consolidate --format cidr firewall_rules.txt > consolidated.txt
+grepnet -f consolidated.txt application.conf  # now search using consolidated rules
+```
+Pipeline: extract all networks from rules, consolidate them, then use that consolidated set to search application configs.
 
 ## Exclusion
 
+**Exclude deprecated networks:**
 ```bash
-# Exclude deprecated networks
 grepnet --exclude-string 'deprecated' '192.0.0.0/16' config.txt
+```
+Finds all IPs in 192.0.0.0/16, but skips any line containing the word "deprecated". Useful for active inventory vs. archived/commented configs.
 
-# Exclude specific network from results
+**Exclude specific network from results:**
+```bash
 grepnet --exclude-cidr '192.0.2.0/25' '192.0.2.0/24' data.txt
+```
+Finds all IPs in 192.0.2.0/24, but excludes the 192.0.2.0/25 subset (and anything smaller within it). Returns only 192.0.2.128/25 block results.
 
-# Exclude networks from file
+**Exclude networks from file:**
+```bash
 grepnet --exclude-cidrs-file banned.txt '0.0.0.0/0' networks.txt
 ```
+Reads exclusion list from banned.txt (one network per line) and excludes all of them from search results. Useful for blocklist-style filtering: "show me everything except these networks."
+
+**Exclude internal networks from search results:**
+```bash
+grepnet --exclude-cidr '10.0.0.0/8' --exclude-cidr '172.16.0.0/12' \
+  --exclude-cidr '192.168.0.0/16' '0.0.0.0/0' firewall.conf
+```
+Searches entire IP space but excludes RFC 1918 private ranges. Returns only public internet routes.
 
 ## Exclusion with Strict Behavior
 
+**Default subset: include exact matches and containment:**
 ```bash
-# Default subset: Exclude 192.0.2.0/24 AND 192.0.0.0/16, but not 10.0.0.0/8
 grepnet --exclude-cidr '192.0.0.0/16' '0.0.0.0/0' networks.txt
+```
+Excludes 192.0.0.0/16 (exact match) AND 192.0.2.0/24 (subset). This is the default: if pattern is subset of exclusion, it's removed.
 
-# Strict subset: Exclude only 192.0.2.0/24, NOT 192.0.0.0/16 (exact match)
+**Strict subset: exclude only exact matches:**
+```bash
 grepnet --exclude-cidr-behaviour subset-strict --exclude-cidr '192.0.0.0/16' '0.0.0.0/0' networks.txt
+```
+Excludes only 192.0.0.0/16 (exact match). Does NOT exclude 192.0.2.0/24 (subset of exclusion), returns 10.0.0.0/8 and 192.0.2.0/24. Useful: "I only want to exclude this specific network, not everything within it."
 
-# Default superset: Exclude 192.0.0.0/16 AND 192.0.2.0/24, but not 10.0.0.0/8
+**Default superset: include exact matches and containment:**
+```bash
 grepnet --exclude-cidr-behaviour superset --exclude-cidr '192.0.2.0/24' '0.0.0.0/0' networks.txt
+```
+Excludes 192.0.2.0/24 (exact match) AND 192.0.0.0/16 (superset that contains it). Filters based on "anything that includes this network."
 
-# Strict superset: Exclude only 192.0.0.0/16, NOT 192.0.2.0/24 (exact match)
+**Strict superset: exclude only exact matches:**
+```bash
 grepnet --exclude-cidr-behaviour superset-strict --exclude-cidr '192.0.2.0/24' '0.0.0.0/0' networks.txt
 ```
+Excludes only 192.0.2.0/24 (exact match). Does NOT exclude 192.0.0.0/16 (superset). Useful: "I want to exclude this specific allocation, but keep the larger blocks."
 
 ## Recursive Searching
 
+**Find all references in configuration directory:**
 ```bash
-# Find all references in configuration directory
 grepnet -r '192.0.0.0/16' /etc/
+```
+Searches all files under /etc/ recursively, printing matches with file:line format. Output is grouped by file.
 
-# Include only .conf and .yaml files
+**Include only .conf and .yaml files:**
+```bash
 grepnet -r --include '*.conf' --include '*.yaml' '10.0.0.0/8' /etc/
+```
+Filters to only .conf and .yaml files; binary and text-only files are skipped. Efficient when you know the file types.
 
-# Exclude backup directories
-grepnet -r --exclude-dir 'backup' '192.0.2.0/24' /var/
+**Exclude backup directories:**
+```bash
+grepnet -r --exclude-dir 'backup' --exclude-dir 'archive' '192.0.2.0/24' /var/
+```
+Skips entire backup and archive directory trees. More efficient than `--exclude` patterns because directory contents are not even traversed.
 
-# Search logs, exclude archived subdirectories
+**Search logs, exclude archived subdirectories:**
+```bash
 grepnet -r --exclude '*/archive/*' '192.0.0.0/16' /var/log/
 ```
+Pattern-based exclusion: any path matching `*/archive/*` is skipped. Useful for excluding specific nested patterns.
+
+**Find files containing matches:**
+```bash
+grepnet -rl '192.0.0.0/16' /etc/ | while read f; do echo "=== $f ==="; head -5 "$f"; done
+```
+Lists files, then displays first 5 lines of each. Quick overview of which configs reference a network.
 
 ## Binary File Handling
 
+**Process binary files as text:**
 ```bash
-# Process binary files as text
 grepnet -a '192.0.2.0/24' data.bin
+```
+Forces binary files to be treated as text. Useful for config files that might have binary encoding or compiled configs (e.g., SQLite, protocol buffers).
 
-# Report binary matches without displaying content
+**Report binary matches without displaying content:**
+```bash
 grepnet --binary-files without-match '192.0.0.0/16' *.bin
 ```
+When binary file contains a match, report "match found" but don't output the binary garbage. Useful for counting/logging without corrupting terminal.
+
+**Safely search mixed binary/text directory:**
+```bash
+grepnet -r --binary-files skip '192.0.2.0/24' ./
+```
+Skips binary files entirely, searches only text files. Fastest approach when you know what you're looking for.
+
+## Format Options
+
+**Search using netmask notation in patterns:**
+```bash
+grepnet --parse-pattern netmask '192.0.2.0/255.255.255.0' data.txt
+```
+Allows patterns to use netmask format instead of only CIDR. Matches against any format in input file.
+
+**Accept only CIDR format in input files:**
+```bash
+grepnet --parse-input cidr '192.0.2.0/24' networks.txt
+```
+Enforces CIDR notation in input file; rejects netmask/range format. Useful for strict validation: "this file must use only CIDR."
+
+**Extract and output as host/mask pairs:**
+```bash
+grepnet --extract --format host-mask networks.txt
+```
+Output shows base IP and separate netmask (e.g., 192.0.2.0 255.255.255.0) instead of CIDR notation.
+
+## Prefix Length Filtering
+
+**Find subnets smaller than /24 (more specific):**
+```bash
+grepnet --ipv4-longer-than=24 networks.txt
+```
+Returns all IPv4 networks with prefix longer than /24 (e.g., /25, /26, /27). Useful for finding over-allocation: "where are we subdividing too much?"
+
+**Find networks larger than /16 (less specific):**
+```bash
+grepnet --ipv4-shorter-than=16 networks.txt
+```
+Returns all IPv4 networks with prefix shorter than /16 (e.g., /8, /12, /15). Useful for finding aggregates: "which large blocks do we own?"
+
+**Find exact prefix length:**
+```bash
+grepnet --ipv4-prefix-length=24 networks.txt
+```
+Returns only /24 networks. Useful for compliance checking: "do we only allocate /24 to branch offices?" or "which networks don't follow our standard?"
+
+**Find specific range of prefix lengths:**
+```bash
+grepnet --ipv4-min-prefix-length=20 --ipv4-max-prefix-length=24 networks.txt
+```
+Returns networks between /20 and /24. Useful for policy validation: "all allocations must be between /20 and /24."
+
+## Parsing and Comments
+
+**Search file with commented networks:**
+```bash
+grepnet --no-filter-comments '192.0.0.0/16' config.txt
+```
+Enables parsing of networks in comments. By default, commented networks are ignored; this includes them in the search.
+
+**Show which networks are active vs commented:**
+```bash
+# Count active networks only (default)
+grepnet --extract config.txt | wc -l
+
+# Count all networks including commented ones
+grepnet --no-filter-comments --extract config.txt | wc -l
+```
+Useful for inventory: how many networks are actually active vs. how many are defined but commented out?
+
+**Extract only from non-commented lines:**
+```bash
+grepnet --extract config.txt > active_networks.txt
+# Then search using only active networks
+grepnet -f active_networks.txt firewall.conf
+```
+Two-step pipeline: extract active networks, then use that whitelist.
 
 ## Advanced Combinations
 
+**Whitelist-based filtering:**
 ```bash
-# Extract networks from pattern file, exclude deprecated, consolidate
-grepnet --extract -f allowed.txt --exclude-strings-file deprecated.txt \
-  --consolidate --format range config.txt
+# Extract our authorized networks
+grepnet --extract authorized.conf > our_networks.txt
 
-# Recursive search with context, line numbers, and colors
-grepnet -rn -C 2 --color always '192.0.2.0/24' /etc/
+# Find all mentions of our networks in logs
+grepnet -f our_networks.txt /var/log/firewall.log
 
-# Find networks in logs, exclude internal, show counts per file
+# Exclude any hits on internal networks
+grepnet -f our_networks.txt --exclude-cidr '10.0.0.0/8' /var/log/firewall.log
+```
+Multi-step pipeline: define authorized networks, then search and filter strategically.
+
+**Blacklist-based filtering:**
+```bash
+# Extract blocked networks
+grepnet --extract banned_networks.txt > blocklist.txt
+
+# Search logs, but exclude anything matching the blocklist
+grepnet '0.0.0.0/0' /var/log/*.log --exclude-cidrs-file blocklist.txt
+```
+Inverted approach: search everything, then remove known/expected matches.
+
+**Audit network allocation:**
+```bash
+grepnet --extract --consolidate corporate_allocation.txt > current_state.txt
+diff <(sort previous_state.txt) <(sort current_state.txt)
+```
+Track changes in network allocation: "what new networks were added?"
+
+**Security audit:**
+```bash
+grepnet -rn --exclude-cidr '10.0.0.0/8' --exclude-cidr '172.16.0.0/12' \
+  --exclude-cidr '192.168.0.0/16' '0.0.0.0/0' /etc/ | grep -v 'approved\|expected'
+```
+Finds all external network references (excluding RFC1918), then filters to hide approved entries. Suspicious references stand out.
+
+**Recursive search with context, line numbers, and colors:**
+```bash
+grepnet -rn -C 2 --color always '192.0.2.0/24' /etc/ | less -R
+```
+Combined flags for detailed investigation: -r (recursive), -n (line numbers), -C 2 (2-line context), --color always (force colors), piped to `less -R` for proper color rendering.
+
+**Find networks in logs, exclude internal, show counts per file:**
+```bash
 grepnet -rc --exclude-cidr '10.0.0.0/8' '192.0.0.0/16' /var/log/*.txt
 ```
+Lists count of matches per file. Useful for identifying which log files have the most activity for a given network.
+
+**Extract, normalize, and check for anomalies:**
+```bash
+# Extract and normalize all formats to CIDR
+grepnet --extract --format cidr all_networks.txt > normalized.txt
+
+# Highlight non-standard allocations (e.g., odd prefix lengths)
+grepnet --ipv4-longer-than=25 --ipv4-shorter-than=23 normalized.txt
+```
+Useful for finding "weird" networks that don't match allocation policy.
 
 # COMMON PATTERNS
 
-**Security audits**:
+## Security Audits
+
+**Find all external networks referenced in system configuration:**
 ```bash
-# Find all external networks referenced
 grepnet -r --exclude-cidr '10.0.0.0/8' --exclude-cidr '172.16.0.0/12' \
   --exclude-cidr '192.168.0.0/16' '0.0.0.0/0' /etc/
 ```
+Searches entire /etc tree for any external (non-RFC1918) network references. Useful for identifying unexpected internet connectivity rules or firewall policies.
 
-**Configuration extraction**:
+**Verify no deprecated/blocked networks are referenced:**
 ```bash
-# Extract all networks from config files and consolidate
-find /etc -name '*.conf' | xargs grepnet --extract --consolidate --format range
+BLOCKED="203.0.113.0/24 198.0.113.0/24"
+for net in $BLOCKED; do
+  if grepnet "$net" /etc/firewall.conf 2>/dev/null; then
+    echo "SECURITY ALERT: $net found in firewall rules"
+  fi
+done
 ```
+Checks specific blocked networks. Useful for ensuring deprecated ISPs or malicious networks aren't accidentally whitelisted.
 
-**Network monitoring**:
+**Find overly permissive rules:**
 ```bash
-# Check for changes to allowed networks
-grepnet --extract -f current.txt config.txt > new.txt
-diff allowed.txt new.txt
+grepnet --ipv4-shorter-than=16 firewall.conf
 ```
+Identifies rules using large CIDR blocks (/0-/15), which may be unnecessarily broad. Useful for security hardening reviews.
 
-**Compliance checking**:
+## Configuration Extraction and Management
+
+**Extract all networks from config files and consolidate:**
 ```bash
-# Verify no systems reference banned networks
-if grepnet --exclude-cidrs-file banned.txt '0.0.0.0/0' *.txt > /dev/null; then
-  echo "FAIL: Banned networks found"
+find /etc -name '*.conf' | xargs grepnet --extract --consolidate --format cidr > all_networks.txt
+```
+Creates unified inventory of all networks across configs. Consolidated output merges overlaps, preventing policy contradictions.
+
+**Compare two configuration snapshots:**
+```bash
+# First scan
+grepnet --extract --consolidate config_old.txt > old_networks.txt
+
+# After update
+grepnet --extract --consolidate config_new.txt > new_networks.txt
+
+# Compare
+diff -u old_networks.txt new_networks.txt
+```
+Tracks network allocation changes: added routes, removed subnets, consolidation differences. Useful for change control logs.
+
+**Validate that two config files define the same networks (e.g., junos.conf vs cisco.conf):**
+```bash
+# Extract and normalize networks from both files
+grepnet --extract --format cidr junos.conf | sort > junos_networks.txt
+grepnet --extract --format cidr cisco.conf | sort > cisco_networks.txt
+
+# Compare - no output means they're identical
+diff junos_networks.txt cisco_networks.txt
+
+# Or check the result in a script
+if diff -q junos_networks.txt cisco_networks.txt >/dev/null 2>&1; then
+  echo "SUCCESS: Both configs define the same networks"
+else
+  echo "FAIL: Network definitions differ"
+  echo "Networks in junos but not cisco:"
+  comm -23 junos_networks.txt cisco_networks.txt
+  echo "Networks in cisco but not junos:"
+  comm -13 junos_networks.txt cisco_networks.txt
 fi
 ```
+Useful for multi-vendor configuration validation: verify that Juniper and Cisco configs have identical network definitions, or identify differences. The `comm` utility shows networks unique to each file (requires sorted input).
+
+**Build network documentation from active config:**
+```bash
+grepnet --extract --format cidr --show-content firewall.conf | \
+  awk '{print "- " $0}' > network_inventory.md
+```
+Generates markdown documentation with network and source line. Useful for policy documentation and change tracking.
+
+**Validate configuration format consistency:**
+```bash
+# Extract all networks
+FORMATS=$(grepnet --extract firewall.conf | grep -oE '(^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$|[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/[0-9]+|[0-9]+-[0-9]+)')
+
+# Check if all are CIDR
+grepnet -f /dev/stdin <<< "$FORMATS" | grep -v '/' && echo "Non-CIDR formats found"
+```
+Identifies format inconsistencies, useful for standardization efforts (e.g., "migrate all to CIDR").
+
+## Network Monitoring and Change Detection
+
+**Check for changes to allowed networks:**
+```bash
+grepnet --extract --consolidate current_config.txt > current_state.txt
+if ! diff -q previous_state.txt current_state.txt >/dev/null 2>&1; then
+  echo "Network allocation changed"
+  diff previous_state.txt current_state.txt
+fi
+```
+Detects any network allocation changes. Useful for configuration monitoring/alerting systems.
+
+**Monitor for new external network additions:**
+```bash
+# Establish baseline
+grepnet -r --exclude-cidr '10.0.0.0/8' '0.0.0.0/0' /etc/ > baseline.txt
+
+# Check periodically for changes
+grepnet -r --exclude-cidr '10.0.0.0/8' '0.0.0.0/0' /etc/ > current.txt
+diff baseline.txt current.txt | grep '^>' | wc -l  # count new entries
+```
+Continuous monitoring for new external routes. Alert threshold can be set on diff count.
+
+**Track network references in logs:**
+```bash
+grepnet -c '192.0.2.0/24' /var/log/firewall.*.log | sort -t: -k2 -rn | head -10
+```
+Shows which log files have most activity for a given network. Useful for identifying hotspots or anomalies.
+
+## Compliance and Validation
+
+**Verify no systems reference banned networks:**
+```bash
+if grepnet --exclude-cidrs-file banned.txt '0.0.0.0/0' /etc/firewall.conf 2>/dev/null | wc -l | grep -v '^0$'; then
+  echo "FAIL: Banned networks found"
+  exit 1
+fi
+```
+Compliance check: ensure no blacklisted networks appear anywhere. Useful for automated compliance tests.
+
+**Validate allocation adheres to standards:**
+```bash
+# Policy: all production networks must be /20 to /24
+if grepnet --extract --ipv4-shorter-than=20 production.conf | wc -l | grep -v '^0$'; then
+  echo "FAIL: Networks too large (shorter than /20)"
+  exit 1
+fi
+if grepnet --extract --ipv4-longer-than=24 production.conf | wc -l | grep -v '^0$'; then
+  echo "FAIL: Networks too small (longer than /24)"
+  exit 1
+fi
+echo "PASS: All networks meet allocation policy"
+```
+Strict validation: networks must fall within exactly /20-/24 range. Useful for enforcing allocation standards.
+
+**Audit network ownership across systems:**
+```bash
+TARGET='192.0.2.0/24'
+echo "Searching for $TARGET in all system configs..."
+grepnet -r "$TARGET" /etc/ | cut -d: -f1 | sort -u | while read file; do
+  OWNER=$(stat -c %U "$file" 2>/dev/null)
+  echo "$file (owner: $OWNER)"
+done
+```
+Identifies which config files reference a network and their owners. Useful for accountability and change control.
+
+**Compare intended vs. actual networks:**
+```bash
+# Intended networks
+grepnet --extract intended_config.txt | sort > intended.txt
+
+# Actual networks in production
+grepnet --extract actual_config.txt | sort > actual.txt
+
+# Find mismatches
+comm -23 actual.txt intended.txt  # networks in actual but not intended
+comm -13 actual.txt intended.txt  # networks in intended but not actual
+```
+Gap analysis: what's deployed that wasn't planned? What's planned but not deployed?
+
+## Data Extraction and Processing
+
+**Extract networks for use in other tools:**
+```bash
+# Get all internal networks, then feed to ipcalc for statistics
+grepnet --extract --exclude-cidr '0.0.0.0/0' networks.conf | while read net; do
+  ipcalc "$net" | grep -E 'Network|Broadcast|Hosts'
+done
+```
+Combines grepnet extraction with other network tools (ipcalc, whois, etc.).
+
+**Create access control lists from extracted networks:**
+```bash
+grepnet --extract --format host-mask allowed_networks.txt | while read ip mask; do
+  echo "permit ip $ip $mask"
+done > router_acl.txt
+```
+Converts extracted networks to router ACL format (Cisco, Juniper, etc.).
+
+**Generate firewall rules from network list:**
+```bash
+grepnet --extract partner_networks.txt | sort -t. -k1,1n -k2,2n -k3,3n -k4,4n | while read net; do
+  echo "-A PARTNER_NETS -d $net -j ACCEPT"
+done > partner_rules.conf
+```
+Generates iptables rules from network inventory. Sorted output creates optimized rule ordering.
+
+**Find gaps in IP space allocation:**
+```bash
+# Extract all allocated subnets
+grepnet --extract allocated.txt | sort -t/ -k2 -rn > sorted_subnets.txt
+
+# Use ipcalc to find available space
+# (script would compute gaps between allocations)
+```
+Identifies available IP space for new allocations.
+
+## Troubleshooting and Debugging
+
+**Trace where a specific network appears:**
+```bash
+TARGET='192.0.2.128/25'
+echo "Searching for $TARGET in all configs..."
+grepnet -rn "$TARGET" /etc/ | grep -v '#'  # exclude comments
+```
+Shows exact lines and files referencing a network, useful for tracing network origins or changes.
+
+**Verify network parsing works correctly:**
+```bash
+# Test file with various formats
+cat > test_networks.txt <<'EOF'
+192.0.2.0/24
+192.0.3.0 255.255.255.0
+192.0.4.0-192.0.4.255
+192.0.5.1
+EOF
+
+# Test each format
+grepnet --extract --format cidr test_networks.txt
+```
+Validates that all supported formats are correctly parsed and normalized.
+
+**Check impact of comment filtering:**
+```bash
+# Count with comments included
+COUNT_WITH=$(grepnet --no-filter-comments --extract config.txt | wc -l)
+
+# Count with comments filtered (default)
+COUNT_WITHOUT=$(grepnet --extract config.txt | wc -l)
+
+echo "With comments: $COUNT_WITH"
+echo "Without comments: $COUNT_WITHOUT"
+echo "Networks in comments: $((COUNT_WITH - COUNT_WITHOUT))"
+```
+Quantifies impact of commented network definitions on inventory.
+
+**Test strict validation modes:**
+```bash
+# Create test file with mixed networks
+echo '192.0.2.0/24
+192.0.0.0/16
+192.0.2.128/25' > test.txt
+
+# Default exclude (subset)
+echo "=== Default subset behavior ==="
+grepnet --exclude-cidr '192.0.0.0/16' '0.0.0.0/0' test.txt
+
+# Strict subset (exact match only)
+echo "=== Strict subset behavior ==="
+grepnet --exclude-cidr-behaviour subset-strict --exclude-cidr '192.0.0.0/16' '0.0.0.0/0' test.txt
+```
+Compares behaviors to understand filtering semantics.
 
 # ENVIRONMENT VARIABLES
 
@@ -1275,7 +1798,7 @@ grepnet '192.0.2.0/24' *.txt
 
 # AUTHOR
 
-Larry M. Smith <sgtchains@att.com>
+Larry M. Smith <ls364x@att.com>
 
 # SEE ALSO
 
