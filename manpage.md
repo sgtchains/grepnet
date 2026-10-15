@@ -665,6 +665,39 @@ This helps visually identify which networks required correction, making it easy 
 - `04` - Underline
 - `0` - Default color
 
+## Strict Validation with Extraction and Consolidation
+
+Strict CIDR validation is especially useful with `--extract` and `--consolidate` modes, since these operations normalize all networks to canonical form and the distinction between correct and malformed input becomes significant.
+
+**Extraction behavior**:
+- Non-strict (default): All networks extracted and normalized, no warning
+- Strict mode: Rejects/warns/skips networks with host bits set (depending on action)
+- Use case: Audit data quality before consolidation
+
+**Consolidation behavior**:
+- Strict validation applies during extraction phase (before merging)
+- Consolidation result: Only valid networks are merged
+- Use case: Ensure consolidated output contains only canonical networks
+
+**Example: Audit and clean network data**:
+```bash
+# Strict input validation with warnings, then consolidate
+grepnet --extract --strict-cidr input --strict-cidr-action warn \
+  --consolidate --format cidr config.txt
+
+# Output: Only canonical networks, with warnings for any malformed input
+```
+
+**Example: Identify data quality issues before consolidation**:
+```bash
+# Show which networks needed normalization
+export GREPNET_COLORS="mn=01;31"
+grepnet --extract --format cidr config.txt
+
+# Red-highlighted networks indicate data with host bits set
+# Use --strict-cidr input --strict-cidr-action fail to reject these
+```
+
 # BINARY FILE HANDLING
 
 **-a**, **--text**
