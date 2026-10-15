@@ -1017,17 +1017,29 @@ Useful for safe handling of filenames with special characters: `grepnet -lZ '192
 
 # DEBUGGING
 
+# DEBUGGING
+
 **--debug** [*FUNCTIONS*]
 : Enable debug output to stderr
+
+Produces verbose output useful for troubleshooting pattern matching, network extraction, and filtering logic. Debug output goes to stderr to avoid interfering with normal stdout results.
+
+# MESSAGES AND INFORMATION
 
 **--no-messages**
 : Suppress error and warning messages
 
+Useful in scripts or automated workflows where you want to rely on exit status codes without stderr output.
+
 **--version**
 : Show version and exit
 
+Displays grepnet version number and exits.
+
 **-h**, **--help**
 : Show help and exit
+
+Displays command-line help and exits.
 
 # EXIT STATUS
 
