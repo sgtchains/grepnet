@@ -906,7 +906,41 @@ Foreground colors:
 - `36` = Cyan
 - `37` = White
 
-Combine with semicolons: `01;31` = bold red, `04;32` = underlined green
+**Combining attributes** (stackable ANSI codes):
+ANSI codes can be combined with semicolons to stack multiple attributes. Each key can have multiple codes separated by semicolons:
+- Combine `01` (bold) + color: `01;31` = bold red
+- Combine `04` (underline) + color: `04;32` = underlined green  
+- Combine `07` (reverse video) + color: `07;33` = reverse yellow
+- Combine multiple attributes: `01;04;35` = bold underlined magenta
+
+**Stackable attributes** (can be combined with color codes):
+- `01` = Bold (makes colors brighter/more intense)
+- `04` = Underline (adds underline to text)
+- `07` = Reverse video (swaps foreground and background)
+
+**Stackable color keys** (which keys can have attributes combined):
+Most color keys support combining bold/underline/reverse with a foreground color:
+- `me`, `mb`, `mS`, `mo` (match types): Can stack bold, underline, reverse with colors
+- `mn` (normalized CIDR): Can stack bold, underline, reverse with colors
+- `fn`, `ln`, `bn`, `se`, `mt`, `ms`, `mc` (structural elements): Can stack attributes with colors
+- `mu` (unmatched): Can stack attributes with colors
+- `sl`, `cx` (styling): Can use standalone attributes or with colors
+
+**Example stackable keys**:
+```bash
+# mn (normalized CIDR) with bold red
+export GREPNET_COLORS="mn=01;31"
+
+# mn with underline and bold green
+export GREPNET_COLORS="mn=01;04;32"
+
+# Subset match type (mb) with reverse cyan
+export GREPNET_COLORS="mb=07;36"
+```
+
+**Not stackable** (are mutually exclusive - use only one per key):
+- Foreground colors (`31-37`) - pick one color per key
+- Background colors (`41-47`) - if used, pick one background color
 
 ## Common Customizations
 
@@ -923,11 +957,19 @@ export GREPNET_COLORS="me=01;32 mb=01;36 mS=01;33 mo=01;31"
 grepnet '192.0.0.0/16' *.txt
 ```
 
-**Highlight normalized CIDRs for data quality audit**:
+**Highlight normalized CIDRs for data quality audit** (mn is stackable):
 ```bash
 export GREPNET_COLORS="mn=01;31"
 # Normalized CIDRs (those with host bits stripped) shown in bold red
 grepnet --extract --no-filter-comments *.conf
+```
+
+**Highlight normalized CIDRs with underline instead**:
+```bash
+export GREPNET_COLORS="mn=04;33"
+# Normalized CIDRs shown in underlined yellow (easier for some viewers)
+grepnet --extract --no-filter-comments *.conf
+```
 ```
 
 **High contrast for accessibility**:
