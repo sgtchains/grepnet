@@ -404,28 +404,103 @@ grepnet -r --include '*.py' --include '*.js' --include '*.go' \
 
 # PARSING CONTROL
 
+Parsing control allows you to restrict which network formats grepnet accepts. This is useful for:
+
+- **Enforcing consistency**: Require all networks in a specific format (e.g., only CIDR)
+- **Reducing false positives**: Disable formats that might be ambiguous or commonly mistyped
+- **Validation**: Ensure input conforms to expected structure before processing
+- **Format migration**: Accept input in old format, require output in new format
+
+**Key concept**: Each format type can be enabled/disabled independently for patterns (search terms) and input (data being searched). This allows asymmetric rules like "accept any format in input, but only CIDR in patterns."
+
+**Default behavior**: All formats accepted everywhere (`both`). This provides maximum flexibility but may catch unintended matches.
+
+## Format Options
+
+Each format flag accepts one of four modes:
+
+- **pattern**: Accept format only in search patterns (via `-P`, `-f`, or arguments)
+- **input**: Accept format only in data files being searched
+- **both**: Accept format in both patterns and input (default)
+- **none**: Disable format entirely
+
+## Flags
+
 **--parse-cidr** {**pattern**|**input**|**both**|**none**}
-: Accept CIDR notation in patterns, input, both, or neither (default: **both**)
+: Accept CIDR notation (e.g., `192.0.2.0/24`; default: **both**)
 
 **--parse-netmask** {**pattern**|**input**|**both**|**none**}
-: Accept subnet masks (default: **both**)
+: Accept subnet mask notation (e.g., `192.0.2.0 255.255.255.0`; default: **both**)
 
 **--parse-hostmask** {**pattern**|**input**|**both**|**none**}
-: Accept inverse/host masks (default: **both**)
+: Accept inverse/host mask notation (e.g., `192.0.2.0 0.0.0.255`; default: **both**)
 
 **--parse-ranges** {**pattern**|**input**|**both**|**none**}
-: Accept IP ranges (default: **both**)
+: Accept IP range notation (e.g., `192.0.2.0-192.0.2.255`; default: **both**)
 
 **--parse-bare-ip** {**pattern**|**input**|**both**|**none**}
-: Accept single IP addresses without CIDR notation (default: **both**)
+: Accept single IP addresses without CIDR notation (e.g., `192.0.2.1`; default: **both**)
 
 **--range-format** {**long**|**short**|**both**|**none**}
 : Accept long/short range formats (default: **both**)
+- **long**: `192.0.2.0-192.0.2.255`
+- **short**: `192.0.2.0-255`
 
-Use these to restrict which network formats are recognized. For example:
-- `--parse-ranges none` ignores range notation entirely
-- `--parse-bare-ip input` only accepts bare IPs in input files (not in patterns)
-- `--parse-bare-ip none` requires explicit CIDR notation (e.g., `192.0.2.0/32` instead of `192.0.2.0`)
+## Common Use Cases
+
+**Enforce CIDR-only patterns**:
+```bash
+# Only allow CIDR in search patterns; accept any format in data
+grepnet --parse-cidr both --parse-netmask input \
+  --parse-hostmask input --parse-ranges input \
+  --parse-bare-ip input '192.0.2.0/24' data.txt
+```
+
+**Strict format validation**:
+```bash
+# Accept only CIDR everywhere; reject all other formats
+grepnet --parse-cidr both --parse-netmask none \
+  --parse-hostmask none --parse-ranges none \
+  --parse-bare-ip none '192.0.2.0/24' data.txt
+```
+
+**Accept flexible input, output CIDR only**:
+```bash
+# Extract networks in any format from input, output as standardized CIDR
+grepnet --extract --format cidr data.txt
+# (No parsing flags needed; extraction normalizes everything to CIDR)
+```
+
+**Bare IP only (no CIDR interpretation)**:
+```bash
+# Find exact IPs only; don't interpret as /32 networks
+grepnet --parse-bare-ip both --parse-cidr none \
+  --parse-netmask none --parse-hostmask none \
+  --parse-ranges none 192.0.2.1 data.txt
+```
+
+**Disable potentially ambiguous formats**:
+```bash
+# Turn off bare IPs (often ambiguous in mixed data) and hostmask (rarely used)
+grepnet --parse-bare-ip none --parse-hostmask none '192.0.2.0/24' data.txt
+```
+
+## Asymmetric Parsing Example
+
+**Scenario**: Accept subnet masks in configuration files (old format), but patterns must use CIDR (modern standard).
+
+```bash
+grepnet --parse-cidr both \
+        --parse-netmask input \
+        --parse-ranges none \
+        --parse-bare-ip none \
+        '192.0.2.0/24' config.txt
+```
+
+**Result**:
+- Pattern `192.0.2.0/24` accepted ✓ (CIDR in pattern)
+- File line `server 192.0.2.0 255.255.255.0` matches ✓ (netmask in input)
+- File line `range 192.0.2.0-192.0.2.255` does NOT match ✗ (ranges disabled)
 
 # PREFIX LENGTH FILTERING
 
