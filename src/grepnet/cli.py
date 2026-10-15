@@ -5,9 +5,19 @@ import argparse
 import re
 from collections import deque
 
-import grepnet as grepnet_module
-from grepnet import GrepNet, InputDiscovery, MatchType
-from grepnet.input import InputSource
+# Version string - same in bundled and packaged versions
+__version__ = '5.0.0'
+
+# In bundled version, these classes are already defined in current namespace
+# In packaged version, import from grepnet
+try:
+    import grepnet as grepnet_module
+    from grepnet import GrepNet, InputDiscovery, MatchType
+    from grepnet.input import InputSource
+except ImportError:
+    # Running as bundled single file - everything is in current namespace
+    # Classes will be defined later in the same file
+    grepnet_module = None
 
 
 def error(message, exit_code=2):
@@ -64,7 +74,7 @@ def run():
     parser.add_argument(
         '--version',
         action='version',
-        version=f'%(prog)s {grepnet_module.__version__}',
+        version=f'%(prog)s {__version__}',
     )
     
     # Patterns

@@ -47,7 +47,7 @@ def get_module_order():
 
 
 def clean_imports(content, module_path):
-    """Remove internal imports and fix relative imports."""
+    """Remove internal imports but keep class/function references available."""
     lines = content.split('\n')
     cleaned = []
     
@@ -55,11 +55,19 @@ def clean_imports(content, module_path):
     while i < len(lines):
         line = lines[i]
         
-        # Skip grepnet internal absolute imports (from grepnet.*)
+        # Skip grepnet internal absolute imports - they become local references
+        # Pattern: from grepnet.XXX import YYY -> removed, YYY is now in same scope
         if re.match(r'^\s*from grepnet\.', line):
             i += 1
             continue
         if re.match(r'^\s*import grepnet\.', line):
+            i += 1
+            continue
+        
+        # For: import grepnet as grepnet_module
+        # Replace with pass - the module is now everything in this file
+        if re.match(r'^\s*import grepnet(\s+as\s+\w+)?(\s*#.*)?$', line):
+            # Skip this line - grepnet is now the current namespace
             i += 1
             continue
         

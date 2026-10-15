@@ -10,7 +10,7 @@ from .parsing import NetworkParser, CommentHandler
 from .input import InputSource, InputDiscovery
 from .matching import CIDRMatcher, RangeMatcher
 
-__version__ = '3.0.0'
+__version__ = '5.0.0'
 __all__ = [
     'GrepNet',
     'ParsedExtraction',
