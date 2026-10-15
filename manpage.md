@@ -223,19 +223,25 @@ grepnet --consolidate --fill-pct=50 --format ips network_ranges.txt
 **--exclude-cidrs-file** *FILE*
 : Load networks to exclude from file
 
-**--exclude-cidr-behaviour** {**subset**|**superset**|**equals**|**related**|**cut**}
+**--exclude-cidr-behaviour** {**subset**|**subset-strict**|**superset**|**superset-strict**|**equals**|**related**|**cut**}
 : How to match excluded networks (default: **subset**)
 
 Control how excluded networks are matched:
-- **subset**: Exclude networks contained within excluded CIDR (default)
-- **superset**: Exclude networks that contain excluded CIDR
+
+- **subset** (⊆): Exclude networks contained within excluded CIDR, including exact matches (default)
+- **subset-strict** (⊂): Exclude networks strictly contained within excluded CIDR, excluding exact matches
+- **superset** (⊇): Exclude networks that contain excluded CIDR, including exact matches
+- **superset-strict** (⊃): Exclude networks strictly containing excluded CIDR, excluding exact matches
 - **equals**: Exclude only exact matches
 - **related**: Exclude any network that touches, contains, or is contained by excluded CIDR
 - **cut**: Remove excluded network and return non-overlapping remainder blocks
 
 **Examples**:
-- `--exclude-cidr-behaviour=subset --exclude-cidr 192.0.0.0/16` excludes `192.0.2.0/24` but not `10.0.0.0/8`
-- `--exclude-cidr-behaviour=cut --exclude-cidr 192.0.2.4/30 192.0.2.0/24` returns gap-fill blocks
+- `--exclude-cidr-behaviour=subset --exclude-cidr 192.0.0.0/16` excludes `192.0.2.0/24` and `192.0.0.0/16` but not `10.0.0.0/8`
+- `--exclude-cidr-behaviour=subset-strict --exclude-cidr 192.0.0.0/16` excludes `192.0.2.0/24` but NOT `192.0.0.0/16` or `10.0.0.0/8`
+- `--exclude-cidr-behaviour=superset --exclude-cidr 192.0.2.0/24` excludes `192.0.0.0/16` and `192.0.2.0/24` but not `10.0.0.0/8`
+- `--exclude-cidr-behaviour=superset-strict --exclude-cidr 192.0.2.0/24` excludes `192.0.0.0/16` but NOT `192.0.2.0/24` or `10.0.0.0/8`
+- `--exclude-cidr-behaviour=cut --exclude-cidr 192.0.2.4/30 --exclude-cidr 192.0.2.0/24` returns gap-fill blocks
 
 **--exclude-string** example: `grepnet '192.0.0.0/16' data.txt --exclude-string 'deprecated'` finds all matches except lines marked deprecated
 
@@ -510,6 +516,22 @@ grepnet --exclude-cidr '192.0.2.0/25' '192.0.2.0/24' data.txt
 
 # Exclude networks from file
 grepnet --exclude-cidrs-file banned.txt '0.0.0.0/0' networks.txt
+```
+
+## Exclusion with Strict Behavior
+
+```bash
+# Default subset: Exclude 192.0.2.0/24 AND 192.0.0.0/16, but not 10.0.0.0/8
+grepnet --exclude-cidr '192.0.0.0/16' '0.0.0.0/0' networks.txt
+
+# Strict subset: Exclude only 192.0.2.0/24, NOT 192.0.0.0/16 (exact match)
+grepnet --exclude-cidr-behaviour subset-strict --exclude-cidr '192.0.0.0/16' '0.0.0.0/0' networks.txt
+
+# Default superset: Exclude 192.0.0.0/16 AND 192.0.2.0/24, but not 10.0.0.0/8
+grepnet --exclude-cidr-behaviour superset --exclude-cidr '192.0.2.0/24' '0.0.0.0/0' networks.txt
+
+# Strict superset: Exclude only 192.0.0.0/16, NOT 192.0.2.0/24 (exact match)
+grepnet --exclude-cidr-behaviour superset-strict --exclude-cidr '192.0.2.0/24' '0.0.0.0/0' networks.txt
 ```
 
 ## Recursive Searching
