@@ -961,15 +961,14 @@ grepnet '192.0.0.0/16' *.txt
 ```bash
 export GREPNET_COLORS="mn=01;31"
 # Normalized CIDRs (those with host bits stripped) shown in bold red
-grepnet --extract --no-filter-comments *.conf
+grepnet --no-filter-comments '192.0.2.0/24' *.conf
 ```
 
 **Highlight normalized CIDRs with underline instead**:
 ```bash
 export GREPNET_COLORS="mn=04;33"
 # Normalized CIDRs shown in underlined yellow (easier for some viewers)
-grepnet --extract --no-filter-comments *.conf
-```
+grepnet --no-filter-comments '192.0.2.0/24' *.conf
 ```
 
 **High contrast for accessibility**:
