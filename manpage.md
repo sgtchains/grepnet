@@ -836,16 +836,133 @@ grepnet --extract --no-filter-comments *.md *.rst
 
 # COLOR OUTPUT
 
+Colored output helps identify different parts of grepnet results at a glance. Each element (filename, line number, matched networks, match types, etc.) can have its own color.
+
+**Output structure with colors**:
+```
+[filename]:[line_number]:[matched_line_content]
+```
+
+Different elements can be styled independently:
+- **filename**: File containing the match
+- **line_number**: Line number of the match
+- **match_type colors**: Different colors for equals/subset/superset/overlap/unmatched relationships
+- **normalized_marker**: Highlight CIDRs that required normalization (host bits stripped)
+- **context_lines**: Different style for context (non-matching) lines
+
+## Flags
+
 **--color** {**auto**|**always**|**never**}
-: Use colored output (default: **auto** - colors on terminal, none when piped)
+: When to use colored output (default: **auto**)
 
-**GREPNET_COLORS**
-: Environment variable to customize colors (space-separated `KEY=ANSI_CODE` pairs)
+- **auto**: Colors on terminal output, plain text when output is piped or redirected
+- **always**: Force colored output even when piped (useful for terminal multiplexers, log files)
+- **never**: Disable colors (useful for scripts, CI/CD pipelines)
 
+**Example - Force colors even when piped**:
 ```bash
-export GREPNET_COLORS="match=01;32 filename=35"
+grepnet --color always '192.0.2.0/24' *.txt | less -R
+# -R tells less to interpret ANSI color codes
+```
+
+## Customizing Colors with GREPNET_COLORS
+
+Use the `GREPNET_COLORS` environment variable to customize any color element. Format: space-separated KEY=ANSI_CODE pairs.
+
+**Supported color keys**:
+
+| Key | Meaning | Default |
+|-----|---------|---------|
+| `fn` | Filename | 35 (magenta) |
+| `ln` | Line number | 32 (green) |
+| `bn` | Byte offset | 32 (green) |
+| `se` | Separator (: or |) | 36 (cyan) |
+| `sl` | Selected line background | 0 (none) |
+| `cx` | Context line styling | 0 (none) |
+| `mt` | Match text | 0 (none) |
+| `ms` | Match separator within line | 0 (none) |
+| `mc` | Match colon | 0 (none) |
+| `me` | EQUALS match type | 01;32 (bright green) |
+| `mb` | SUBSET match type | 01;34 (bright blue) |
+| `mS` | SUPERSET match type | 01;33 (bright yellow) |
+| `mo` | OVERLAP match type | 01;31 (bright red) |
+| `mu` | UNMATCHED networks | 0 (none) |
+| `mn` | Normalized CIDR (host bits fixed) | 04 (underline) |
+
+**ANSI color codes** (SGR - Select Graphic Rendition):
+
+Basic codes:
+- `0` = Reset to default
+- `01` = Bold
+- `04` = Underline
+- `07` = Reverse video (inverse)
+
+Foreground colors:
+- `31` = Red
+- `32` = Green
+- `33` = Yellow
+- `34` = Blue
+- `35` = Magenta
+- `36` = Cyan
+- `37` = White
+
+Combine with semicolons: `01;31` = bold red, `04;32` = underlined green
+
+## Common Customizations
+
+**Make all matches bright red**:
+```bash
+export GREPNET_COLORS="me=01;31 mb=01;31 mS=01;31 mo=01;31"
+grepnet '192.0.0.0/16' *.txt
+```
+
+**Color by match type (standard but more saturated)**:
+```bash
+export GREPNET_COLORS="me=01;32 mb=01;36 mS=01;33 mo=01;31"
+# Green for equals, cyan for subset, yellow for superset, red for overlap
+grepnet '192.0.0.0/16' *.txt
+```
+
+**Highlight normalized CIDRs for data quality audit**:
+```bash
+export GREPNET_COLORS="mn=01;31"
+# Normalized CIDRs (those with host bits stripped) shown in bold red
+grepnet --extract --no-filter-comments *.conf
+```
+
+**High contrast for accessibility**:
+```bash
+export GREPNET_COLORS="fn=01;37 ln=01;32 me=01;36 mb=01;36 mS=01;33 mo=01;31"
+# Filenames: bold white
+# Line numbers: bold green
+# Matches: cyan, cyan, yellow, red
+grepnet '192.0.2.0/24' data.txt
+```
+
+**Minimal/no highlighting**:
+```bash
+export GREPNET_COLORS="me=0 mb=0 mS=0 mo=0 mn=0"
 grepnet '192.0.2.0/24' *.txt
 ```
+
+## Color Codes in Output
+
+When colored output is enabled, ANSI escape sequences are embedded in the output. These look like `[ESC[...m` in raw form but render as colors in terminal emulators.
+
+**Example raw output** (what's in the terminal):
+```
+\033[35mfile.txt\033[36m:\033[32m42\033[36m:\033[01;32m192.0.2.0/24\033[0m other text
+```
+
+**Renders as** (what you see):
+```
+file.txt:42:[highlighted]192.0.2.0/24[reset] other text
+```
+
+**Piping with colors**:
+- Default (`--color auto`): Colors are removed when output is piped
+- With `--color always`: Colors are preserved (useful for `less -R`, `more`, etc.)
+- For scripts: Use `--color never` to avoid color codes in captured output
 
 # DATA FORMATS
 
