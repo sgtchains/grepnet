@@ -32,7 +32,7 @@ Unlike grep which does text matching, grepnet understands network topology. Thes
 192.0.2.0 255.255.255.0  (Subnet mask)
 192.0.2.0 0.0.0.255      (Inverse mask)
 192.0.2.0-192.0.2.255    (IP range)
-192.0.2.0-1              (Short-range: first and last address)
+192.0.2.0-255            (Short-range: octet-based notation)
 192.0.2.1                (Single IP within the network)
 ```
 
