@@ -44,6 +44,7 @@ class InputSource:
         fd: Optional[int] = None,
         label: Optional[str] = None,
         null_delimited: bool = False,
+        fd_path: Optional[str] = None,
     ):
         """
         Initialize InputSource.
@@ -54,6 +55,7 @@ class InputSource:
             fd: File descriptor number (required if source_type='fd')
             label: Custom display label (from --label flag, used with stdin or fd)
             null_delimited: If True, split on NUL byte instead of newline (for -z flag)
+            fd_path: Original path for fd sources (e.g., '/dev/fd/63' from process substitution)
         """
         if source_type not in ('file', 'stdin', 'fd'):
             raise ValueError(f"Invalid source_type: {source_type}")
@@ -62,6 +64,7 @@ class InputSource:
         self.file_path = file_path
         self.fd = fd
         self._label = label
+        self.fd_path = fd_path  # Store original FD path for display purposes
         self.null_delimited = null_delimited
         self.record_delimiter = b'\0' if null_delimited else b'\n'
         self._is_binary = None  # Cache binary status
@@ -81,13 +84,21 @@ class InputSource:
         
         Returns:
             - For files: the file path
-            - For stdin/fd: the custom label (if --label was provided), or None
+            - For fd/stdin with explicit label: the custom label (from --label)
+            - For fd sources without label: the fd_path if available (e.g., '/dev/fd/63')
+            - For stdin without label: None
         """
         if self.source_type == 'file':
             return self.file_path
-        else:
-            # stdin or fd: return label only if explicitly set
+        elif self._label:
+            # If label was explicitly provided, use it (takes precedence)
             return self._label
+        elif self.source_type == 'fd' and self.fd_path:
+            # For FDs without explicit label, use the original path
+            return self.fd_path
+        else:
+            # stdin without label, or fd without label and path
+            return None
     
     def get_binary_status(self) -> bool:
         """
@@ -580,18 +591,18 @@ class InputDiscovery:
                 # Support /dev/fd/N and /proc/*/fd/N patterns (process substitution)
                 elif file_path.startswith('/dev/fd/') and file_path[8:].isdigit():
                     fd = int(file_path[8:])
-                    sources.append(InputSource('fd', fd=fd, label=stdin_label, null_delimited=null_delimited))
+                    sources.append(InputSource('fd', fd=fd, fd_path=file_path, label=stdin_label, null_delimited=null_delimited))
                 elif '/proc/' in file_path and file_path.endswith(('/fd/0', '/fd/1', '/fd/2')):
                     # Standard streams via /proc
                     fd = int(file_path[-1])
-                    sources.append(InputSource('fd', fd=fd, label=stdin_label, null_delimited=null_delimited))
+                    sources.append(InputSource('fd', fd=fd, fd_path=file_path, label=stdin_label, null_delimited=null_delimited))
                 elif '/proc/' in file_path and '/fd/' in file_path:
                     # Try to extract FD number from /proc paths
                     try:
                         fd_str = file_path.split('/fd/')[-1]
                         if fd_str.isdigit():
                             fd = int(fd_str)
-                            sources.append(InputSource('fd', fd=fd, label=stdin_label, null_delimited=null_delimited))
+                            sources.append(InputSource('fd', fd=fd, fd_path=file_path, label=stdin_label, null_delimited=null_delimited))
                         else:
                             # Not an FD path, treat as regular file
                             if not matches_patterns(file_path, include_patterns):

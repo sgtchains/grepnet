@@ -476,3 +476,48 @@ class TestPatternValidation(unittest.TestCase):
 if __name__ == '__main__':
     unittest.main()
 
+
+
+class TestFDPathDisplay(TestFDDirectInput):
+    """Test that /dev/fd/N paths are displayed correctly with -H flag."""
+    
+    def test_process_substitution_shows_dev_fd_path_with_H(self):
+        """Test that -H flag shows /dev/fd/N path for process substitution."""
+        cmd = [
+            'bash', '-c',
+            f'{self.grepnet_script} -H "192.0.2.1" <(echo 192.0.2.1)'
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        
+        self.assertEqual(result.returncode, 0, f"stderr: {result.stderr}")
+        # Should show /dev/fd/N prefix, not (standard input)
+        self.assertIn('/dev/fd/', result.stdout)
+        self.assertNotIn('(standard input)', result.stdout)
+        self.assertIn('192.0.2.1', result.stdout)
+    
+    def test_process_substitution_with_label_overrides_fd_path(self):
+        """Test that --label takes precedence over fd_path."""
+        cmd = [
+            'bash', '-c',
+            f'{self.grepnet_script} -H --label=custom_name "192.0.2.1" <(echo 192.0.2.1)'
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        
+        self.assertEqual(result.returncode, 0, f"stderr: {result.stderr}")
+        # Should show custom label, not /dev/fd/N
+        self.assertIn('custom_name:', result.stdout)
+        self.assertNotIn('/dev/fd/', result.stdout)
+        self.assertIn('192.0.2.1', result.stdout)
+    
+    def test_dev_fd_without_H_flag_no_prefix(self):
+        """Test that without -H flag, no prefix is shown."""
+        cmd = [
+            'bash', '-c',
+            f'{self.grepnet_script} "192.0.2.1" <(echo 192.0.2.1)'
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        
+        self.assertEqual(result.returncode, 0, f"stderr: {result.stderr}")
+        # Should only show the match, no prefix
+        self.assertEqual(result.stdout.strip(), '192.0.2.1')
+        self.assertNotIn(':', result.stdout)
