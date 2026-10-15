@@ -588,18 +588,82 @@ grepnet --consolidate --ipv4-shorter-than=20 all_networks.txt
 
 # STRICT CIDR VALIDATION
 
+CIDR validation ensures that network addresses don't have "host bits" set. For example, `192.0.2.1/24` is technically invalid (host bits are set); the correct form is `192.0.2.0/24`.
+
+**Why strict validation matters**:
+- **Consistency**: Ensures all networks are represented canonically
+- **Debugging**: Catches typos (e.g., pattern meant to be `192.0.2.0/24` but written as `192.0.2.1/24`)
+- **Compliance**: Some tools/standards require strict CIDR notation
+- **Safety**: Avoid ambiguous network definitions
+
+**Default behavior**: Non-strict (normalize silently). Malformed CIDRs like `192.0.2.1/24` are automatically corrected to `192.0.2.0/24` without warning. This provides flexibility but may hide mistakes.
+
+## Flags
+
 **--strict-cidr** {**pattern**|**input**|**both**|**none**}
-: Apply strict CIDR validation (default: **none**)
+: Where to apply strict CIDR validation (default: **none**)
+
+- **pattern**: Validate search patterns only (reject malformed patterns)
+- **input**: Validate data file content only (reject malformed networks found in files)
+- **both**: Validate both patterns and input
+- **none**: No strict validation (default; silently normalize)
 
 **--strict-cidr-action** {**fail**|**normalize**|**ignore**|**warn**}
-: Action on invalid CIDR (default: **normalize**)
+: Action when invalid CIDR detected (default: **normalize**)
 
-Strict mode rejects CIDRs with host bits set (e.g., `192.0.2.1/24` should be `192.0.2.0/24`).
+- **fail** - Exit with error code 2 (stop processing)
+- **normalize** - Silently correct to network address (default)
+- **ignore** - Skip invalid CIDR (don't include in results)
+- **warn** - Print warning to stderr, then skip
 
-- **fail** - Exit with error code 2
-- **normalize** - Silently correct to network address
-- **ignore** - Skip invalid CIDR
-- **warn** - Print warning, then skip
+## Use Cases
+
+**Audit configuration consistency**:
+```bash
+# Reject any malformed CIDR in input; show warnings
+grepnet --strict-cidr input --strict-cidr-action warn '192.0.2.0/24' config.txt
+```
+
+**Enforce pattern validation**:
+```bash
+# Reject if user types malformed pattern (e.g., typo in script)
+grepnet --strict-cidr pattern --strict-cidr-action fail '192.0.2.0/24' data.txt
+```
+
+**Strict everywhere with warnings**:
+```bash
+# Both patterns and input must be valid; warn on violations
+grepnet --strict-cidr both --strict-cidr-action warn '192.0.2.0/24' config.txt
+```
+
+**Silent normalization (default)**:
+```bash
+# Accept `192.0.2.1/24`, automatically correct to `192.0.2.0/24`
+grepnet '192.0.2.0/24' config.txt
+# No warnings; output treats both as `192.0.2.0/24`
+```
+
+## Visual Highlighting of Normalized CIDRs
+
+When a CIDR has been normalized (host bits were corrected), grepnet can highlight it in output using the `GREPNET_COLORS` environment variable. The color key `mn` controls the appearance of normalized CIDRs.
+
+**Default**: Normalized CIDRs are underlined (`04`)
+
+**Example**: Highlight normalized CIDRs in red:
+```bash
+export GREPNET_COLORS="mn=01;31"
+grepnet '192.0.2.0/24' config.txt
+# Any network found as 192.0.2.1/24 (normalized to 192.0.2.0/24) will be displayed in red
+```
+
+This helps visually identify which networks required correction, making it easy to spot potential data quality issues without enabling strict mode errors.
+
+**Color code format**: ANSI escape codes (e.g., `01;31` = bold red)
+- `01;31` - Bold red
+- `01;33` - Bold yellow
+- `01;36` - Bold cyan
+- `04` - Underline
+- `0` - Default color
 
 # BINARY FILE HANDLING
 
