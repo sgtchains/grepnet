@@ -1,5 +1,5 @@
 """
-Test suite for --exclude-cidr-behaviour option.
+Test suite for --exclude-cidr-behavior option.
 
 Tests the five exclusion behaviors: subset (default), superset, equals, related, and cut.
 """
@@ -10,7 +10,7 @@ from pathlib import Path
 
 
 class TestExcludeCidrBehaviour(unittest.TestCase):
-    """Test --exclude-cidr-behaviour option."""
+    """Test --exclude-cidr-behavior option."""
     
     def setUp(self):
         """Set up test fixtures."""
@@ -42,7 +42,7 @@ class TestCutBehaviour(TestExcludeCidrBehaviour):
         stdout, stderr, rc = self.run_grepnet(
             '--extract',
             '--exclude-cidr=192.0.2.0/30',
-            '--exclude-cidr-behaviour=cut',
+            '--exclude-cidr-behavior=cut',
             stdin_data='192.0.2.0/24'
         )
         
@@ -60,7 +60,7 @@ class TestCutBehaviour(TestExcludeCidrBehaviour):
         stdout, stderr, rc = self.run_grepnet(
             '--extract',
             '--exclude-cidr=192.0.2.4/30',
-            '--exclude-cidr-behaviour=cut',
+            '--exclude-cidr-behavior=cut',
             stdin_data='192.0.2.0/24'
         )
         
@@ -77,7 +77,7 @@ class TestCutBehaviour(TestExcludeCidrBehaviour):
         stdout, stderr, rc = self.run_grepnet(
             '--extract',
             '--exclude-cidr=192.0.2.0/24',
-            '--exclude-cidr-behaviour=cut',
+            '--exclude-cidr-behavior=cut',
             stdin_data='192.0.2.0/24'
         )
         
@@ -91,7 +91,7 @@ class TestCutBehaviour(TestExcludeCidrBehaviour):
             '--extract',
             '--exclude-cidr=192.0.2.0/30',
             '--exclude-cidr=192.0.2.64/26',
-            '--exclude-cidr-behaviour=cut',
+            '--exclude-cidr-behavior=cut',
             stdin_data='192.0.2.0/24'
         )
         
@@ -109,7 +109,7 @@ class TestCutBehaviour(TestExcludeCidrBehaviour):
         stdout, stderr, rc = self.run_grepnet(
             '--consolidate',
             '--exclude-cidr=192.0.2.0/30',
-            '--exclude-cidr-behaviour=cut',
+            '--exclude-cidr-behavior=cut',
             stdin_data='192.0.2.0/25\n192.0.2.0/26'
         )
         
@@ -124,19 +124,19 @@ class TestCutBehaviour(TestExcludeCidrBehaviour):
         """Test that cut behavior errors without --extract or --consolidate."""
         stdout, stderr, rc = self.run_grepnet(
             '192.0.2.0/24',
-            '--exclude-cidr-behaviour=cut',
+            '--exclude-cidr-behavior=cut',
             stdin_data='192.0.2.1'
         )
         
         self.assertEqual(rc, 2)
-        self.assertIn('--exclude-cidr-behaviour=cut requires --extract or --consolidate', stderr)
+        self.assertIn('--exclude-cidr-behavior=cut requires --extract or --consolidate', stderr)
     
     def test_cut_no_overlap_returns_original(self):
         """Test cut when exclude doesn't overlap with extracted network."""
         stdout, stderr, rc = self.run_grepnet(
             '--extract',
             '--exclude-cidr=10.0.0.0/8',
-            '--exclude-cidr-behaviour=cut',
+            '--exclude-cidr-behavior=cut',
             stdin_data='192.0.2.0/24'
         )
         
@@ -168,7 +168,7 @@ class TestSubsetBehaviour(TestExcludeCidrBehaviour):
         """Test explicit subset behavior."""
         stdout, stderr, rc = self.run_grepnet(
             '0.0.0.0/0',
-            '--exclude-cidr-behaviour=subset',
+            '--exclude-cidr-behavior=subset',
             '--exclude-cidr=192.0.0.0/16',
             stdin_data='192.0.2.0/24\n10.0.0.0/8'
         )
@@ -187,7 +187,7 @@ class TestSupersetBehaviour(TestExcludeCidrBehaviour):
         # 192.0.2.0/24 equals exclude, should also be excluded  (by the ==check)
         stdout, stderr, rc = self.run_grepnet(
             '0.0.0.0/0',
-            '--exclude-cidr-behaviour=superset',
+            '--exclude-cidr-behavior=superset',
             '--exclude-cidr=192.0.2.0/24',
             stdin_data='192.0.0.0/16\n192.0.2.0/24\n10.0.0.0/8'
         )
@@ -207,7 +207,7 @@ class TestEqualsBehaviour(TestExcludeCidrBehaviour):
         """Test that equals excludes only exact matches."""
         stdout, stderr, rc = self.run_grepnet(
             '192.0.2.0/24',
-            '--exclude-cidr-behaviour=equals',
+            '--exclude-cidr-behavior=equals',
             '--exclude-cidr=192.0.2.0/24',
             stdin_data='192.0.2.0/24\n192.0.2.0/25\n192.0.0.0/16'
         )
@@ -225,7 +225,7 @@ class TestRelatedBehaviour(TestExcludeCidrBehaviour):
         """Test that related excludes overlapping networks."""
         stdout, stderr, rc = self.run_grepnet(
             '0.0.0.0/0',
-            '--exclude-cidr-behaviour=related',
+            '--exclude-cidr-behavior=related',
             '--exclude-cidr=192.0.2.0/25',
             stdin_data='192.0.2.0/24\n192.0.2.0/25\n10.0.0.0/8'
         )

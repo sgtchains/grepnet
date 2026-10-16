@@ -331,7 +331,7 @@ is removed from output.
 \f[B]Network-based filtering\f[R] (\f[V]--exclude-cidr\f[R]): Excludes
 network matches that have specific relationships to excluded CIDR
 blocks.
-The relationship is determined by \f[V]--exclude-cidr-behaviour\f[R].
+The relationship is determined by \f[V]--exclude-cidr-behavior\f[R].
 Useful for filtering by network hierarchy (e.g., exclude all internal
 networks, keep only external references).
 .PP
@@ -363,7 +363,7 @@ Exclude specific networks (repeatable)
 \f[B]\f[VB]--exclude-cidrs-file\f[B]\f[R] \f[I]FILE\f[R]
 Load networks to exclude from file
 .TP
-\f[B]\f[VB]--exclude-cidr-behaviour\f[B]\f[R] {\f[B]subset\f[R]|\f[B]subset-strict\f[R]|\f[B]superset\f[R]|\f[B]superset-strict\f[R]|\f[B]equals\f[R]|\f[B]related\f[R]|\f[B]cut\f[R]}
+\f[B]\f[VB]--exclude-cidr-behavior\f[B]\f[R] {\f[B]subset\f[R]|\f[B]subset-strict\f[R]|\f[B]superset\f[R]|\f[B]superset-strict\f[R]|\f[B]equals\f[R]|\f[B]related\f[R]|\f[B]cut\f[R]}
 How to match excluded networks (default: \f[B]subset\f[R])
 .SS Exclusion Behaviors
 .PP
@@ -440,7 +440,7 @@ networks\f[R]
 .nf
 \f[C]
 # Find subnets of 192.0.0.0/16, but exclude 192.0.0.0/16 itself
-grepnet --extract --exclude-cidr-behaviour subset-strict \[rs]
+grepnet --extract --exclude-cidr-behavior subset-strict \[rs]
   --exclude-cidr \[aq]192.0.0.0/16\[aq] networks.txt
 \f[R]
 .fi
@@ -450,7 +450,7 @@ grepnet --extract --exclude-cidr-behaviour subset-strict \[rs]
 .nf
 \f[C]
 # Find networks NOT in allowed ranges (carve out allowed space)
-grepnet --extract --consolidate --exclude-cidr-behaviour cut \[rs]
+grepnet --extract --consolidate --exclude-cidr-behavior cut \[rs]
   --exclude-cidr \[aq]10.0.0.0/8\[aq] --exclude-cidr \[aq]192.168.0.0/16\[aq] all_networks.txt
 \f[R]
 .fi
@@ -470,7 +470,7 @@ Example:
 # Input networks: 10.0.0.0/8
 # Exclude: 10.10.0.0/16
 # Result: 10.0.0.0/22, 10.0.4.0/22, ..., 10.10.0.0/16 (gap), ..., 10.255.0.0/22
-grepnet --extract --exclude-cidr-behaviour cut --exclude-cidr \[aq]10.10.0.0/16\[aq] \[rs]
+grepnet --extract --exclude-cidr-behavior cut --exclude-cidr \[aq]10.10.0.0/16\[aq] \[rs]
   --format cidr networks.txt
 \f[R]
 .fi
@@ -1942,7 +1942,7 @@ removed.
 .IP
 .nf
 \f[C]
-grepnet --exclude-cidr-behaviour subset-strict --exclude-cidr \[aq]192.0.0.0/16\[aq] \[aq]0.0.0.0/0\[aq] networks.txt
+grepnet --exclude-cidr-behavior subset-strict --exclude-cidr \[aq]192.0.0.0/16\[aq] \[aq]0.0.0.0/0\[aq] networks.txt
 \f[R]
 .fi
 .PP
@@ -1956,7 +1956,7 @@ everything within it.\[rq]
 .IP
 .nf
 \f[C]
-grepnet --exclude-cidr-behaviour superset --exclude-cidr \[aq]192.0.2.0/24\[aq] \[aq]0.0.0.0/0\[aq] networks.txt
+grepnet --exclude-cidr-behavior superset --exclude-cidr \[aq]192.0.2.0/24\[aq] \[aq]0.0.0.0/0\[aq] networks.txt
 \f[R]
 .fi
 .PP
@@ -1968,7 +1968,7 @@ Filters based on \[lq]anything that includes this network.\[rq]
 .IP
 .nf
 \f[C]
-grepnet --exclude-cidr-behaviour superset-strict --exclude-cidr \[aq]192.0.2.0/24\[aq] \[aq]0.0.0.0/0\[aq] networks.txt
+grepnet --exclude-cidr-behavior superset-strict --exclude-cidr \[aq]192.0.2.0/24\[aq] \[aq]0.0.0.0/0\[aq] networks.txt
 \f[R]
 .fi
 .PP
@@ -2663,7 +2663,7 @@ grepnet --exclude-cidr \[aq]192.0.0.0/16\[aq] \[aq]0.0.0.0/0\[aq] test.txt
 
 # Strict subset (exact match only)
 echo \[dq]=== Strict subset behavior ===\[dq]
-grepnet --exclude-cidr-behaviour subset-strict --exclude-cidr \[aq]192.0.0.0/16\[aq] \[aq]0.0.0.0/0\[aq] test.txt
+grepnet --exclude-cidr-behavior subset-strict --exclude-cidr \[aq]192.0.0.0/16\[aq] \[aq]0.0.0.0/0\[aq] test.txt
 \f[R]
 .fi
 .PP

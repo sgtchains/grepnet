@@ -43,7 +43,7 @@ class TestSubsetStrictBehavior(TestStrictExclusionBehaviors):
         stdout, stderr, rc = self.run_grepnet(
             '--extract',
             '--exclude-cidr=192.0.0.0/16',
-            '--exclude-cidr-behaviour=subset-strict',
+            '--exclude-cidr-behavior=subset-strict',
             stdin_data='10.0.0.0/8\n192.0.0.0/16\n192.0.2.0/24'
         )
         
@@ -65,7 +65,7 @@ class TestSubsetStrictBehavior(TestStrictExclusionBehaviors):
         stdout_subset, _, _ = self.run_grepnet(
             '--extract',
             f'--exclude-cidr={exclude}',
-            '--exclude-cidr-behaviour=subset',
+            '--exclude-cidr-behavior=subset',
             stdin_data=networks
         )
         
@@ -73,7 +73,7 @@ class TestSubsetStrictBehavior(TestStrictExclusionBehaviors):
         stdout_strict, _, _ = self.run_grepnet(
             '--extract',
             f'--exclude-cidr={exclude}',
-            '--exclude-cidr-behaviour=subset-strict',
+            '--exclude-cidr-behavior=subset-strict',
             stdin_data=networks
         )
         
@@ -90,7 +90,7 @@ class TestSubsetStrictBehavior(TestStrictExclusionBehaviors):
         stdout, stderr, rc = self.run_grepnet(
             '--extract',
             '--exclude-cidr=192.0.2.0/24',
-            '--exclude-cidr-behaviour=subset-strict',
+            '--exclude-cidr-behavior=subset-strict',
             stdin_data='192.0.2.0/24'
         )
         
@@ -103,7 +103,7 @@ class TestSubsetStrictBehavior(TestStrictExclusionBehaviors):
         stdout, stderr, rc = self.run_grepnet(
             '--extract',
             '--exclude-cidr=192.0.2.0/24',
-            '--exclude-cidr-behaviour=subset-strict',
+            '--exclude-cidr-behavior=subset-strict',
             stdin_data='192.0.0.0/16'
         )
         
@@ -117,7 +117,7 @@ class TestSubsetStrictBehavior(TestStrictExclusionBehaviors):
             '--extract',
             '--exclude-cidr=192.0.0.0/16',
             '--exclude-cidr=10.0.0.0/8',
-            '--exclude-cidr-behaviour=subset-strict',
+            '--exclude-cidr-behavior=subset-strict',
             stdin_data='10.0.0.0/8\n10.0.1.0/24\n192.0.0.0/16\n192.0.2.0/24'
         )
         
@@ -142,7 +142,7 @@ class TestSupersetStrictBehavior(TestStrictExclusionBehaviors):
         stdout, stderr, rc = self.run_grepnet(
             '--extract',
             '--exclude-cidr=192.0.2.0/24',
-            '--exclude-cidr-behaviour=superset-strict',
+            '--exclude-cidr-behavior=superset-strict',
             stdin_data='192.0.0.0/16\n192.0.2.0/24\n192.0.2.0/25'
         )
         
@@ -164,7 +164,7 @@ class TestSupersetStrictBehavior(TestStrictExclusionBehaviors):
         stdout_superset, _, _ = self.run_grepnet(
             '--extract',
             f'--exclude-cidr={exclude}',
-            '--exclude-cidr-behaviour=superset',
+            '--exclude-cidr-behavior=superset',
             stdin_data=networks
         )
         
@@ -172,7 +172,7 @@ class TestSupersetStrictBehavior(TestStrictExclusionBehaviors):
         stdout_strict, _, _ = self.run_grepnet(
             '--extract',
             f'--exclude-cidr={exclude}',
-            '--exclude-cidr-behaviour=superset-strict',
+            '--exclude-cidr-behavior=superset-strict',
             stdin_data=networks
         )
         
@@ -189,7 +189,7 @@ class TestSupersetStrictBehavior(TestStrictExclusionBehaviors):
         stdout, stderr, rc = self.run_grepnet(
             '--extract',
             '--exclude-cidr=192.0.2.0/24',
-            '--exclude-cidr-behaviour=superset-strict',
+            '--exclude-cidr-behavior=superset-strict',
             stdin_data='192.0.2.0/24'
         )
         
@@ -202,7 +202,7 @@ class TestSupersetStrictBehavior(TestStrictExclusionBehaviors):
         stdout, stderr, rc = self.run_grepnet(
             '--extract',
             '--exclude-cidr=192.0.0.0/16',
-            '--exclude-cidr-behaviour=superset-strict',
+            '--exclude-cidr-behavior=superset-strict',
             stdin_data='192.0.2.0/24'
         )
         
@@ -216,7 +216,7 @@ class TestSupersetStrictBehavior(TestStrictExclusionBehaviors):
             '--extract',
             '--exclude-cidr=192.0.2.0/24',
             '--exclude-cidr=10.0.1.0/24',
-            '--exclude-cidr-behaviour=superset-strict',
+            '--exclude-cidr-behavior=superset-strict',
             stdin_data='10.0.0.0/8\n10.0.1.0/24\n192.0.0.0/16\n192.0.2.0/24'
         )
         
@@ -243,7 +243,7 @@ class TestComparisonWithNonStrictVariants(TestStrictExclusionBehaviors):
         stdout_subset, _, _ = self.run_grepnet(
             '--extract',
             f'--exclude-cidr={exclude}',
-            '--exclude-cidr-behaviour=subset',
+            '--exclude-cidr-behavior=subset',
             stdin_data=networks
         )
         
@@ -251,7 +251,7 @@ class TestComparisonWithNonStrictVariants(TestStrictExclusionBehaviors):
         stdout_strict, _, _ = self.run_grepnet(
             '--extract',
             f'--exclude-cidr={exclude}',
-            '--exclude-cidr-behaviour=subset-strict',
+            '--exclude-cidr-behavior=subset-strict',
             stdin_data=networks
         )
         
@@ -269,7 +269,7 @@ class TestComparisonWithNonStrictVariants(TestStrictExclusionBehaviors):
         stdout_superset, _, _ = self.run_grepnet(
             '--extract',
             f'--exclude-cidr={exclude}',
-            '--exclude-cidr-behaviour=superset',
+            '--exclude-cidr-behavior=superset',
             stdin_data=networks
         )
         
@@ -277,7 +277,7 @@ class TestComparisonWithNonStrictVariants(TestStrictExclusionBehaviors):
         stdout_strict, _, _ = self.run_grepnet(
             '--extract',
             f'--exclude-cidr={exclude}',
-            '--exclude-cidr-behaviour=superset-strict',
+            '--exclude-cidr-behavior=superset-strict',
             stdin_data=networks
         )
         
@@ -300,7 +300,7 @@ class TestComparisonWithNonStrictVariants(TestStrictExclusionBehaviors):
             stdout, _, _ = self.run_grepnet(
                 '--extract',
                 f'--exclude-cidr={exclude}',
-                f'--exclude-cidr-behaviour={behavior}',
+                f'--exclude-cidr-behavior={behavior}',
                 stdin_data=networks
             )
             results[behavior] = set(line.strip() for line in stdout.strip().split('\n') if line.strip())
@@ -332,7 +332,7 @@ class TestStrictWithIPv6(TestStrictExclusionBehaviors):
         stdout, stderr, rc = self.run_grepnet(
             '--extract',
             '--exclude-cidr=2001:db8::/32',
-            '--exclude-cidr-behaviour=subset-strict',
+            '--exclude-cidr-behavior=subset-strict',
             stdin_data='2001:db8::/32\n2001:db8:1::/48\n2001:db8:1:1::/64'
         )
         
@@ -350,7 +350,7 @@ class TestStrictWithIPv6(TestStrictExclusionBehaviors):
         stdout, stderr, rc = self.run_grepnet(
             '--extract',
             '--exclude-cidr=2001:db8:1::/48',
-            '--exclude-cidr-behaviour=superset-strict',
+            '--exclude-cidr-behavior=superset-strict',
             stdin_data='2001:db8::/32\n2001:db8:1::/48\n2001:db8:1:1::/64'
         )
         

@@ -192,7 +192,7 @@ class TestPrefixLengthWithExclusion:
         grepnet_obj = GrepNet(
             patterns=[],
             exclude_cidrs=[IPv4Network('192.0.2.4/30')],
-            exclude_cidr_behaviour='subset',
+            exclude_cidr_behavior='subset',
             ipv4_shorter_than=29,
         )
         
@@ -212,7 +212,7 @@ class TestPrefixLengthWithCut:
         grepnet_obj = GrepNet(
             patterns=[],
             exclude_cidrs=[IPv4Network('192.0.2.0/30')],
-            exclude_cidr_behaviour='cut',
+            exclude_cidr_behavior='cut',
             ipv4_shorter_than=30,
         )
         

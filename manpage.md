@@ -235,7 +235,7 @@ Filtering allows you to narrow or refine search results by excluding networks or
 
 **Text-based filtering** (`--exclude-string`): Excludes individual network matches whose matched text contains a regex pattern. Useful for filtering by context (e.g., "deprecated", "testing", "archived"). Applied after network matching—a network match is excluded if its matched text matches the regex. If a line has no remaining matches after text filtering, the entire line is removed from output.
 
-**Network-based filtering** (`--exclude-cidr`): Excludes network matches that have specific relationships to excluded CIDR blocks. The relationship is determined by `--exclude-cidr-behaviour`. Useful for filtering by network hierarchy (e.g., exclude all internal networks, keep only external references).
+**Network-based filtering** (`--exclude-cidr`): Excludes network matches that have specific relationships to excluded CIDR blocks. The relationship is determined by `--exclude-cidr-behavior`. Useful for filtering by network hierarchy (e.g., exclude all internal networks, keep only external references).
 
 **Combining filters**: Text and network filters are independent and stackable:
 - `--exclude-string 'deprecated' --exclude-cidr '192.168.0.0/16'` excludes matches where the text contains "deprecated" OR the network is in 192.168.0.0/16
@@ -259,7 +259,7 @@ Filtering allows you to narrow or refine search results by excluding networks or
 **`--exclude-cidrs-file`** *FILE*
 : Load networks to exclude from file
 
-**`--exclude-cidr-behaviour`** {**subset**|**subset-strict**|**superset**|**superset-strict**|**equals**|**related**|**cut**}
+**`--exclude-cidr-behavior`** {**subset**|**subset-strict**|**superset**|**superset-strict**|**equals**|**related**|**cut**}
 : How to match excluded networks (default: **subset**)
 
 ### Exclusion Behaviors
@@ -299,14 +299,14 @@ grepnet --exclude-cidr '10.0.0.0/8' --exclude-cidr '172.16.0.0/12' \
 **Scenario 2: Keep only subnets of a network, not parent networks**
 ```bash
 # Find subnets of 192.0.0.0/16, but exclude 192.0.0.0/16 itself
-grepnet --extract --exclude-cidr-behaviour subset-strict \
+grepnet --extract --exclude-cidr-behavior subset-strict \
   --exclude-cidr '192.0.0.0/16' networks.txt
 ```
 
 **Scenario 3: Whitelist by exclusion (find only gaps)**
 ```bash
 # Find networks NOT in allowed ranges (carve out allowed space)
-grepnet --extract --consolidate --exclude-cidr-behaviour cut \
+grepnet --extract --consolidate --exclude-cidr-behavior cut \
   --exclude-cidr '10.0.0.0/8' --exclude-cidr '192.168.0.0/16' all_networks.txt
 ```
 
@@ -322,7 +322,7 @@ Example:
 # Input networks: 10.0.0.0/8
 # Exclude: 10.10.0.0/16
 # Result: 10.0.0.0/22, 10.0.4.0/22, ..., 10.10.0.0/16 (gap), ..., 10.255.0.0/22
-grepnet --extract --exclude-cidr-behaviour cut --exclude-cidr '10.10.0.0/16' \
+grepnet --extract --exclude-cidr-behavior cut --exclude-cidr '10.10.0.0/16' \
   --format cidr networks.txt
 ```
 
@@ -1298,19 +1298,19 @@ Excludes 192.0.0.0/16 (exact match) AND 192.0.2.0/24 (subset). This is the defau
 
 **Strict subset: exclude only exact matches:**
 ```bash
-grepnet --exclude-cidr-behaviour subset-strict --exclude-cidr '192.0.0.0/16' '0.0.0.0/0' networks.txt
+grepnet --exclude-cidr-behavior subset-strict --exclude-cidr '192.0.0.0/16' '0.0.0.0/0' networks.txt
 ```
 Excludes only 192.0.0.0/16 (exact match). Does NOT exclude 192.0.2.0/24 (subset of exclusion), returns 10.0.0.0/8 and 192.0.2.0/24. Useful: "I only want to exclude this specific network, not everything within it."
 
 **Default superset: include exact matches and containment:**
 ```bash
-grepnet --exclude-cidr-behaviour superset --exclude-cidr '192.0.2.0/24' '0.0.0.0/0' networks.txt
+grepnet --exclude-cidr-behavior superset --exclude-cidr '192.0.2.0/24' '0.0.0.0/0' networks.txt
 ```
 Excludes 192.0.2.0/24 (exact match) AND 192.0.0.0/16 (superset that contains it). Filters based on "anything that includes this network."
 
 **Strict superset: exclude only exact matches:**
 ```bash
-grepnet --exclude-cidr-behaviour superset-strict --exclude-cidr '192.0.2.0/24' '0.0.0.0/0' networks.txt
+grepnet --exclude-cidr-behavior superset-strict --exclude-cidr '192.0.2.0/24' '0.0.0.0/0' networks.txt
 ```
 Excludes only 192.0.2.0/24 (exact match). Does NOT exclude 192.0.0.0/16 (superset). Useful: "I want to exclude this specific allocation, but keep the larger blocks."
 
@@ -1756,7 +1756,7 @@ grepnet --exclude-cidr '192.0.0.0/16' '0.0.0.0/0' test.txt
 
 # Strict subset (exact match only)
 echo "=== Strict subset behavior ==="
-grepnet --exclude-cidr-behaviour subset-strict --exclude-cidr '192.0.0.0/16' '0.0.0.0/0' test.txt
+grepnet --exclude-cidr-behavior subset-strict --exclude-cidr '192.0.0.0/16' '0.0.0.0/0' test.txt
 ```
 Compares behaviors to understand filtering semantics.
 

@@ -1815,47 +1815,47 @@ Results are excluded if their network overlaps with:
 - Example: `--exclude-cidr 192.0.0.0/16` excludes both `192.0.2.0/24` (subset) and `192.0.0.0/16` (equal)
 - Example: `--exclude-cidr 192.0.0.0/16` does NOT exclude `192.0.0.0/15` (superset)
 
-### CIDR Exclusion Behavior: --exclude-cidr-behaviour
+### CIDR Exclusion Behavior: --exclude-cidr-behavior
 
-The `--exclude-cidr-behaviour` flag controls how excluded networks are matched against extracted or searched networks.
+The `--exclude-cidr-behavior` flag controls how excluded networks are matched against extracted or searched networks.
 
-**Flag Format**: `--exclude-cidr-behaviour={subset|subset-strict|superset|superset-strict|equals|related|cut}`
+**Flag Format**: `--exclude-cidr-behavior={subset|subset-strict|superset|superset-strict|equals|related|cut}`
 
 **Behaviors**:
 - **subset** (default): Exclude if file network is subset of (or equal to) excluded network (⊆)
   - Includes exact equality matches
-  - Example: `--exclude-cidr-behaviour=subset --exclude-cidr 192.0.0.0/16` excludes `192.0.2.0/24` and `192.0.0.0/16`, but not `10.0.0.0/8`
+  - Example: `--exclude-cidr-behavior=subset --exclude-cidr 192.0.0.0/16` excludes `192.0.2.0/24` and `192.0.0.0/16`, but not `10.0.0.0/8`
 
 - **subset-strict**: Exclude if file network is a strict subset of excluded network (⊂, no equality)
   - Excludes only networks strictly contained within the excluded network, not exact matches
-  - Example: `--exclude-cidr-behaviour=subset-strict --exclude-cidr 192.0.0.0/16` excludes `192.0.2.0/24`, but NOT `192.0.0.0/16` or `10.0.0.0/8`
+  - Example: `--exclude-cidr-behavior=subset-strict --exclude-cidr 192.0.0.0/16` excludes `192.0.2.0/24`, but NOT `192.0.0.0/16` or `10.0.0.0/8`
 
 - **superset**: Exclude if file network is superset of (or equal to) excluded network (⊇)
   - Includes exact equality matches
-  - Example: `--exclude-cidr-behaviour=superset --exclude-cidr 192.0.2.0/24` excludes `192.0.0.0/16` and `192.0.2.0/24`, but not `10.0.0.0/8`
+  - Example: `--exclude-cidr-behavior=superset --exclude-cidr 192.0.2.0/24` excludes `192.0.0.0/16` and `192.0.2.0/24`, but not `10.0.0.0/8`
 
 - **superset-strict**: Exclude if file network is a strict superset of excluded network (⊃, no equality)
   - Excludes only networks that strictly contain the excluded network, not exact matches
-  - Example: `--exclude-cidr-behaviour=superset-strict --exclude-cidr 192.0.2.0/24` excludes `192.0.0.0/16`, but NOT `192.0.2.0/24` or `10.0.0.0/8`
+  - Example: `--exclude-cidr-behavior=superset-strict --exclude-cidr 192.0.2.0/24` excludes `192.0.0.0/16`, but NOT `192.0.2.0/24` or `10.0.0.0/8`
 
 - **equals**: Exclude only if file network exactly equals excluded network
-  - Example: `--exclude-cidr-behaviour=equals --exclude-cidr 192.0.2.0/24` excludes only exact matches of `192.0.2.0/24`
+  - Example: `--exclude-cidr-behavior=equals --exclude-cidr 192.0.2.0/24` excludes only exact matches of `192.0.2.0/24`
 
 - **related**: Exclude if networks overlap or have any subset/superset relationship (union of subset+superset+overlap)
   - Includes overlaps, containment, and exact equality
-  - Example: `--exclude-cidr-behaviour=related --exclude-cidr 192.0.2.0/24` excludes any network that touches, contains, or is contained by `192.0.2.0/24`
+  - Example: `--exclude-cidr-behavior=related --exclude-cidr 192.0.2.0/24` excludes any network that touches, contains, or is contained by `192.0.2.0/24`
 
 - **cut**: Carve out excluded network(s) and return the remaining address space as minimal CIDR blocks
   - **Scope**: Only valid with `--extract` and `--consolidate` (will error if used without these flags)
   - **Behavior**: When extracting networks, remove the excluded CIDR block(s) from the extracted networks and return all minimal non-overlapping CIDR blocks that represent what remains
   - **Result format**: Complete list of CIDR blocks covering the remaining address space with no gaps or overlaps
   - **Examples**:
-    - `echo 192.0.2.0/24 | ./grepnet --extract --exclude-cidr=192.0.2.0/30 --exclude-cidr-behaviour=cut` → Removes `192.0.2.0/30`, returns the 6 CIDR blocks that fill the gap: `192.0.2.4/30`, `192.0.2.8/29`, `192.0.2.16/28`, `192.0.2.32/27`, `192.0.2.64/26`, `192.0.2.128/25`
-    - `echo 192.0.2.0/24 | ./grepnet --extract --exclude-cidr=192.0.2.4/30 --exclude-cidr-behaviour=cut` → Removes `192.0.2.4/30`, returns the 6 CIDR blocks: `192.0.2.0/30`, `192.0.2.8/29`, `192.0.2.16/28`, `192.0.2.32/27`, `192.0.2.64/26`, `192.0.2.128/25`
+    - `echo 192.0.2.0/24 | ./grepnet --extract --exclude-cidr=192.0.2.0/30 --exclude-cidr-behavior=cut` → Removes `192.0.2.0/30`, returns the 6 CIDR blocks that fill the gap: `192.0.2.4/30`, `192.0.2.8/29`, `192.0.2.16/28`, `192.0.2.32/27`, `192.0.2.64/26`, `192.0.2.128/25`
+    - `echo 192.0.2.0/24 | ./grepnet --extract --exclude-cidr=192.0.2.4/30 --exclude-cidr-behavior=cut` → Removes `192.0.2.4/30`, returns the 6 CIDR blocks: `192.0.2.0/30`, `192.0.2.8/29`, `192.0.2.16/28`, `192.0.2.32/27`, `192.0.2.64/26`, `192.0.2.128/25`
   - **Use cases**: Computing network complements, finding gaps in allocations, inverse lists
 
 **Constraints**:
-- Only one `--exclude-cidr-behaviour` flag allowed (last one wins if multiple specified)
+- Only one `--exclude-cidr-behavior` flag allowed (last one wins if multiple specified)
 - The keywords "cut" and "related" are NOT cumulative; they represent specific behaviors
 - Behaviors apply to all `--exclude-cidr` patterns in the command
 - Behaviors apply consistently across CIDR and range formats
@@ -2585,7 +2585,7 @@ grepnet -o -C1 '192.0.2.0/24' file.txt                # Networks with -- separat
 - Results are excluded if their network is a SUBSET OF (or EQUAL TO) the excluded network
 - Example: `--exclude-cidr 192.0.0.0/16` excludes both `192.0.2.0/24` (subset) and `192.0.0.0/16` (equal)
 - Example: `--exclude-cidr 192.0.0.0/16` does NOT exclude `192.0.0.0/15` (superset)
-- Future: Behavior can be controlled via `--exclude-cidr-behaviour` flag (not yet implemented)
+- Future: Behavior can be controlled via `--exclude-cidr-behavior` flag (not yet implemented)
 
 **Combined usage**: `--exclude-string` and `--exclude-cidr` can be used together. A result is excluded if it matches ANY pattern (textual OR network-based).
 

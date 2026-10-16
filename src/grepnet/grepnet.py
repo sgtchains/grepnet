@@ -87,7 +87,7 @@ class GrepNet:
         debug: Optional[str] = None,
         exclude_strings: Optional[List[str]] = None,
         exclude_cidrs: Optional[List] = None,
-        exclude_cidr_behaviour: str = 'subset',
+        exclude_cidr_behavior: str = 'subset',
         output_format: str = 'cidr',
         binary_files: str = 'binary',
         ipv4_shorter_than: Optional[int] = None,
@@ -112,7 +112,7 @@ class GrepNet:
             debug: Debug mode ('markup' to show internal markup, None to disable)
             exclude_strings: List of substrings to exclude from results
             exclude_cidrs: List of network objects (IPv4Network/IPv6Network or ranges) to exclude
-            exclude_cidr_behaviour: CIDR exclusion behavior ('subset', 'superset', 'equals', 'related', 'cut')
+            exclude_cidr_behavior: CIDR exclusion behavior ('subset', 'superset', 'equals', 'related', 'cut')
             output_format: Network output format for --extract/--consolidate ('cidr', 'range', 'short-range')
             ipv4_shorter_than: Include only IPv4 networks with prefix_length < N
             ipv4_longer_than: Include only IPv4 networks with prefix_length > N
@@ -138,7 +138,7 @@ class GrepNet:
         self.debug = debug
         self.exclude_strings = exclude_strings or []
         self.exclude_cidrs = exclude_cidrs or []
-        self.exclude_cidr_behaviour = exclude_cidr_behaviour
+        self.exclude_cidr_behavior = exclude_cidr_behavior
         self.output_format = output_format
         self.binary_files = binary_files
         
@@ -444,7 +444,7 @@ class GrepNet:
         if self.exclude_cidrs:
             file_network = extraction.network
             for exclude_net in self.exclude_cidrs:
-                if self._check_cidr_exclusion(file_network, exclude_net, behavior=self.exclude_cidr_behaviour):
+                if self._check_cidr_exclusion(file_network, exclude_net, behavior=self.exclude_cidr_behavior):
                     return True
         
         return False
