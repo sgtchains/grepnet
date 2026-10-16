@@ -5875,6 +5875,7 @@ def run():
             # For 'text' mode (-a): output normally
             
             binary_files_with_output = set()  # Track which binary files we've already reported
+            only_matching_output = set()  # Track (filename, line_number) pairs already output in -o mode
             
             # For "binary" or "without-match" mode, output binary file messages for NORMAL OUTPUT ONLY
             # (not for -c, -l, -L which have their own output handling)
@@ -5902,8 +5903,15 @@ def run():
                     if args.files_with_matches or args.files_without_match:
                         continue
                     
-                    # Process each (filename, result) pair separately so each gets its own prefix
+                    # Process each (filename, result) pair and output it with its own prefix
                     for filename, result in line_results:
+                        # In -o mode, process only the first result per (filename, line_number) pair
+                        # because all results for the same line have identical marked content
+                        if args.only_matching:
+                            if (filename, line_number) in only_matching_output:
+                                continue
+                            only_matching_output.add((filename, line_number))
+                        
                         # Skip line output for binary files in 'binary' mode (they were already reported as "Binary file X matches")
                         if result.is_binary_file and args.binary_files == 'binary':
                             # Only count the match, don't output line content
@@ -5915,9 +5923,6 @@ def run():
                         if args.count:
                             match_count += 1
                             continue
-                    
-                    # Process each (filename, result) pair and output it with its own prefix
-                    for filename, result in line_results:
                         # Build prefix parts for this specific result
                         prefix_parts = []
                         byte_offset_str = None
