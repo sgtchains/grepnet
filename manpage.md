@@ -507,6 +507,46 @@ grepnet --parse-cidr both \
 - File line `server 192.0.2.0 255.255.255.0` matches ✓ (netmask in input)
 - File line `range 192.0.2.0-192.0.2.255` does NOT match ✗ (ranges disabled)
 
+## Automatic False-Positive Filtering
+
+grepnet automatically detects and excludes common false-positive patterns that look like network addresses but are not. This prevents accidental matching of unrelated numeric patterns.
+
+### SNMP OID Exclusion
+
+SNMP (Simple Network Management Protocol) uses OID (Object Identifier) notation that looks deceptively like IP addresses. OIDs use dot-separated octets like `1.3.6.1.2.1.1.1.0`, which could be mistaken for a five-octet IP address pattern.
+
+**How it works:**
+- Lines containing SNMP OID patterns (4+ dot-separated numeric parts with each part 0-4 digits) are detected automatically
+- Plain bare IP extraction is skipped for lines with detected OID patterns (these are OID components, not addresses)
+- CIDR notation with slashes is still extracted from OID-containing lines (e.g., `range 10.0.0.0/8 ; OID 1.3.6.1`)
+- CIDR, subnet mask, inverse mask, and IP range formats are unaffected
+
+**Example:**
+
+```bash
+# File contains mixed network configs and SNMP traps
+# Line 1: "server 10.0.0.1"          (plain IP on normal line)
+# Line 2: "trap-oid 1.3.6.1.2.1.1.1"  (SNMP OID line)
+# Line 3: "network 10.0.0.0/8 ; oid 1.3.6.1" (CIDR on OID line)
+
+grepnet --parse-bare-ip both '10.0.0.0/8' config.txt
+# Result:
+# Line 1: server 10.0.0.1              ✓ (bare IP extracted and matched)
+# Line 2: trap-oid 1.3.6.1.2.1.1.1     ✗ (no extraction - OID line)
+# Line 3: network 10.0.0.0/8 ; oid ... ✓ (CIDR extracted and matched)
+```
+
+**Why this matters:**
+- SNMP and network configuration often appear in the same files (systems monitoring)
+- Pure integer sequences like `1.3.6` are ambiguous (could be version numbers, MIB references, or OIDs)
+- This filter provides a safe default that reduces noise while preserving intended network matches
+
+### Other False-Positive Filters
+
+**IPv6 embedding prevention**: IPv6 addresses are not matched if they are embedded within larger identifiers or alphanumeric strings. For example, `foo2001:db8::1bar` will not match the IPv6 address inside, ensuring only standalone IPv6 addresses are recognized.
+
+**IPv6 zone ID rejection**: IPv6 addresses with zone identifiers (e.g., `fe80::1%eth0` or `fe80::1%1`) are not recognized. Only RFC 4291 standard compressed and uncompressed IPv6 formats are matched.
+
 # PREFIX LENGTH FILTERING
 
 Prefix length (also called CIDR mask size or network mask bits) determines how many IP addresses a network block contains. Lower numbers = larger networks, higher numbers = smaller networks.

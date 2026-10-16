@@ -725,6 +725,60 @@ grepnet --parse-cidr both \[rs]
 pattern) - File line \f[V]server 192.0.2.0 255.255.255.0\f[R] matches ✓
 (netmask in input) - File line \f[V]range 192.0.2.0-192.0.2.255\f[R]
 does NOT match ✗ (ranges disabled)
+.SS Automatic False-Positive Filtering
+.PP
+grepnet automatically detects and excludes common false-positive
+patterns that look like network addresses but are not.
+This prevents accidental matching of unrelated numeric patterns.
+.SS SNMP OID Exclusion
+.PP
+SNMP (Simple Network Management Protocol) uses OID (Object Identifier)
+notation that looks deceptively like IP addresses.
+OIDs use dot-separated octets like \f[V]1.3.6.1.2.1.1.1.0\f[R], which
+could be mistaken for a five-octet IP address pattern.
+.PP
+\f[B]How it works:\f[R] - Lines containing SNMP OID patterns (4+
+dot-separated numeric parts with each part 0-4 digits) are detected
+automatically - Plain bare IP extraction is skipped for lines with
+detected OID patterns (these are OID components, not addresses) - CIDR
+notation with slashes is still extracted from OID-containing lines
+(e.g., \f[V]range 10.0.0.0/8 ; OID 1.3.6.1\f[R]) - CIDR, subnet mask,
+inverse mask, and IP range formats are unaffected
+.PP
+\f[B]Example:\f[R]
+.IP
+.nf
+\f[C]
+# File contains mixed network configs and SNMP traps
+# Line 1: \[dq]server 10.0.0.1\[dq]          (plain IP on normal line)
+# Line 2: \[dq]trap-oid 1.3.6.1.2.1.1.1\[dq]  (SNMP OID line)
+# Line 3: \[dq]network 10.0.0.0/8 ; oid 1.3.6.1\[dq] (CIDR on OID line)
+
+grepnet --parse-bare-ip both \[aq]10.0.0.0/8\[aq] config.txt
+# Result:
+# Line 1: server 10.0.0.1              ✓ (bare IP extracted and matched)
+# Line 2: trap-oid 1.3.6.1.2.1.1.1     ✗ (no extraction - OID line)
+# Line 3: network 10.0.0.0/8 ; oid ... ✓ (CIDR extracted and matched)
+\f[R]
+.fi
+.PP
+\f[B]Why this matters:\f[R] - SNMP and network configuration often
+appear in the same files (systems monitoring) - Pure integer sequences
+like \f[V]1.3.6\f[R] are ambiguous (could be version numbers, MIB
+references, or OIDs) - This filter provides a safe default that reduces
+noise while preserving intended network matches
+.SS Other False-Positive Filters
+.PP
+\f[B]IPv6 embedding prevention\f[R]: IPv6 addresses are not matched if
+they are embedded within larger identifiers or alphanumeric strings.
+For example, \f[V]foo2001:db8::1bar\f[R] will not match the IPv6 address
+inside, ensuring only standalone IPv6 addresses are recognized.
+.PP
+\f[B]IPv6 zone ID rejection\f[R]: IPv6 addresses with zone identifiers
+(e.g., \f[V]fe80::1%eth0\f[R] or \f[V]fe80::1%1\f[R]) are not
+recognized.
+Only RFC 4291 standard compressed and uncompressed IPv6 formats are
+matched.
 .SH PREFIX LENGTH FILTERING
 .PP
 Prefix length (also called CIDR mask size or network mask bits)
