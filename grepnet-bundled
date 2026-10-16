@@ -3901,7 +3901,7 @@ class GrepNet:
         
         return MatchType.UNMATCHED
     
-    def search(self, input_sources: List[InputSource], yield_all_lines: bool = False, mode: str = 'normal', fill_pct: Optional[int] = None) -> Union[Iterator[MatchResult], dict]:
+    def search(self, input_sources: List[InputSource], yield_all_lines: bool = False, mode: str = 'normal', fill_pct: Optional[int] = None, fill_boundary: bool = False) -> Union[Iterator[MatchResult], dict]:
         """
         Search input sources for matching networks.
         
@@ -3918,6 +3918,7 @@ class GrepNet:
                  - 'extract': Return dict of deduplicated networks (for extract mode)
                  - 'consolidate': Return dict of consolidated networks (for consolidate mode)
             fill_pct: Optional percentage (0-100) for gap filling in consolidate mode
+            fill_boundary: If True, fill boundary addresses in consolidate mode
         
         Returns:
             - 'normal' mode: Iterator[MatchResult] objects
@@ -3929,7 +3930,7 @@ class GrepNet:
             return self.extract_networks(input_sources)
         elif mode == 'consolidate':
             # Consolidate mode: return consolidated networks dict
-            return self.consolidate_networks(input_sources, fill_pct=fill_pct)
+            return self.consolidate_networks(input_sources, fill_pct=fill_pct, fill_boundary=fill_boundary)
         else:  # mode == 'normal'
             # Standard mode: stream MatchResult objects
             return self._search_generator(input_sources, yield_all_lines)
@@ -4330,9 +4331,15 @@ class GrepNet:
         
         return networks_dict
     
-    def consolidate_networks(self, input_sources: List[InputSource], fill_pct: Optional[int] = None) -> dict:
+    def consolidate_networks(self, input_sources: List[InputSource], fill_pct: Optional[int] = None, fill_boundary: bool = False) -> dict:
         """
         Consolidate (merge overlapping/adjacent) networks.
+        
+        CRITICAL: Consolidate = Extract + Merge
+        This follows the two-stage pipeline:
+        1. Stage 1 (RFC Consolidation - always): extract + merge overlapping/adjacent networks
+        2. Stage 2 (Bitshift Grouping - only if fill_pct or fill_boundary): 
+           apply gap-based consolidation to Stage 1 result
         
         Implementation note: This function uses extract_networks() as its foundation,
         maintaining the "Consolidate = Extract + Merge" architectural relationship.
@@ -4341,12 +4348,13 @@ class GrepNet:
         1. Extract deduplicated networks using extract_networks()
         2. Convert ranges to CIDR blocks
         3. Use RFC-compliant CIDR supernetting (collapse_addresses) to merge
-        4. If fill_pct is provided, iteratively fill gaps and re-consolidate until stable
+        4. If fill_pct or fill_boundary provided, iteratively fill gaps and re-consolidate until stable
         5. Return consolidated network dictionary
         
         Args:
             input_sources: List of InputSource objects to process
-            fill_pct: Optional percentage (0-100) for gap filling during consolidation
+            fill_pct: Optional percentage (0-100) for gap filling during bitshift grouping
+            fill_boundary: If True, allow up to 1% gap ratio in bitshift grouping
         
         Returns:
             dict: {consolidated_network_object -> (ParsedExtraction, line_content)}
@@ -4388,10 +4396,10 @@ class GrepNet:
                 expanded_networks[net_obj] = str(net_obj)
                 network_metadata[net_obj] = (parsed_ext, line_content)
         
-        # If fill_pct is provided, iteratively fill gaps and consolidate
-        if fill_pct is not None:
-            return self._consolidate_with_fill_pct(
-                expanded_networks, network_metadata, fill_pct
+        # If fill_pct or fill_boundary is provided, apply bitshift grouping algorithm
+        if fill_pct is not None or fill_boundary:
+            return self._consolidate_with_fill_criteria(
+                expanded_networks, network_metadata, fill_pct, fill_boundary
             )
         
         # Step 3 (no fill_pct): Use RFC-compliant collapse_addresses for proper CIDR supernetting
@@ -4426,19 +4434,23 @@ class GrepNet:
         
         return consolidated_dict
     
-    def _consolidate_with_fill_pct(self, expanded_networks: dict, network_metadata: dict, fill_pct: int) -> dict:
+    def _consolidate_with_fill_criteria(self, expanded_networks: dict, network_metadata: dict, fill_pct: Optional[int], fill_boundary: bool) -> dict:
         """
-        Consolidate networks with gap filling up to fill_pct threshold.
+        Consolidate networks with gap filling based on fill_pct or fill_boundary.
+        
+        This is Stage 2 of the pipeline: Bitshift Grouping with Gap Analysis
+        Applied to deduplicated networks from Stage 1 (RFC consolidation).
         
         Algorithm:
-        1. For each expanded network, find the supernet within fill_pct threshold
+        1. For each expanded network, find the supernet within fill criteria
         2. Use collapse_addresses() to merge adjacent/overlapping networks
         3. Done (single pass, no iteration)
         
         Args:
             expanded_networks: Dict of network_object -> cidr_string
             network_metadata: Dict of network_object -> (ParsedExtraction, line_content)
-            fill_pct: Fill percentage threshold (0-100)
+            fill_pct: Fill percentage threshold (0-100), or None
+            fill_boundary: If True, use 1% threshold for gap ratio
         
         Returns:
             dict: {consolidated_network_object -> (ParsedExtraction, line_content)}
@@ -4447,11 +4459,11 @@ class GrepNet:
         
         current_networks = set(expanded_networks.keys())
         
-        # Apply fill-pct to each network (single pass, no iteration)
+        # Apply fill criteria to each network (single pass, no iteration)
         filled_networks = set()
         
         for net in current_networks:
-            filled_net = self._find_supernet_within_fill_pct(net, current_networks, fill_pct)
+            filled_net = self._find_supernet_within_fill_criteria(net, current_networks, fill_pct, fill_boundary)
             filled_networks.add(filled_net)
         
         # Consolidate the filled networks using collapse_addresses
@@ -4479,25 +4491,40 @@ class GrepNet:
         
         return consolidated_dict
     
-    def _find_supernet_within_fill_pct(self, network: 'IPv4Network | IPv6Network', all_networks: set, fill_pct: int) -> 'IPv4Network | IPv6Network':
+    def _find_supernet_within_fill_criteria(self, network: 'IPv4Network | IPv6Network', all_networks: set, fill_pct: Optional[int], fill_boundary: bool) -> 'IPv4Network | IPv6Network':
         """
-        Find the smallest supernet of a network where gap_fill <= fill_pct.
+        Find the smallest supernet of a network where gap_ratio meets fill criteria.
         
-        Returns the first (smallest) supernet where (gap_ips / supernet_ips) * 100 <= fill_pct.
+        Criteria:
+        - If fill_boundary is True: accept if gap_ratio <= 1%
+        - Else if fill_pct is not None: accept if gap_ratio <= fill_pct %
+        - Otherwise: return original network (shouldn't happen if called correctly)
+        
+        Returns the first (smallest) supernet where gap_ratio meets criteria.
         If no supernet meets the threshold, returns the original network.
         
         The algorithm tries progressively larger supernets (smaller prefix lengths) and
-        accepts the FIRST one that fits the threshold - preventing unbounded expansion.
+        accepts the FIRST one that fits the criteria - preventing unbounded expansion.
         
         Args:
             network: The IP network to find supernet for
             all_networks: Set of all current networks (for context)
-            fill_pct: Fill percentage threshold
+            fill_pct: Fill percentage threshold, or None
+            fill_boundary: If True, use 1% threshold
         
         Returns:
-            The smallest supernet that fits the fill_pct threshold, or original network
+            The smallest supernet that fits the criteria, or original network
         """
         from ipaddress import ip_network, IPv4Network, IPv6Network
+        
+        # Determine the threshold based on criteria
+        if fill_boundary:
+            threshold_pct = 1.0  # Allow up to 1% gap for boundary filling
+        elif fill_pct is not None:
+            threshold_pct = float(fill_pct)
+        else:
+            # No criteria specified; shouldn't happen if called correctly
+            return network
         
         # Try progressively larger supernets (smaller prefix length)
         # Return the FIRST (smallest) supernet that fits the threshold
@@ -4515,9 +4542,9 @@ class GrepNet:
                     # Perfect fit, continue searching for larger supernets with gaps
                     continue
                 
-                fill_ratio = (gap_ips / supernet_ips) * 100
+                gap_ratio = (gap_ips / supernet_ips) * 100
                 
-                if fill_ratio <= fill_pct:
+                if gap_ratio <= threshold_pct:
                     # Found a supernet that fits; return it immediately
                     # This prevents unbounded expansion
                     return supernet
@@ -4918,6 +4945,11 @@ def run():
         help='Allow consolidation to fill gaps up to N%% (only with --consolidate)',
     )
     parser.add_argument(
+        '--fill-boundary',
+        action='store_true',
+        help='Allow consolidation to fill boundary addresses (only with --consolidate)',
+    )
+    parser.add_argument(
         '--show-content',
         action='store_true',
         help='Show line content in extract/consolidate mode',
@@ -5238,6 +5270,12 @@ def run():
             print('grepnet: error: --fill-pct requires --consolidate', file=sys.stderr)
         sys.exit(2)
     
+    # Validate --fill-boundary: only valid with --consolidate
+    if args.fill_boundary and not args.consolidate:
+        if not args.no_messages:
+            print('grepnet: error: --fill-boundary requires --consolidate', file=sys.stderr)
+        sys.exit(2)
+    
     # Validate prefix length filters: only valid with --extract or --consolidate
     prefix_length_flags = [
         ('--ipv4-shorter-than', args.ipv4_shorter_than),
@@ -5549,7 +5587,7 @@ def run():
                 elif args.consolidate:
                     # Consolidate mode: use grepnet.search(mode='consolidate')
                     # Returns consolidated network dictionary
-                    consolidated_dict = grepnet.search(input_sources, mode='consolidate', fill_pct=args.fill_pct)
+                    consolidated_dict = grepnet.search(input_sources, mode='consolidate', fill_pct=args.fill_pct, fill_boundary=args.fill_boundary)
                     
                     if not consolidated_dict:
                         sys.exit(1)

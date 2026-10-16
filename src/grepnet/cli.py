@@ -323,6 +323,11 @@ def run():
         help='Allow consolidation to fill gaps up to N%% (only with --consolidate)',
     )
     parser.add_argument(
+        '--fill-boundary',
+        action='store_true',
+        help='Allow consolidation to fill boundary addresses (only with --consolidate)',
+    )
+    parser.add_argument(
         '--show-content',
         action='store_true',
         help='Show line content in extract/consolidate mode',
@@ -643,6 +648,12 @@ def run():
             print('grepnet: error: --fill-pct requires --consolidate', file=sys.stderr)
         sys.exit(2)
     
+    # Validate --fill-boundary: only valid with --consolidate
+    if args.fill_boundary and not args.consolidate:
+        if not args.no_messages:
+            print('grepnet: error: --fill-boundary requires --consolidate', file=sys.stderr)
+        sys.exit(2)
+    
     # Validate prefix length filters: only valid with --extract or --consolidate
     prefix_length_flags = [
         ('--ipv4-shorter-than', args.ipv4_shorter_than),
@@ -955,7 +966,7 @@ def run():
                 elif args.consolidate:
                     # Consolidate mode: use grepnet.search(mode='consolidate')
                     # Returns consolidated network dictionary
-                    consolidated_dict = grepnet.search(input_sources, mode='consolidate', fill_pct=args.fill_pct)
+                    consolidated_dict = grepnet.search(input_sources, mode='consolidate', fill_pct=args.fill_pct, fill_boundary=args.fill_boundary)
                     
                     if not consolidated_dict:
                         sys.exit(1)

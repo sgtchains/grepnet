@@ -2082,15 +2082,40 @@ grepnet --consolidate --format range file.txt         # Consolidated networks as
 grepnet 192.0.2.0/24 --extract --format short-range file.txt  # Matching networks as short-range
 ```
 
-**Consolidation Algorithm: Bitshift Grouping with Gap Analysis**
+**Consolidation Pipeline**
 
-The consolidation algorithm uses bitwise right-shift operations to group networks and analyze gap coverage. This shared algorithm powers both `--consolidate`, `--fill-pct`, and `--fill-boundary`.
+The `--consolidate` mode follows a two-stage pipeline:
 
-**Input Preparation:**
-1. Extract all networks from input
-2. Convert all networks to integer representations (network start address)
-3. Sort networks by integer address (ascending order)
-4. For each network, record: `start_int`, `end_int`, `prefix_length`
+**Stage 1: RFC-Compliant Consolidation (always)**
+```python
+if mode == 'consolidate':
+    result = consolidate_networks(input_sources)
+```
+This extracts all networks and merges overlapping and adjacent networks into deduplicated blocks.
+
+**Stage 2: Bitshift Grouping with Gap Analysis (only if `--fill-pct` or `--fill-boundary`)**
+```python
+    if fill_pct is not None or fill_boundary:
+        result = apply_bitshift_grouping(result, fill_pct, fill_boundary)
+    return result
+```
+
+This is why `--fill-pct` and `--fill-boundary` require `--consolidate`: they need the deduplicated networks from Stage 1 to work with.
+
+**RFC-Compliant Consolidation (Stage 1)**
+
+Merges overlapping and adjacent networks using standard IP consolidation rules.
+
+**Bitshift Grouping Algorithm (Stage 2)**
+
+Applies additional consolidation based on IP address coverage gaps. Only runs when `--fill-pct` or `--fill-boundary` is specified.
+
+**Bitshift Grouping Algorithm: Input Preparation**
+
+Input: Deduplicated networks from RFC-Compliant Consolidation (Stage 1)
+1. Convert all networks to integer representations (network start address)
+2. Sort networks by integer address (ascending order)
+3. For each network, record: `start_int`, `end_int`, `prefix_length`
 
 **Grouping Algorithm (Core):**
 For each prefix level (from 1 to 32 for IPv4, 1 to 128 for IPv6):
@@ -2115,9 +2140,8 @@ For each completed group:
 **Consolidation Criteria (Decision Point):**
 When a group boundary is reached, decide whether to consolidate based on `gap_ratio`:
 
-- **`--consolidate` alone**: Accept group if `gap_ratio == 0%` (perfect fit, all IPs covered)
-- **`--consolidate --fill-pct N`**: Accept group if `gap_ratio <= N%` (allow up to N% gap)
-- **`--consolidate --fill-boundary`**: Accept group if `gap_ratio <= 1%` (only boundary IPs missing)
+- **`--fill-pct N`**: Accept group if `gap_ratio <= N%` (allow up to N% gap)
+- **`--fill-boundary`**: Accept group if `gap_ratio <= 1%` (only boundary IPs missing)
 
 When accepted, consolidate the entire group to a single CIDR block at that prefix level.
 
@@ -2128,42 +2152,41 @@ Same algorithm, but prefix levels range from 1 to 128, and shift operations work
 
 **Examples:**
 
-Input: `192.0.2.0/32` + `192.0.2.4/30`
+Input: `192.0.2.0/32` + `192.0.2.4/30` (after RFC consolidation)
 
 At /29 level (>> 3):
 - Both have same group key → same group
 - total_ips = 2^3 = 8
 - covered_ips = 1 + 4 = 5
 - gap_ratio = (8 - 5) / 8 * 100 = 37.5%
-- `--consolidate`: reject (37.5% != 0%)
-- `--consolidate --fill-pct 37`: reject (37.5% > 37%)
-- `--consolidate --fill-pct 38`: accept → outputs `192.0.2.0/29`
-- `--consolidate --fill-boundary`: reject (37.5% >> 1%)
+- `--fill-pct 37`: reject (37.5% > 37%)
+- `--fill-pct 38`: accept → outputs `192.0.2.0/29`
+- `--fill-boundary`: reject (37.5% >> 1%)
 
-Input: `192.0.2.1/32` through `192.0.2.254/32` (254 addresses, missing .0 and .255)
+Input: `192.0.2.1/32` through `192.0.2.254/32` (254 addresses, missing .0 and .255) (after RFC consolidation)
 
 At /24 level (>> 8):
 - All have same group key → same group
 - total_ips = 2^8 = 256
 - covered_ips = 254
 - gap_ratio = (256 - 254) / 256 * 100 = 0.78%
-- `--consolidate`: reject (0.78% != 0%)
-- `--consolidate --fill-pct 50`: accept → outputs `192.0.2.0/24`
-- `--consolidate --fill-boundary`: accept (0.78% <= 1%) → outputs `192.0.2.0/24`
+- `--fill-pct 50`: accept → outputs `192.0.2.0/24`
+- `--fill-boundary`: accept (0.78% <= 1%) → outputs `192.0.2.0/24`
 
 #### `--fill-boundary` (with `--consolidate`)
 
 **Syntax**: `grepnet --consolidate --fill-boundary [PATTERN] [FILE...]`
 
 **Description**: 
-When used with `--consolidate`, automatically inject missing network and broadcast addresses before consolidation. This enables complete CIDR consolidation when input covers all usable addresses but lacks the boundary addresses.
+When used with `--consolidate`, automatically inject missing network and broadcast addresses before applying the bitshift grouping algorithm. This enables complete CIDR consolidation when input covers all usable addresses but lacks the boundary addresses.
 
 **Behavior**:
 - Only valid with `--consolidate` mode (error if used without it)
+- First applies RFC-compliant consolidation to deduplicate networks
 - Detects contiguous ranges of networks that nearly cover a complete subnet
 - Identifies missing network address (x.x.x.0) and broadcast address (x.x.x.255)
-- Automatically injects these boundary addresses into the consolidation algorithm
-- Results in complete parent network consolidation instead of fragmented subnets
+- Automatically injects these boundary addresses before bitshift grouping analysis
+- Bitshift grouping then produces complete parent network consolidation instead of fragmented subnets
 
 **Example**:
 ```
