@@ -528,17 +528,17 @@ When a line contains an SNMP OID pattern (4+ dot-separated numeric parts with ea
 
 ```bash
 # File contains network configs and SNMP OID references
-grepnet --parse-bare-ip both '10.0.0.0/8' config.txt
+grepnet --parse-bare-ip both '0.0.0.0/0' config.txt
 
 # File content:
-# Line 1: "server 10.0.0.1"
-# Line 2: "snmp-oid 1.3.6.1.2.1.1.0"
-# Line 3: "network 10.0.0.0/8 ; monitored by oid 1.3.6.1"
+# Line 1: "permit 192.168.1.0"
+# Line 2: "snmp-trap-oid 0.3.6.1.2.1.1.0"
+# Line 3: "network 10.0.0.0/8"
 
 # Results:
-# Line 1: server 10.0.0.1                    ✓ (bare IP extracted and matched)
-# Line 2: snmp-oid 1.3.6.1.2.1.1.0           ✗ (OID line - no bare IP extraction)
-# Line 3: network 10.0.0.0/8 ; monitored ... ✓ (CIDR always extracted, regardless of OID presence)
+# Line 1: permit 192.168.1.0                ✓ (bare IP extracted and matched as /32)
+# Line 2: snmp-trap-oid 0.3.6.1.2.1.1.0     ✗ (OID line - 0.3.6.1 not extracted as 0.0.0.0/0)
+# Line 3: network 10.0.0.0/8                ✓ (CIDR extracted and matched)
 ```
 
 **Why this matters:**
