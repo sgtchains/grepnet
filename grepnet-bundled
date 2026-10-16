@@ -4600,10 +4600,18 @@ __version__ = '5.0.0'
 import sys
 import argparse
 import re
+import signal
 from collections import deque
 
 # Version string - same in bundled and packaged versions
 __version__ = '5.0.0'
+
+# Handle CTRL-C gracefully without error output
+def _handle_sigint(signum, frame):
+    """Exit cleanly on CTRL-C without traceback."""
+    sys.exit(130)
+
+signal.signal(signal.SIGINT, _handle_sigint)
 
 # In bundled version, these classes are already defined in current namespace
 # In packaged version, import from grepnet
