@@ -2082,7 +2082,114 @@ grepnet --consolidate --format range file.txt         # Consolidated networks as
 grepnet 192.0.2.0/24 --extract --format short-range file.txt  # Matching networks as short-range
 ```
 
-**Consolidation algorithm**: Extract networks, then use `collapse_addresses()` to compute minimal CIDR set covering all selected addresses.
+**Consolidation Algorithm: Bitshift Grouping with Gap Analysis**
+
+The consolidation algorithm uses bitwise right-shift operations to group networks and analyze gap coverage. This shared algorithm powers both `--consolidate`, `--fill-pct`, and `--fill-boundary`.
+
+**Input Preparation:**
+1. Extract all networks from input
+2. Convert all networks to integer representations (network start address)
+3. Sort networks by integer address (ascending order)
+4. For each network, record: `start_int`, `end_int`, `prefix_length`
+
+**Grouping Algorithm (Core):**
+For each prefix level (from 1 to 32 for IPv4, 1 to 128 for IPv6):
+1. Initialize empty current group
+2. Iterate through sorted networks
+3. For each network, calculate group key: `group_key = start_int >> prefix_len`
+4. If group key matches previous network's key: add to current group
+5. If group key differs: 
+   - Analyze current group (see below)
+   - Apply consolidation criterion (see below)
+   - Start new group
+
+**Group Analysis:**
+For each completed group:
+1. Calculate `total_ips = 2^prefix_len`
+2. Calculate `covered_ips = sum of all IP addresses in all networks in group`
+   - For CIDR: `covered_ips += (network.num_addresses)`
+   - For ranges: `covered_ips += (end_int - start_int + 1)`
+3. Calculate `gap_ips = total_ips - covered_ips`
+4. Calculate `gap_ratio = (gap_ips / total_ips) * 100`
+
+**Consolidation Criteria (Decision Point):**
+When a group boundary is reached, decide whether to consolidate based on `gap_ratio`:
+
+- **`--consolidate` alone**: Accept group if `gap_ratio == 0%` (perfect fit, all IPs covered)
+- **`--consolidate --fill-pct N`**: Accept group if `gap_ratio <= N%` (allow up to N% gap)
+- **`--consolidate --fill-boundary`**: Accept group if `gap_ratio <= 1%` (only boundary IPs missing)
+
+When accepted, consolidate the entire group to a single CIDR block at that prefix level.
+
+When rejected, output original networks and continue to next prefix level.
+
+**IPv6 Handling:**
+Same algorithm, but prefix levels range from 1 to 128, and shift operations work on 128-bit integers.
+
+**Examples:**
+
+Input: `192.0.2.0/32` + `192.0.2.4/30`
+
+At /29 level (>> 3):
+- Both have same group key → same group
+- total_ips = 2^3 = 8
+- covered_ips = 1 + 4 = 5
+- gap_ratio = (8 - 5) / 8 * 100 = 37.5%
+- `--consolidate`: reject (37.5% != 0%)
+- `--consolidate --fill-pct 37`: reject (37.5% > 37%)
+- `--consolidate --fill-pct 38`: accept → outputs `192.0.2.0/29`
+- `--consolidate --fill-boundary`: reject (37.5% >> 1%)
+
+Input: `192.0.2.1/32` through `192.0.2.254/32` (254 addresses, missing .0 and .255)
+
+At /24 level (>> 8):
+- All have same group key → same group
+- total_ips = 2^8 = 256
+- covered_ips = 254
+- gap_ratio = (256 - 254) / 256 * 100 = 0.78%
+- `--consolidate`: reject (0.78% != 0%)
+- `--consolidate --fill-pct 50`: accept → outputs `192.0.2.0/24`
+- `--consolidate --fill-boundary`: accept (0.78% <= 1%) → outputs `192.0.2.0/24`
+
+#### `--fill-boundary` (with `--consolidate`)
+
+**Syntax**: `grepnet --consolidate --fill-boundary [PATTERN] [FILE...]`
+
+**Description**: 
+When used with `--consolidate`, automatically inject missing network and broadcast addresses before consolidation. This enables complete CIDR consolidation when input covers all usable addresses but lacks the boundary addresses.
+
+**Behavior**:
+- Only valid with `--consolidate` mode (error if used without it)
+- Detects contiguous ranges of networks that nearly cover a complete subnet
+- Identifies missing network address (x.x.x.0) and broadcast address (x.x.x.255)
+- Automatically injects these boundary addresses into the consolidation algorithm
+- Results in complete parent network consolidation instead of fragmented subnets
+
+**Example**:
+```
+Input (192.0.2.1-192.0.2.254, missing 192.0.2.0/32 and 192.0.2.255/32):
+192.0.2.1/32
+192.0.2.2/31
+192.0.2.4/30
+192.0.2.8/29
+192.0.2.16/28
+192.0.2.32/27
+192.0.2.64/26
+192.0.2.128/26
+192.0.2.192/27
+192.0.2.224/28
+192.0.2.240/29
+192.0.2.248/30
+192.0.2.252/31
+192.0.2.254/32
+
+Without --fill-boundary: Outputs 14 separate CIDR blocks
+With --fill-boundary: Consolidates to single 192.0.2.0/24
+```
+
+**Error handling**:
+- `--fill-boundary` without `--consolidate`: error (exit code 2)
+- `--fill-boundary` with `-v`: warning, flag ignored (incompatible semantics)
 
 #### 4. Count Mode
 
