@@ -87,11 +87,6 @@ def run():
     
     # Patterns
     parser.add_argument(
-        'positional_args',
-        nargs='*',
-        help='PATTERN [FILE...] or FILE... (with -f)',
-    )
-    parser.add_argument(
         '-P',
         '--pattern',
         action='append',
@@ -520,7 +515,14 @@ def run():
         help='Debug mode (markup: show internal Unicode markup)',
     )
     
-    args = parser.parse_args()
+    # Positional arguments
+    parser.add_argument(
+        'positional_args',
+        nargs='*',
+        help='PATTERN [FILE...] or FILE... (with -f)',
+    )
+    
+    args = parser.parse_intermixed_args()
     
     # Handle flag precedence: if both -H and --no-filename are specified,
     # whichever came last in the command line takes precedence
