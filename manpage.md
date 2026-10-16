@@ -513,33 +513,38 @@ grepnet automatically detects and excludes common false-positive patterns that l
 
 ### SNMP OID Exclusion
 
-SNMP (Simple Network Management Protocol) uses OID (Object Identifier) notation that looks deceptively like IP addresses. OIDs use dot-separated octets like `1.3.6.1.2.1.1.1.0`, which could be mistaken for a five-octet IP address pattern.
+SNMP (Simple Network Management Protocol) uses OID (Object Identifier) notation that looks deceptively like IP addresses. OIDs are dot-separated numeric sequences like `1.3.6.1.2.1.1.1.0`. Without filtering, bare IP parsing could mistakenly treat the OID components as individual IP addresses.
 
 **How it works:**
-- Lines containing SNMP OID patterns (4+ dot-separated numeric parts with each part 0-4 digits) are detected automatically
-- Plain bare IP extraction is skipped for lines with detected OID patterns (these are OID components, not addresses)
-- CIDR notation with slashes is still extracted from OID-containing lines (e.g., `range 10.0.0.0/8 ; OID 1.3.6.1`)
-- CIDR, subnet mask, inverse mask, and IP range formats are unaffected
+When a line contains an SNMP OID pattern (4+ dot-separated numeric parts with each part 0-4 digits), plain bare IP extraction is skipped for that line. However, CIDR notation, subnet masks, inverse masks, and IP ranges are still extracted normally, regardless of whether OIDs are present.
+
+**Why this distinction matters:**
+- Bare IPs (e.g., `1.3.6`) are ambiguous—could be version numbers, OID components, or actual IP addresses
+- CIDR notation (e.g., `10.0.0.0/8`) is unambiguous—always a network object
+- Subnet masks, ranges, and inverse masks are also unambiguous—always network objects
+- Therefore, only bare IP extraction needs to be guarded against false positives
 
 **Example:**
 
 ```bash
-# File contains mixed network configs and SNMP traps
-# Line 1: "server 10.0.0.1"          (plain IP on normal line)
-# Line 2: "trap-oid 1.3.6.1.2.1.1.1"  (SNMP OID line)
-# Line 3: "network 10.0.0.0/8 ; oid 1.3.6.1" (CIDR on OID line)
-
+# File contains network configs and SNMP OID references
 grepnet --parse-bare-ip both '10.0.0.0/8' config.txt
-# Result:
-# Line 1: server 10.0.0.1              ✓ (bare IP extracted and matched)
-# Line 2: trap-oid 1.3.6.1.2.1.1.1     ✗ (no extraction - OID line)
-# Line 3: network 10.0.0.0/8 ; oid ... ✓ (CIDR extracted and matched)
+
+# File content:
+# Line 1: "server 10.0.0.1"
+# Line 2: "snmp-oid 1.3.6.1.2.1.1.0"
+# Line 3: "network 10.0.0.0/8 ; monitored by oid 1.3.6.1"
+
+# Results:
+# Line 1: server 10.0.0.1                    ✓ (bare IP extracted and matched)
+# Line 2: snmp-oid 1.3.6.1.2.1.1.0           ✗ (OID line - no bare IP extraction)
+# Line 3: network 10.0.0.0/8 ; monitored ... ✓ (CIDR always extracted, regardless of OID presence)
 ```
 
 **Why this matters:**
-- SNMP and network configuration often appear in the same files (systems monitoring)
-- Pure integer sequences like `1.3.6` are ambiguous (could be version numbers, MIB references, or OIDs)
-- This filter provides a safe default that reduces noise while preserving intended network matches
+- SNMP monitoring and network configuration often appear in the same files
+- OID detection prevents false matches on numeric sequences that look like IPs but are actually OID components
+- This filter provides safe defaults without requiring manual `--parse-bare-ip none` flags for mixed config/monitoring files
 
 ### Other False-Positive Filters
 

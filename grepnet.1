@@ -734,39 +734,49 @@ This prevents accidental matching of unrelated numeric patterns.
 .PP
 SNMP (Simple Network Management Protocol) uses OID (Object Identifier)
 notation that looks deceptively like IP addresses.
-OIDs use dot-separated octets like \f[V]1.3.6.1.2.1.1.1.0\f[R], which
-could be mistaken for a five-octet IP address pattern.
+OIDs are dot-separated numeric sequences like
+\f[V]1.3.6.1.2.1.1.1.0\f[R].
+Without filtering, bare IP parsing could mistakenly treat the OID
+components as individual IP addresses.
 .PP
-\f[B]How it works:\f[R] - Lines containing SNMP OID patterns (4+
-dot-separated numeric parts with each part 0-4 digits) are detected
-automatically - Plain bare IP extraction is skipped for lines with
-detected OID patterns (these are OID components, not addresses) - CIDR
-notation with slashes is still extracted from OID-containing lines
-(e.g., \f[V]range 10.0.0.0/8 ; OID 1.3.6.1\f[R]) - CIDR, subnet mask,
-inverse mask, and IP range formats are unaffected
+\f[B]How it works:\f[R] When a line contains an SNMP OID pattern (4+
+dot-separated numeric parts with each part 0-4 digits), plain bare IP
+extraction is skipped for that line.
+However, CIDR notation, subnet masks, inverse masks, and IP ranges are
+still extracted normally, regardless of whether OIDs are present.
+.PP
+\f[B]Why this distinction matters:\f[R] - Bare IPs (e.g.,
+\f[V]1.3.6\f[R]) are ambiguous\[em]could be version numbers, OID
+components, or actual IP addresses - CIDR notation (e.g.,
+\f[V]10.0.0.0/8\f[R]) is unambiguous\[em]always a network object -
+Subnet masks, ranges, and inverse masks are also unambiguous\[em]always
+network objects - Therefore, only bare IP extraction needs to be guarded
+against false positives
 .PP
 \f[B]Example:\f[R]
 .IP
 .nf
 \f[C]
-# File contains mixed network configs and SNMP traps
-# Line 1: \[dq]server 10.0.0.1\[dq]          (plain IP on normal line)
-# Line 2: \[dq]trap-oid 1.3.6.1.2.1.1.1\[dq]  (SNMP OID line)
-# Line 3: \[dq]network 10.0.0.0/8 ; oid 1.3.6.1\[dq] (CIDR on OID line)
-
+# File contains network configs and SNMP OID references
 grepnet --parse-bare-ip both \[aq]10.0.0.0/8\[aq] config.txt
-# Result:
-# Line 1: server 10.0.0.1              ✓ (bare IP extracted and matched)
-# Line 2: trap-oid 1.3.6.1.2.1.1.1     ✗ (no extraction - OID line)
-# Line 3: network 10.0.0.0/8 ; oid ... ✓ (CIDR extracted and matched)
+
+# File content:
+# Line 1: \[dq]server 10.0.0.1\[dq]
+# Line 2: \[dq]snmp-oid 1.3.6.1.2.1.1.0\[dq]
+# Line 3: \[dq]network 10.0.0.0/8 ; monitored by oid 1.3.6.1\[dq]
+
+# Results:
+# Line 1: server 10.0.0.1                    ✓ (bare IP extracted and matched)
+# Line 2: snmp-oid 1.3.6.1.2.1.1.0           ✗ (OID line - no bare IP extraction)
+# Line 3: network 10.0.0.0/8 ; monitored ... ✓ (CIDR always extracted, regardless of OID presence)
 \f[R]
 .fi
 .PP
-\f[B]Why this matters:\f[R] - SNMP and network configuration often
-appear in the same files (systems monitoring) - Pure integer sequences
-like \f[V]1.3.6\f[R] are ambiguous (could be version numbers, MIB
-references, or OIDs) - This filter provides a safe default that reduces
-noise while preserving intended network matches
+\f[B]Why this matters:\f[R] - SNMP monitoring and network configuration
+often appear in the same files - OID detection prevents false matches on
+numeric sequences that look like IPs but are actually OID components -
+This filter provides safe defaults without requiring manual
+\f[V]--parse-bare-ip none\f[R] flags for mixed config/monitoring files
 .SS Other False-Positive Filters
 .PP
 \f[B]IPv6 embedding prevention\f[R]: IPv6 addresses are not matched if
