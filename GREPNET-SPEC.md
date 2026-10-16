@@ -2004,7 +2004,9 @@ Example: If a line contains `192.0.2.0 192.0.2.1 192.0.2.0/31 192.0.2.1`, with `
 192.0.2.1
 ```
 
-Networks are extracted if they have a match_type in the active set (determined by `-e -s -S -O -u` flags). The `-v` flag inverts: only output networks from lines that are NOT matching.
+Networks are extracted if they have a match_type in the active set (determined by `-e -s -S -O -u` flags). 
+
+**Note on `-v` with `-o`**: The flags `-v` (invert-match) and `-o` (only-matching) are incompatible. With `-v`, lines contain NO matching networks, so there is nothing for `-o` to extract. This matches grep's behavior: `grep -v -o pattern` produces no output. Use `-v` alone to show non-matching lines.
 
 #### 2. Extract Mode
 
