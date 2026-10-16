@@ -528,7 +528,7 @@ When a line contains an SNMP OID pattern (4+ dot-separated numeric parts with ea
 
 ```bash
 # File contains network configs and SNMP OID references
-grepnet --parse-bare-ip both '0.0.0.0/0' config.txt
+grepnet '0.0.0.0/0' config.txt
 
 # File content:
 # Line 1: "permit 192.168.1.0"
@@ -537,7 +537,7 @@ grepnet --parse-bare-ip both '0.0.0.0/0' config.txt
 
 # Results:
 # Line 1: permit 192.168.1.0                ✓ (bare IP extracted and matched as /32)
-# Line 2: snmp-trap-oid 0.3.6.1.2.1.1.0     ✗ (OID line - 0.3.6.1 not extracted as 0.0.0.0/0)
+# Line 2: snmp-trap-oid 0.3.6.1.2.1.1.0     ✗ (OID line - 0.3.6.1 not extracted as bare IP)
 # Line 3: network 10.0.0.0/8                ✓ (CIDR extracted and matched)
 ```
 
