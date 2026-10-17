@@ -342,7 +342,11 @@ class NetworkParser:
             
             # Keep calling each extractor until no more networks found
             while True:
-                extraction = extractor.extract(working_line)
+                # Pass mask_format_hint to extractor for special case gating
+                if hasattr(extractor, 'extract') and 'mask_format_hint' in extractor.extract.__code__.co_varnames:
+                    extraction = extractor.extract(working_line, mask_format_hint=mask_format_hint)
+                else:
+                    extraction = extractor.extract(working_line)
                 if extraction is None:
                     break
                 

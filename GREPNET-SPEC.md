@@ -818,7 +818,11 @@ These special cases must be checked BEFORE normal parsing logic. They represent 
 - **Condition**: Second value is exactly `0.0.0.0` (regardless of first value)
 - **Normal parsing by MSB rule**: MSB=0 would normally attempt inverse mask parsing
 - **Rule**: `0.0.0.0` is explicitly reserved for inverse mask format and MUST NOT be parsed as a subnet mask
-- **With `--parse-hostmask` enabled**: Parse as inverse mask → Result is `first_ip/32`
+- **Gating conditions** (ALL must be true):
+  1. `--parse-hostmask` is NOT `none` AND matches current context (pattern or input)
+  2. **AND** mask format hint is `'mixed'` or `'unknown'` (not a conclusive format hint)
+- **With `--parse-hostmask` enabled AND hint is 'mixed'/'unknown'**: Parse as inverse mask → Result is `first_ip/32`
+- **With conclusive hint (netmask/hostmask_dominant)**: Fall back to standard parsing
 - **With `--parse-hostmask` disabled**: Extract both values as separate IPs (each /32)
 - **Rationale**: Even though `0.0.0.0` is a valid netmask (representing /0), using it as a netmask creates ambiguity. Reserve it for hostmask notation.
 - **Examples**:

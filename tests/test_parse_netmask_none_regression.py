@@ -281,6 +281,104 @@ class TestMaskFormatHints(unittest.TestCase):
             self.assertEqual(net, IPv4Network('10.0.0.0/8'))
         finally:
             os.unlink(temp_file)
+    
+    def test_special_case_3_with_netmask_dominant_hint(self):
+        """
+        When file is netmask_dominant, Special Case 3 (0.0.0.0 as hostmask) should NOT apply.
+        The pattern 255.255.255.255 0.0.0.0 should fall through to bare IP extraction.
+        """
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+            # First two lines establish netmask_dominant hint
+            f.write('192.0.2.0 255.255.0.0\n')
+            f.write('192.0.2.0 255.255.255.0\n')
+            # Third line: 255.255.255.255 0.0.0.0
+            # With netmask_dominant hint, Special Case 3 doesn't apply
+            # Falls through to bare IP extraction: 255.255.255.255/32 and 0.0.0.0/32
+            f.write('255.255.255.255 0.0.0.0\n')
+            f.flush()
+            temp_file = f.name
+        
+        try:
+            grepnet = GrepNet(
+                patterns=['0.0.0.0/0'],  # Match everything for consolidation
+                parse_netmask='both',
+                parse_bare_ip='both',
+            )
+            input_sources = [InputSource('file', file_path=temp_file)]
+            consolidated_dict = grepnet.consolidate_networks(input_sources)
+            
+            # Should have three networks:
+            # 1. 192.0.0.0/16 from first line (merged from first two netmasks)
+            # 2. 255.255.255.255/32 from third line (bare IP, not special case)
+            # 3. 0.0.0.0/32 from third line (bare IP, not hostmask inverse)
+            self.assertEqual(len(consolidated_dict), 3)
+            networks = sorted([net for net in consolidated_dict.keys()], key=str)
+            self.assertEqual(networks[0], IPv4Network('0.0.0.0/32'))
+            self.assertEqual(networks[1], IPv4Network('192.0.0.0/16'))
+            self.assertEqual(networks[2], IPv4Network('255.255.255.255/32'))
+        finally:
+            os.unlink(temp_file)
+    
+    def test_special_case_3_with_hostmask_dominant_hint(self):
+        """
+        When file is hostmask_dominant, Special Case 3 SHOULD apply.
+        The pattern 192.0.2.0 0.0.0.0 should be treated as hostmask: 192.0.2.0/32
+        """
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+            # First two lines establish hostmask_dominant hint
+            f.write('192.0.2.0 0.0.0.255\n')
+            f.write('192.0.2.0 0.0.0.7\n')
+            # Third line: 192.0.2.0 0.0.0.0
+            # With hostmask_dominant hint, Special Case 3 applies
+            # Treated as hostmask: 0.0.0.0 inverts to /32
+            f.write('192.0.2.0 0.0.0.0\n')
+            f.flush()
+            temp_file = f.name
+        
+        try:
+            grepnet = GrepNet(
+                patterns=['192.0.2.0/30'],  # Match for consolidation
+                parse_netmask='both',
+                parse_bare_ip='both',
+            )
+            input_sources = [InputSource('file', file_path=temp_file)]
+            consolidated_dict = grepnet.consolidate_networks(input_sources)
+            
+            # All three are subsumed by /24, so consolidated result is just /24
+            self.assertEqual(len(consolidated_dict), 1)
+            net = list(consolidated_dict.keys())[0]
+            self.assertEqual(net, IPv4Network('192.0.2.0/24'))
+        finally:
+            os.unlink(temp_file)
+    
+    def test_special_case_3_with_unknown_hint(self):
+        """
+        When hint is unknown (only 1 pattern or ambiguous patterns),
+        Special Case 3 SHOULD apply.
+        Single line: 192.0.2.0 0.0.0.0
+        """
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+            # Single line, only one pattern → hint will be 'unknown'
+            f.write('192.0.2.0 0.0.0.0\n')
+            f.flush()
+            temp_file = f.name
+        
+        try:
+            grepnet = GrepNet(
+                patterns=['192.0.2.0/32'],  # Match for consolidation
+                parse_netmask='both',
+                parse_bare_ip='both',
+            )
+            input_sources = [InputSource('file', file_path=temp_file)]
+            consolidated_dict = grepnet.consolidate_networks(input_sources)
+            
+            # With unknown hint, Special Case 3 applies: 0.0.0.0 is treated as hostmask
+            # Result: 192.0.2.0/32 (0.0.0.0 inverted to /32)
+            self.assertEqual(len(consolidated_dict), 1)
+            net = list(consolidated_dict.keys())[0]
+            self.assertEqual(net, IPv4Network('192.0.2.0/32'))
+        finally:
+            os.unlink(temp_file)
 
 
 if __name__ == '__main__':
