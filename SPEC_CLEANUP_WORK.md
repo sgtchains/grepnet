@@ -218,54 +218,60 @@ If (MSB is 0 OR (hint is `'hostmask_dominant'` AND mask is NOT `255.255.255.255`
 
 ## Comprehensive Spec Cleanup Checklist
 
-### Phase 1: Terminology Consistency
-- [ ] Line 344: Update format type description
-- [ ] Line 569: Change "inverse mask" to "hostmask"
-- [ ] Lines 765-780: Review subnet mask parsing section, ensure "netmask" consistency
-- [ ] Line 808: Update language
-- [ ] Lines 841-853: Review Steps 3-4 language
-- [ ] Lines 887-950: Rename section and update all terminology
+### Phase 1: Consolidate Mask Sections (RECOMMENDED FIRST)
+- [ ] **NEW APPROACH**: Merge "Subnet Mask Parsing" and "Inverse/Hostmask Parsing" sections
+  - Remove separate "Subnet Mask Parsing" section (lines 749-784)
+  - Remove separate "Inverse/Hostmask Parsing" section (lines 885-933)
+  - Create single "Two-Value Mask Formats" section with:
+    - Common format definitions and prerequisites
+    - Subnet mask format subsection (what it is, validation, examples)
+    - Hostmask format subsection (what it is, validation, examples)
+    - Key Distinction table (side-by-side comparison)
+    - Reserved values subsection (moved up, expanded)
+    - Unified parsing algorithm (Steps 0-5)
+    - Special cases section
+    - Examples section
+- [ ] Benefits of consolidation:
+  - Shows netmask and hostmask are complements, not separate concepts
+  - Eliminates repetition of common validation steps
+  - Makes MSB-based distinction crystal clear
+  - Consistent terminology throughout
+  - Side-by-side binary patterns for easy comparison
+  - Single unified algorithm covers both formats
 
-### Phase 2: Reserved Values Clarification
-- [ ] Step 2 (lines 827-839): Verify CRITICAL RESERVED VALUES section is clear
-- [ ] Step 3 (lines 841-846): Add explanation of 0.0.0.0 exclusion
-- [ ] Step 4 (lines 848-853): Add explanation of 255.255.255.255 exclusion
-- [ ] Add examples showing reserved value behavior with different hints
+### Phase 2: Terminology Consistency (After consolidation)
+- [ ] Standardize on "hostmask" (with "inverse mask" as clarification where needed)
+- [ ] Standardize on "netmask" (with "subnet mask" as clarification where needed)
+- [ ] Update all section headers and cross-references
+- [ ] Verify terminology consistent throughout spec
 
 ### Phase 3: Format Hint Integration
-- [ ] Move format hint section earlier in the spec (before parsing algorithm)
+- [ ] Move format hint section earlier in the spec (after mask formats, before parsing algorithm)
 - [ ] Add subsection on hint detection process
-- [ ] Document hint application scope
+- [ ] Document hint application scope (input files only, not patterns)
 - [ ] Add fallback behavior documentation
-- [ ] Update all format hint references for terminology consistency
+- [ ] Clearly explain hint limitations (reserved values excluded)
 
 ### Phase 4: Examples and Edge Cases
 - [ ] Add reserved value + hint examples
 - [ ] Add single-parsing-mode examples
 - [ ] Add non-contiguous mask examples
 - [ ] Add failed parsing examples (patterns that don't extract)
+- [ ] Verify all examples work with actual implementation
 
-### Phase 5: Binary Pattern Documentation
-- [ ] Create "Mask Format Definitions" subsection
-- [ ] Consolidate binary structure documentation
-- [ ] Remove redundancy in binary descriptions
-- [ ] Add side-by-side comparison examples
-
-### Phase 6: Special Values Section Review
-- [ ] Decide: Keep or remove "Special Mask Values" section
-- [ ] If keeping: Link clearly to Step 2 and remove redundancy
-- [ ] If removing: Ensure all content is captured in Step 2 + examples
-
-### Phase 7: Cross-Reference Verification
-- [ ] Verify all internal references are consistent
-- [ ] Check all section links work
-- [ ] Verify all terminology is consistent throughout
+### Phase 5: Cross-Reference Verification
+- [ ] Update all internal references to use new section names
+- [ ] Verify all section links work
+- [ ] Check terminology is consistent in all referenced sections
 - [ ] Verify all examples are accurate with new logic
+- [ ] Update any external references (README, docs, etc.)
 
-### Phase 8: Spec Examples Validation
-- [ ] Test all examples with actual grepnet implementation
-- [ ] Verify output matches documented results
-- [ ] Add any failing edge cases to documentation
+### Phase 6: Final Documentation Review
+- [ ] Verify no redundancy remains
+- [ ] Check flow and readability of consolidated section
+- [ ] Ensure all concepts are explained clearly
+- [ ] Add diagrams if helpful (binary patterns)
+- [ ] Update table of contents/navigation
 
 ---
 
@@ -300,16 +306,26 @@ After cleanup, verify:
 
 ## Estimated Effort
 
-- **Phase 1 (Terminology):** 1-2 hours
-- **Phase 2 (Reserved Values):** 1 hour
-- **Phase 3 (Format Hints):** 2-3 hours
-- **Phase 4 (Examples):** 2-3 hours
-- **Phase 5 (Binary Patterns):** 1 hour
-- **Phase 6 (Special Values):** 1 hour
-- **Phase 7 (Cross-Reference):** 1-2 hours
-- **Phase 8 (Testing):** 2-3 hours
+**NEW CONSOLIDATED APPROACH (Recommended):**
+- **Phase 1 (Consolidate Mask Sections):** 3-4 hours
+  - ✅ Includes: Remove duplication, create unified algorithm, merge examples
+  - ✅ This alone will make the spec much clearer
+  - ✅ Eliminates most of the issues from Phases 5-6 in old approach
+- **Phase 2 (Terminology Consistency):** 1-2 hours
+- **Phase 3 (Format Hint Integration):** 1-2 hours
+- **Phase 4 (Examples & Edge Cases):** 1-2 hours
+- **Phase 5 (Cross-Reference Verification):** 1-2 hours
+- **Phase 6 (Final Documentation Review):** 1 hour
 
-**Total:** ~12-18 hours
+**Total (New Approach):** ~8-13 hours (5 hours faster than old approach!)
+
+**Key Difference:** By consolidating mask sections first, we eliminate:
+- Repetition of validation steps
+- Inconsistent terminology problems
+- Separate binary structure definitions
+- Confusion about netmask vs hostmask relationship
+
+This makes the remaining cleanup phases much simpler.
 
 ---
 
