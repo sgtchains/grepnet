@@ -2720,6 +2720,53 @@ import re
 from ipaddress import IPv4Address
 
 
+class ExtractorDecisions:
+    """
+    Tracks per-extractor decisions for skip/run logic.
+    
+    ARCHITECTURAL PRINCIPLE: This class makes it impossible to reject a line
+    at line-level. It only tracks which extractors to skip, not whether to
+    skip the entire line. This enforces the spec requirement: lines are only
+    skipped if they produce zero networks, not based on line metadata.
+    
+    This prevents the anti-pattern:
+        if condition:
+            return None  # ❌ WRONG: Rejects entire line
+    
+    And enforces the correct pattern:
+        if condition:
+            skip_bare_ip_extraction = True  # ✅ CORRECT: Only affects one extractor
+    """
+    
+    def __init__(self):
+        """Initialize all extractors as enabled (no skips)."""
+        # Note: The order here corresponds to extractors in NetworkParser.__init__
+        self.skip_cidr = False
+        self.skip_netmask = False
+        self.skip_hostmask = False
+        self.skip_range = False
+        self.skip_bare_ip = False
+    
+    def should_skip(self, extractor_index: int) -> bool:
+        """
+        Check if a specific extractor should be skipped.
+        
+        Args:
+            extractor_index: Index of extractor (0=CIDR, 1=netmask, 2=hostmask, 3=range, 4=bare_ip)
+        
+        Returns:
+            True if this extractor should be skipped
+        """
+        skip_flags = [self.skip_cidr, self.skip_netmask, self.skip_hostmask, self.skip_range, self.skip_bare_ip]
+        if extractor_index < len(skip_flags):
+            return skip_flags[extractor_index]
+        return False
+    
+    def set_skip_bare_ip_extraction(self):
+        """Mark bare IP extractor to be skipped. Used when SNMP OID patterns detected."""
+        self.skip_bare_ip = True
+
+
 class NetworkParser:
     """
     Main parsing orchestrator.
@@ -2785,9 +2832,13 @@ class NetworkParser:
             IPOnlyExtractor(),
         ]
     
-    def _is_snmp_oid_line(self, line: str) -> bool:
+    def _contains_snmp_oid_pattern(self, line: str) -> bool:
         """
         Detect if line contains SNMP OID patterns or malformed MIB-like patterns.
+        
+        IMPORTANT: This check only affects which EXTRACTORS are skipped (e.g., bare IP
+        extraction). It does NOT cause the entire line to be rejected. The line is only
+        rejected if it produces zero networks after all extractors run.
         
         SNMP OIDs have 4+ dots (5+ octets), e.g., 1.3.6.1.2.1.1.0
         IPv4 addresses have 3 dots (4 octets), e.g., 192.0.2.1
@@ -2868,16 +2919,31 @@ class NetworkParser:
     
     def parse_line(self, line: str, line_number: int = 0, context: str = 'input', mask_format_hint: Optional[str] = None) -> List[ParsedExtraction]:
         """
-        Extract all networks from a line.
+        Extract ALL networks from a line (never rejects line wholesale).
+        
+        CRITICAL ARCHITECTURAL REQUIREMENT (per GREPNET-SPEC):
+        This method NEVER rejects a line based on line-level metadata. It returns
+        an empty list ONLY if the line produces zero networks after all processing.
+        
+        Individual extractors may be skipped (e.g., skip bare IP extraction when
+        SNMP OID patterns are detected), but the line processing continues with
+        remaining extractors. This ensures networks in mixed-content lines are
+        still extracted.
+        
+        Examples of correct behavior:
+        - Line "1.3.6.1.2.1.1.0 192.0.2.0/24" → Extracts CIDR (skips bare IP)
+        - Line "1.3.6.1.2.1.1.0 192.0.2.1" → No output (bare IP suppressed, no CIDR)
+        - Line "192.0.2.0/24" → Extracts CIDR
         
         Args:
             line: Line text
             line_number: Line number (1-based, for reference)
             context: Context for parsing ('pattern' for search patterns, 'input' for file input)
-            mask_format_hint: Format hint from peek buffer analysis ('netmask_dominant', 'hostmask_dominant', 'mixed', 'unknown', or None)
+            mask_format_hint: Format hint from peek buffer analysis
         
         Returns:
-            List of ParsedExtraction objects, deduplicated by network value
+            List of ParsedExtraction objects, deduplicated by network value.
+            Empty list only if no networks were extracted.
         """
         # Filter comments if enabled
         filtered_line, _ = self.comment_handler.filter_comments(
@@ -2889,8 +2955,12 @@ class NetworkParser:
         if not filtered_line.strip():
             return []
         
-        # Check if line contains SNMP OID patterns (skip plain IP extraction if true)
-        has_snmp_oid = self._is_snmp_oid_line(filtered_line)
+        # Determine which extractors to skip based on line content/settings
+        decisions = ExtractorDecisions()
+        
+        # Check if line contains SNMP OID patterns (skip bare IP extraction if true)
+        if self._contains_snmp_oid_pattern(filtered_line):
+            decisions.set_skip_bare_ip_extraction()
         
         # Map extractor indices to types for parse control checking
         extractor_types = [
@@ -2908,8 +2978,8 @@ class NetworkParser:
         original_line = filtered_line  # Keep original for position tracking
         
         for idx, extractor in enumerate(self.extractors):
-            # Skip IPOnlyExtractor if SNMP OID detected (IPOnlyExtractor is at index 4)
-            if idx == 4 and has_snmp_oid:
+            # Check extractor-level skip decisions (never line-level rejection)
+            if decisions.should_skip(idx):
                 continue
             
             # Check parse control flags

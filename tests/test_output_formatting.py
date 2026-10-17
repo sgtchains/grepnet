@@ -282,36 +282,6 @@ class TestOutputFormattingFlags(unittest.TestCase):
     
     # ========== Tab Separator Tests ==========
     
-    def test_T_flag_inserts_tab_after_prefixes(self):
-        """With -T flag, insert tab after prefixes (for alignment)."""
-        stdout_with_t, _, _ = self.run_grepnet(
-            '0.0.0.0/0',
-            '-n',
-            '-T',
-            files=[str(self.file1)]
-        )
-        
-        stdout_without_t, _, _ = self.run_grepnet(
-            '0.0.0.0/0',
-            '-n',
-            files=[str(self.file1)]
-        )
-        
-        # With -T should have tab character
-        self.assertIn('\t', stdout_with_t,
-                     "-T flag should insert tab character")
-        
-        # Tab should appear after line number prefix
-        lines_with_t = stdout_with_t.strip().split('\n')
-        for line in lines_with_t:
-            if line:  # Non-empty line
-                # Format should be N\tCONTENT
-                parts = line.split('\t', 1)
-                self.assertEqual(len(parts), 2,
-                              f"Should have tab after prefix with -T, got: {line}")
-                self.assertTrue(parts[0].isdigit(),
-                             f"First part should be line number, got: {line}")
-    
     # ========== Stdin with Filename Tests ==========
     
     def test_stdin_shows_standard_input_label(self):

@@ -220,13 +220,6 @@ def run():
         help='Treat input/output data as NUL-terminated records',
     )
     parser.add_argument(
-        '-T',
-        '--initial-tab',
-        action='store_true',
-        dest='initial_tab',
-        help='Insert tab after prefixes for alignment',
-    )
-    parser.add_argument(
         '-l',
         '--files-with-matches',
         action='store_true',
@@ -314,18 +307,6 @@ def run():
         '--consolidate',
         action='store_true',
         help='Consolidate overlapping and adjacent networks',
-    )
-    parser.add_argument(
-        '--fill-pct',
-        type=int,
-        default=None,
-        metavar='N',
-        help='Allow consolidation to fill gaps up to N%% (only with --consolidate)',
-    )
-    parser.add_argument(
-        '--fill-boundary',
-        action='store_true',
-        help='Allow consolidation to fill boundary addresses (only with --consolidate)',
     )
     parser.add_argument(
         '--show-content',
@@ -642,18 +623,6 @@ def run():
             print('grepnet: error: --exclude-cidr-behavior=cut requires --extract or --consolidate', file=sys.stderr)
         sys.exit(2)
     
-    # Validate --fill-pct: only valid with --consolidate
-    if args.fill_pct is not None and not args.consolidate:
-        if not args.no_messages:
-            print('grepnet: error: --fill-pct requires --consolidate', file=sys.stderr)
-        sys.exit(2)
-    
-    # Validate --fill-boundary: only valid with --consolidate
-    if args.fill_boundary and not args.consolidate:
-        if not args.no_messages:
-            print('grepnet: error: --fill-boundary requires --consolidate', file=sys.stderr)
-        sys.exit(2)
-    
     # Validate prefix length filters: only valid with --extract or --consolidate
     prefix_length_flags = [
         ('--ipv4-shorter-than', args.ipv4_shorter_than),
@@ -966,7 +935,7 @@ def run():
                 elif args.consolidate:
                     # Consolidate mode: use grepnet.search(mode='consolidate')
                     # Returns consolidated network dictionary
-                    consolidated_dict = grepnet.search(input_sources, mode='consolidate', fill_pct=args.fill_pct, fill_boundary=args.fill_boundary)
+                    consolidated_dict = grepnet.search(input_sources, mode='consolidate')
                     
                     if not consolidated_dict:
                         sys.exit(1)
@@ -1087,10 +1056,8 @@ def run():
                             else:
                                 prefix_parts.append(str(ctx_line_num))
                         
-                        # Choose separator: tab for -T, null for -Z, colon for normal
-                        if args.initial_tab and prefix_parts:
-                            sep = '\t'
-                        elif args.null_output:
+                        # Choose separator: null for -Z, colon for normal
+                        if args.null_output:
                             sep = '\x00'
                         elif enable_colors:
                             sep = grepnet.colorizer.colorize_separator(':')
@@ -1106,9 +1073,7 @@ def run():
                                 ctx_prefix_count += 1
                             if args.line_number:
                                 ctx_prefix_count += 1
-                            if args.initial_tab and ctx_prefix_count == 1:
-                                output = f'{prefix}\t{ctx_content}'
-                            elif args.null_output:
+                            if args.null_output:
                                 output = f'{prefix}\x00{ctx_content}'
                             else:
                                 output = f'{prefix}:{ctx_content}'
@@ -1147,30 +1112,20 @@ def run():
                         byte_offset_str = (grepnet.colorizer.colorize_byte_offset(str(result.byte_offset))
                                          if enable_colors else str(result.byte_offset))
                     
-                    # Build prefix in the correct order for -T or normal mode
-                    if args.initial_tab:
-                        # For -T mode: byte, line, filename order with tab separators
-                        if byte_offset_str:
-                            prefix_parts.append(byte_offset_str)
-                        if line_num_str:
-                            prefix_parts.append(line_num_str)
-                        if filename_str:
-                            prefix_parts.append(filename_str)
-                        sep = '\t'
+                    # Build prefix in the correct order for normal mode: filename, line, byte order
+                    if filename_str:
+                        prefix_parts.append(filename_str)
+                    if line_num_str:
+                        prefix_parts.append(line_num_str)
+                    if byte_offset_str:
+                        prefix_parts.append(byte_offset_str)
+                    
+                    if args.null_output:
+                        sep = '\x00'
+                    elif enable_colors:
+                        sep = grepnet.colorizer.colorize_separator(':')
                     else:
-                        # For normal mode: filename, line, byte order with separators (null for -Z, colon for normal)
-                        if filename_str:
-                            prefix_parts.append(filename_str)
-                        if line_num_str:
-                            prefix_parts.append(line_num_str)
-                        if byte_offset_str:
-                            prefix_parts.append(byte_offset_str)
-                        if args.null_output:
-                            sep = '\x00'
-                        elif enable_colors:
-                            sep = grepnet.colorizer.colorize_separator(':')
-                        else:
-                            sep = ':'
+                        sep = ':'
                     
                     prefix = sep.join(prefix_parts)
                     
@@ -1187,10 +1142,8 @@ def run():
                                 if marked_block:
                                     output_text = grepnet.colorizer.finalize_markup(marked_block.group(0), enable_colors=True)
                             if prefix:
-                                # Use tab as separator if -T and single prefix, null for -Z, colon if multiple
-                                if args.initial_tab and len(prefix_parts) == 1:
-                                    output = f'{prefix}\t{output_text}'
-                                elif args.null_output:
+                                # Use null for -Z, colon for normal
+                                if args.null_output:
                                     output = f'{prefix}\x00{output_text}'
                                 else:
                                     output = f'{prefix}:{output_text}'
@@ -1205,10 +1158,8 @@ def run():
                         # Full line output
                         line_output = result.content_colored if enable_colors else result.line_content
                         if prefix:
-                            # Use tab as separator if -T and single prefix, null for -Z, colon if multiple
-                            if args.initial_tab and len(prefix_parts) == 1:
-                                output = f'{prefix}\t{line_output}'
-                            elif args.null_output:
+                            # Use null for -Z, colon for normal
+                            if args.null_output:
                                 output = f'{prefix}\x00{line_output}'
                             else:
                                 output = f'{prefix}:{line_output}'
@@ -1231,21 +1182,14 @@ def run():
                     if args.line_number:
                         prefix_parts.append(str(current_line))
                     
-                    # Choose separator: tab for -T, colon for normal
-                    if args.initial_tab and prefix_parts:
-                        sep = '\t'
-                    else:
-                        sep = ':'
+                    # Choose separator: colon for normal
+                    sep = ':'
                     
                     prefix = sep.join(prefix_parts)
                     
                     line_output = result.line_content.rstrip('\n')
                     if prefix:
-                        # Use tab as separator if -T and single prefix, colon if multiple
-                        if args.initial_tab and len(prefix_parts) == 1:
-                            output = f'{prefix}\t{line_output}'
-                        else:
-                            output = f'{prefix}:{line_output}'
+                        output = f'{prefix}:{line_output}'
                     else:
                         output = line_output
                     if not args.quiet:
@@ -1360,30 +1304,20 @@ def run():
                             byte_offset_str = (grepnet.colorizer.colorize_byte_offset(str(result.byte_offset))
                                              if enable_colors else str(result.byte_offset))
                         
-                        # Build prefix in the correct order for -T or normal mode
-                        if args.initial_tab:
-                            # For -T mode: byte, line, filename order with tab separators
-                            if byte_offset_str:
-                                prefix_parts.append(byte_offset_str)
-                            if line_num_str:
-                                prefix_parts.append(line_num_str)
-                            if filename_str:
-                                prefix_parts.append(filename_str)
-                            sep = '\t'
+                        # Build prefix in the correct order for normal mode: filename, line, byte order
+                        if filename_str:
+                            prefix_parts.append(filename_str)
+                        if line_num_str:
+                            prefix_parts.append(line_num_str)
+                        if byte_offset_str:
+                            prefix_parts.append(byte_offset_str)
+                        
+                        if args.null_output:
+                            sep = '\x00'
+                        elif enable_colors:
+                            sep = grepnet.colorizer.colorize_separator(':')
                         else:
-                            # For normal mode: filename, line, byte order with separators (null for -Z, colon for normal)
-                            if filename_str:
-                                prefix_parts.append(filename_str)
-                            if line_num_str:
-                                prefix_parts.append(line_num_str)
-                            if byte_offset_str:
-                                prefix_parts.append(byte_offset_str)
-                            if args.null_output:
-                                sep = '\x00'
-                            elif enable_colors:
-                                sep = grepnet.colorizer.colorize_separator(':')
-                            else:
-                                sep = ':'
+                            sep = ':'
                         
                         prefix = sep.join(prefix_parts)
                         
@@ -1406,10 +1340,8 @@ def run():
                                 
                                 # Add prefix
                                 if prefix:
-                                    # Use tab as separator if -T and single prefix, null for -Z, colon if multiple
-                                    if args.initial_tab and len(prefix_parts) == 1:
-                                        output = f'{prefix}\t{output_text}'
-                                    elif args.null_output:
+                                    # Use null for -Z, colon for normal
+                                    if args.null_output:
                                         output = f'{prefix}\x00{output_text}'
                                     else:
                                         output = f'{prefix}:{output_text}'
@@ -1432,10 +1364,8 @@ def run():
                                 line_output = result.content_colored if enable_colors else result.line_content
                                 
                                 if prefix:
-                                    # Use tab as separator if -T and single prefix, null for -Z, colon if multiple
-                                    if args.initial_tab and len(prefix_parts) == 1:
-                                        output = f'{prefix}\t{line_output}'
-                                    elif args.null_output:
+                                    # Use null for -Z, colon for normal
+                                    if args.null_output:
                                         output = f'{prefix}\x00{line_output}'
                                     else:
                                         output = f'{prefix}:{line_output}'

@@ -211,5 +211,84 @@ class TestParseBareIPIntegration(unittest.TestCase):
         self.assertEqual(len(results), 1)
 
 
+class TestSNMPOIDHandling(unittest.TestCase):
+    """
+    Test SNMP OID detection and mixed-content line handling.
+    
+    CRITICAL: Per GREPNET-SPEC, lines should never be rejected wholesale.
+    When SNMP OID patterns are detected, only bare IP extraction is skipped;
+    other extractors (CIDR, ranges, etc.) continue running.
+    """
+    
+    def test_snmp_oid_line_pure(self):
+        """Pure SNMP OID line (no networks) should return empty list."""
+        parser = NetworkParser()
+        result = parser.parse_line('1.3.6.1.2.1.1.0')
+        self.assertEqual(len(result), 0)
+    
+    def test_snmp_oid_line_with_cidr(self):
+        """SNMP OID + CIDR should extract CIDR (bare IP extraction skipped)."""
+        parser = NetworkParser()
+        result = parser.parse_line('1.3.6.1.2.1.1.0 192.0.2.0/24')
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].network, IPv4Network('192.0.2.0/24'))
+    
+    def test_snmp_oid_line_with_bare_ip(self):
+        """SNMP OID + bare IP should NOT extract bare IP (would be suppressed)."""
+        parser = NetworkParser()
+        result = parser.parse_line('1.3.6.1.2.1.1.0 192.0.2.1')
+        self.assertEqual(len(result), 0)
+    
+    def test_snmp_oid_line_with_range(self):
+        """SNMP OID + range should extract range (only bare IP extraction affected)."""
+        parser = NetworkParser()
+        result = parser.parse_line('1.3.6.1.2.1.1.0 192.0.2.0-192.0.2.255')
+        self.assertEqual(len(result), 1)
+        # Range is returned as tuple (start_int, end_int), not a network
+        self.assertIsNotNone(result[0].network)
+    
+    def test_normal_line_bare_ip_always_works(self):
+        """Without SNMP OID, bare IPs should be extracted normally."""
+        parser = NetworkParser()
+        result = parser.parse_line('192.0.2.1')
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].network, IPv4Network('192.0.2.1/32'))
+    
+    def test_comment_line_never_produces_networks(self):
+        """Comment-only lines should return empty list."""
+        parser = NetworkParser()
+        result = parser.parse_line('# 1.3.6.1.2.1.1.0')
+        self.assertEqual(len(result), 0)
+    
+    def test_empty_line_returns_empty_list(self):
+        """Empty lines should return empty list."""
+        parser = NetworkParser()
+        result = parser.parse_line('')
+        self.assertEqual(len(result), 0)
+    
+    def test_architectural_guarantee_no_line_rejection(self):
+        """
+        Verify the architectural guarantee: lines are never rejected
+        based on line metadata, only based on extracted networks.
+        """
+        parser = NetworkParser()
+        
+        # These should all return SOME result (network or empty list)
+        # but never raise an exception or reject the line:
+        test_cases = [
+            '1.3.6.1.2.1.1.0',                      # Pure SNMP OID
+            '1.3.6.1.2.1.1.0 192.0.2.0/24',         # SNMP + CIDR
+            '1.3.6.1.2.1.1.0 192.0.2.1',            # SNMP + bare IP
+            '# comment 1.3.6.1.2.1.1.0',            # Comment
+            '192.0.2.0/24 # comment',               # CIDR with comment
+            '',                                      # Empty
+        ]
+        
+        for line in test_cases:
+            result = parser.parse_line(line)
+            # Should always return a list (possibly empty), never None or raise
+            self.assertIsInstance(result, list, f"Failed for line: {line}")
+
+
 if __name__ == '__main__':
     unittest.main()
