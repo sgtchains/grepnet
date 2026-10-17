@@ -1990,7 +1990,6 @@ Default behavior: Print matching lines to stdout.
 **Optional prefixes** (additive, in order):
 - With `-n`: Prepend line number (`N:`)
 - With `-b`: Prepend byte offset (`B:`)
-- With `-T`: Insert tab after prefixes for alignment
 
 **Null separator** (`-Z`): Use NUL byte instead of newline after filename (for use with `xargs -0`)
 
@@ -2093,7 +2092,7 @@ if mode == 'consolidate':
 ```
 This extracts all networks and merges overlapping and adjacent networks into deduplicated blocks.
 
-**Stage 2: Bitshift Grouping with Gap Analysis (only if `--fill-pct` or `--fill-boundary`)**
+**Stage 2: Bitshift Grouping with Gap Analysis (only if `--fill-pct` or `--fill-boundary`) — FUTURE RELEASE**
 ```python
     if fill_pct is not None or fill_boundary:
         result = apply_bitshift_grouping(result, fill_pct, fill_boundary)
@@ -2102,13 +2101,17 @@ This extracts all networks and merges overlapping and adjacent networks into ded
 
 This is why `--fill-pct` and `--fill-boundary` require `--consolidate`: they need the deduplicated networks from Stage 1 to work with.
 
+**Note**: The `--fill-pct` and `--fill-boundary` options are planned for a future release and are not available in the current version.
+
 **RFC-Compliant Consolidation (Stage 1)**
 
 Merges overlapping and adjacent networks using standard IP consolidation rules.
 
-**Bitshift Grouping Algorithm (Stage 2)**
+**Bitshift Grouping Algorithm (Stage 2) — FUTURE RELEASE**
 
 Applies additional consolidation based on IP address coverage gaps. Only runs when `--fill-pct` or `--fill-boundary` is specified.
+
+**Note**: These options are planned for a future release and are not available in the current version.
 
 **Bitshift Grouping Algorithm: Input Preparation**
 
@@ -2140,8 +2143,8 @@ For each completed group:
 **Consolidation Criteria (Decision Point):**
 When a group boundary is reached, decide whether to consolidate based on `gap_ratio`:
 
-- **`--fill-pct N`**: Accept group if `gap_ratio <= N%` (allow up to N% gap)
-- **`--fill-boundary`**: Accept group if `gap_ratio <= 1%` (only boundary IPs missing)
+- **`--fill-pct N`** (FUTURE RELEASE): Accept group if `gap_ratio <= N%` (allow up to N% gap)
+- **`--fill-boundary`** (FUTURE RELEASE): Accept group if `gap_ratio <= 1%` (only boundary IPs missing)
 
 When accepted, consolidate the entire group to a single CIDR block at that prefix level.
 
@@ -2173,9 +2176,11 @@ At /24 level (>> 8):
 - `--fill-pct 50`: accept → outputs `192.0.2.0/24`
 - `--fill-boundary`: accept (0.78% <= 1%) → outputs `192.0.2.0/24`
 
-#### `--fill-boundary` (with `--consolidate`)
+#### `--fill-boundary` (with `--consolidate`) — FUTURE RELEASE
 
 **Syntax**: `grepnet --consolidate --fill-boundary [PATTERN] [FILE...]`
+
+**Status**: Planned for future release. Not available in current version.
 
 **Description**: 
 When used with `--consolidate`, automatically inject missing network and broadcast addresses before applying the bitshift grouping algorithm. This enables complete CIDR consolidation when input covers all usable addresses but lacks the boundary addresses.
@@ -2482,7 +2487,6 @@ grepnet --consolidate --format ips file.txt        # Output all IPs in consolida
 ```
 -n, --line-number                Print 1-based line number
 -b, --byte-offset                Print 0-based byte offset
--T, --initial-tab                Insert tab after prefixes
 -Z, --null                       NUL separator after filename
 --label LABEL                    Display stdin as LABEL
 ```
@@ -2550,16 +2554,18 @@ grepnet -A2 -m 3 '192.0.2.0/24' file.txt      # 3 matches + trailing context
 ```
 --extract                        Extract all networks from files
 --consolidate                    Consolidate overlapping networks
---fill-pct=N                     Allow consolidation to fill gaps up to N% (only with --consolidate)
+--fill-pct=N                     Allow consolidation to fill gaps up to N% (FUTURE RELEASE - only with --consolidate)
 --show-content                   Show line content in extract mode
 --no-filter-comments [scope]     Do not filter comments (pattern|input|both|none; default: both)
 ```
 
 **Note**: `-o/--only-matching` is for normal mode only and cannot be used with `--extract` or `--consolidate`.
 
-**--fill-pct=N** (only valid with `--consolidate`): Allow consolidation to fill IP address gaps up to N percent of the network size.
+**--fill-pct=N** (FUTURE RELEASE — only valid with `--consolidate`): Allow consolidation to fill IP address gaps up to N percent of the network size.
 
-**Semantics**:
+**Status**: Planned for future release. Not available in current version.
+
+**Semantics** (FUTURE RELEASE):
 - `N` is an integer from 0 to 100 (percentage)
 - When enabled, consolidate in a single pass:
   1. Extract all networks from input
@@ -2609,7 +2615,7 @@ echo -e "192.0.2.1-192.0.2.2\n192.0.2.4-192.0.2.5\n192.0.2.9-192.0.2.10" | grepn
 # Output: 192.0.2.0/29, 192.0.2.8/30
 ```
 
-**Interaction with other flags**:
+**Interaction with other flags** (FUTURE RELEASE):
 - Valid only with `--consolidate` (will error if used without it)
 - Pattern filtering: If a pattern is provided, consolidate only matching networks
 - Works with `--format` to control output notation (cidr, range, short-range)
@@ -2632,7 +2638,7 @@ If flag is used without argument, defaults to `both`.
 Behavior in normal search mode:
 - Output only the matched networks found on each line, not the full line content
 - Each matched network appears on a separate output line
-- Filename prefix, line numbers, byte offsets still shown (if those flags enabled: -H, -n, -b, -T)
+- Filename prefix, line numbers, byte offsets still shown (if those flags enabled: -H, -n, -b)
 - Context flags (-A, -B, -C) are allowed but behave specially (see below)
 
 Behavior with context flags (-A, -B, -C):
