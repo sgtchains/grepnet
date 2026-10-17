@@ -814,22 +814,6 @@ These special cases must be checked BEFORE normal parsing logic. They represent 
   2. **AND** mask format hint is `'mixed'` or `'unknown'` (not a conclusive format hint)
 - **Implementation order**: Check alongside Special Case 1
 
-**Special Case 3: Second Value is `0.0.0.0` (Reserved for Inverse Mask)**
-- **Condition**: Second value is exactly `0.0.0.0` (regardless of first value)
-- **Normal parsing by MSB rule**: MSB=0 would normally attempt inverse mask parsing
-- **Rule**: `0.0.0.0` is explicitly reserved for inverse mask format and MUST NOT be parsed as a subnet mask
-- **Gating conditions** (ALL must be true):
-  1. `--parse-hostmask` is NOT `none` AND matches current context (pattern or input)
-  2. **AND** mask format hint is `'mixed'` or `'unknown'` (not a conclusive format hint)
-- **With `--parse-hostmask` enabled AND hint is 'mixed'/'unknown'**: Parse as inverse mask → Result is `first_ip/32`
-- **With conclusive hint (netmask/hostmask_dominant)**: Fall back to standard parsing
-- **With `--parse-hostmask` disabled**: Extract both values as separate IPs (each /32)
-- **Rationale**: Even though `0.0.0.0` is a valid netmask (representing /0), using it as a netmask creates ambiguity. Reserve it for hostmask notation.
-- **Examples**:
-  - `192.0.2.1 0.0.0.0` with `--parse-hostmask=both` → `192.0.2.1/32` (inverse mask)
-  - `192.0.2.1 0.0.0.0` with `--parse-hostmask=none` → `192.0.2.1/32` and `0.0.0.0/32` (two IPs)
-  - `0.0.0.0 0.0.0.0` with `--parse-hostmask=both` → `0.0.0.0/32` (inverse mask)
-
 #### Normal Two-Value Parsing Algorithm
 
 After checking special cases above, apply this algorithm:

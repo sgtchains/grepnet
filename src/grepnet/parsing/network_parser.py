@@ -243,7 +243,7 @@ class NetworkParser:
             line: Line text
             line_number: Line number (1-based, for reference)
             context: Context for parsing ('pattern' for search patterns, 'input' for file input)
-            mask_format_hint: Format hint from peek buffer analysis
+            mask_format_hint: Format hint from peek buffer analysis (used for Special Cases 1 & 2)
         
         Returns:
             List of ParsedExtraction objects, deduplicated by network value.
@@ -342,11 +342,7 @@ class NetworkParser:
             
             # Keep calling each extractor until no more networks found
             while True:
-                # Pass mask_format_hint to extractor for special case gating
-                if hasattr(extractor, 'extract') and 'mask_format_hint' in extractor.extract.__code__.co_varnames:
-                    extraction = extractor.extract(working_line, mask_format_hint=mask_format_hint)
-                else:
-                    extraction = extractor.extract(working_line)
+                extraction = extractor.extract(working_line)
                 if extraction is None:
                     break
                 

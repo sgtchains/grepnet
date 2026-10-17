@@ -284,16 +284,17 @@ class TestMaskFormatHints(unittest.TestCase):
     
     def test_special_case_3_with_netmask_dominant_hint(self):
         """
-        When file is netmask_dominant, Special Case 3 (0.0.0.0 as hostmask) should NOT apply.
-        The pattern 255.255.255.255 0.0.0.0 should fall through to bare IP extraction.
+        Special Case 3 has been removed from the spec.
+        Now 0.0.0.0 is treated as a normal hostmask (MSB=0).
+        The pattern 255.255.255.255 0.0.0.0 is parsed as hostmask: 255.255.255.255/32
         """
         with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
             # First two lines establish netmask_dominant hint
             f.write('192.0.2.0 255.255.0.0\n')
             f.write('192.0.2.0 255.255.255.0\n')
             # Third line: 255.255.255.255 0.0.0.0
-            # With netmask_dominant hint, Special Case 3 doesn't apply
-            # Falls through to bare IP extraction: 255.255.255.255/32 and 0.0.0.0/32
+            # 0.0.0.0 is now treated as a hostmask (MSB=0, inverts to /32)
+            # Result: 255.255.255.255/32 (same as first IP)
             f.write('255.255.255.255 0.0.0.0\n')
             f.flush()
             temp_file = f.name
@@ -307,30 +308,28 @@ class TestMaskFormatHints(unittest.TestCase):
             input_sources = [InputSource('file', file_path=temp_file)]
             consolidated_dict = grepnet.consolidate_networks(input_sources)
             
-            # Should have three networks:
-            # 1. 192.0.0.0/16 from first line (merged from first two netmasks)
-            # 2. 255.255.255.255/32 from third line (bare IP, not special case)
-            # 3. 0.0.0.0/32 from third line (bare IP, not hostmask inverse)
-            self.assertEqual(len(consolidated_dict), 3)
+            # Should have two networks:
+            # 1. 192.0.0.0/16 from first line
+            # 2. 255.255.255.255/32 from third line (0.0.0.0 is hostmask, inverts to /32)
+            self.assertEqual(len(consolidated_dict), 2)
             networks = sorted([net for net in consolidated_dict.keys()], key=str)
-            self.assertEqual(networks[0], IPv4Network('0.0.0.0/32'))
-            self.assertEqual(networks[1], IPv4Network('192.0.0.0/16'))
-            self.assertEqual(networks[2], IPv4Network('255.255.255.255/32'))
+            self.assertEqual(networks[0], IPv4Network('192.0.0.0/16'))
+            self.assertEqual(networks[1], IPv4Network('255.255.255.255/32'))
         finally:
             os.unlink(temp_file)
     
     def test_special_case_3_with_hostmask_dominant_hint(self):
         """
-        When file is hostmask_dominant, Special Case 3 SHOULD apply.
-        The pattern 192.0.2.0 0.0.0.0 should be treated as hostmask: 192.0.2.0/32
+        Special Case 3 has been removed from the spec.
+        Now 0.0.0.0 is treated as a normal hostmask (MSB=0).
+        The pattern 192.0.2.0 0.0.0.0 is parsed as hostmask: 192.0.2.0/32
         """
         with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
             # First two lines establish hostmask_dominant hint
             f.write('192.0.2.0 0.0.0.255\n')
             f.write('192.0.2.0 0.0.0.7\n')
             # Third line: 192.0.2.0 0.0.0.0
-            # With hostmask_dominant hint, Special Case 3 applies
-            # Treated as hostmask: 0.0.0.0 inverts to /32
+            # 0.0.0.0 is now treated as a normal hostmask (MSB=0, inverts to /32)
             f.write('192.0.2.0 0.0.0.0\n')
             f.flush()
             temp_file = f.name
@@ -344,7 +343,11 @@ class TestMaskFormatHints(unittest.TestCase):
             input_sources = [InputSource('file', file_path=temp_file)]
             consolidated_dict = grepnet.consolidate_networks(input_sources)
             
-            # All three are subsumed by /24, so consolidated result is just /24
+            # All three are hostmask format, all /32 or /24:
+            # 1. 192.0.2.0/24 from first line (hostmask 0.0.0.255)
+            # 2. 192.0.2.0/29 from second line (hostmask 0.0.0.7)
+            # 3. 192.0.2.0/32 from third line (hostmask 0.0.0.0)
+            # Consolidated: /24 subsumes both /29 and /32
             self.assertEqual(len(consolidated_dict), 1)
             net = list(consolidated_dict.keys())[0]
             self.assertEqual(net, IPv4Network('192.0.2.0/24'))
@@ -353,9 +356,9 @@ class TestMaskFormatHints(unittest.TestCase):
     
     def test_special_case_3_with_unknown_hint(self):
         """
-        When hint is unknown (only 1 pattern or ambiguous patterns),
-        Special Case 3 SHOULD apply.
-        Single line: 192.0.2.0 0.0.0.0
+        Special Case 3 has been removed from the spec.
+        Now 0.0.0.0 is treated as a normal hostmask (MSB=0) regardless of hint.
+        The pattern 192.0.2.0 0.0.0.0 is parsed as hostmask: 192.0.2.0/32
         """
         with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
             # Single line, only one pattern → hint will be 'unknown'
@@ -372,7 +375,7 @@ class TestMaskFormatHints(unittest.TestCase):
             input_sources = [InputSource('file', file_path=temp_file)]
             consolidated_dict = grepnet.consolidate_networks(input_sources)
             
-            # With unknown hint, Special Case 3 applies: 0.0.0.0 is treated as hostmask
+            # 0.0.0.0 is now treated as a normal hostmask (MSB=0, inverts to /32)
             # Result: 192.0.2.0/32 (0.0.0.0 inverted to /32)
             self.assertEqual(len(consolidated_dict), 1)
             net = list(consolidated_dict.keys())[0]

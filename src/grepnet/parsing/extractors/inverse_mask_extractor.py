@@ -41,7 +41,7 @@ class InverseMaskExtractor(NetworkExtractor):
         """
         self.enabled = enabled
     
-    def extract(self, text: str, mask_format_hint: Optional[str] = None) -> Optional[_RawExtraction]:
+    def extract(self, text: str) -> Optional[_RawExtraction]:
         """
         Extract first valid inverse mask notation from text.
         
@@ -51,8 +51,6 @@ class InverseMaskExtractor(NetworkExtractor):
         
         Args:
             text: Text to search
-            mask_format_hint: Format hint ('netmask_dominant', 'hostmask_dominant', 'mixed', 'unknown')
-                             Used to gate Special Case 3 (second value is 0.0.0.0)
         
         Returns:
             _RawExtraction if found, None otherwise
@@ -72,14 +70,6 @@ class InverseMaskExtractor(NetworkExtractor):
                 # Parse IP and hostmask
                 ip_addr = IPv4Address(ip_str)
                 hostmask_addr = IPv4Address(hostmask_str)
-                
-                # SPECIAL CASE 3 GATING: Second value is 0.0.0.0 (all zeros)
-                # Only apply if hint is 'mixed' or 'unknown' (not conclusive format)
-                # If hint is 'netmask_dominant' or 'hostmask_dominant', skip this extraction
-                if hostmask_str == '0.0.0.0' and mask_format_hint not in ('mixed', 'unknown', None):
-                    # Format hint is conclusive, don't treat 0.0.0.0 as special
-                    pos = match.start(2)
-                    continue
                 
                 # SPEC REQUIREMENT: Inverse mask MUST have MSB=0 (leading zero bit)
                 # This distinguishes hostmask (0s from MSB) from netmask (1s from MSB)
