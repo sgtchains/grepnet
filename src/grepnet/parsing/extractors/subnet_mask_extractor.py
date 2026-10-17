@@ -45,7 +45,7 @@ class SubnetMaskExtractor(NetworkExtractor):
         self.reject_zero_mask = reject_zero_mask
         self.enabled = enabled
     
-    def extract(self, text: str) -> Optional[_RawExtraction]:
+    def extract(self, text: str, mask_format_hint: Optional[str] = None) -> Optional[_RawExtraction]:
         """
         Extract first valid subnet mask notation from text.
         
@@ -53,8 +53,14 @@ class SubnetMaskExtractor(NetworkExtractor):
         that has a valid subnet mask (contiguous 1-bits from left).
         Handles overlapping patterns by manually advancing search position.
         
+        When mask_format_hint is 'netmask_dominant', treats MSB=0 values as potential
+        netmasks (tie-breaker for ambiguous cases like 0.0.0.0).
+        
         Args:
             text: Text to search
+            mask_format_hint: Format hint ('netmask_dominant', 'hostmask_dominant', 'mixed', 'unknown', or None)
+                             Used as tie-breaker for ambiguous values when both netmask and
+                             hostmask parsing are enabled
         
         Returns:
             _RawExtraction if found, None otherwise
@@ -79,16 +85,26 @@ class SubnetMaskExtractor(NetworkExtractor):
                 # Netmask (subnet mask): MSB=1 (has leading 1s, e.g., 255.255.255.0)
                 # Hostmask (inverse mask): MSB=0 (has leading 0s, e.g., 0.0.0.255)
                 # 
+                # CRITICAL: 0.0.0.0 is RESERVED for hostmask format and must NEVER be tried
+                # as a netmask, even with 'netmask_dominant' hint.
+                #
                 # When hostmask parsing IS enabled:
                 #   - Reject MSB=0 values here so InverseMaskExtractor can handle them
+                #   - UNLESS format hint is 'netmask_dominant' AND mask is NOT 0.0.0.0 (tie-breaker)
                 # When hostmask parsing IS disabled:
                 #   - Accept ALL contiguous masks (including 0.0.0.0)
                 has_msb_one = bool(mask_int & 0x80000000)
                 if not has_msb_one and self.reject_zero_mask:
-                    # MSB=0 indicates hostmask format, and hostmask parsing is enabled
-                    # Skip this and let InverseMaskExtractor handle it
-                    pos = match.start(2)
-                    continue
+                    # MSB=0 indicates hostmask format
+                    # Only accept if: netmask_dominant hint AND mask is NOT reserved 0.0.0.0
+                    if mask_format_hint == 'netmask_dominant' and mask_str != '0.0.0.0':
+                        # Hint says prefer netmask AND this is not the reserved 0.0.0.0, so try netmask
+                        pass  # continue with validation below
+                    else:
+                        # MSB=0 and either no netmask-dominant hint or mask is 0.0.0.0
+                        # Let InverseMaskExtractor handle it
+                        pos = match.start(2)
+                        continue
                 
                 # A valid netmask has contiguous 1-bits from the left
                 # Count leading 1s, then all remaining bits should be 0

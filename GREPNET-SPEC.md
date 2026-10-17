@@ -823,18 +823,30 @@ After checking special cases above, apply this algorithm:
 - Determine if hostmask parsing is enabled in this context (check `--parse-hostmask` against context)
 - If both are disabled: Extract both values as separate IPs
 
-**Step 2: MSB analysis**
+**Step 2: MSB analysis and format hint tie-breaking**
 - Determine MSB of second value: Is it 1 (netmask format) or 0 (hostmask format)?
+- **CRITICAL RESERVED VALUES - NOT subject to tie-breaking**:
+  - `0.0.0.0` is ALWAYS treated as hostmask format (reserved interpretation for inverse mask)
+    - Reason: 0.0.0.0 has MSB=0 and must use hostmask parsing for correct semantics
+    - Even with `netmask_dominant` hint, 0.0.0.0 skips netmask attempt and goes directly to hostmask
+  - `255.255.255.255` is ALWAYS treated as netmask format (reserved interpretation for subnet mask)
+    - Reason: 255.255.255.255 has MSB=1 and must use netmask parsing for correct semantics
+    - Even with `hostmask_dominant` hint, 255.255.255.255 skips hostmask attempt and goes directly to netmask
+- **Format hint tie-breaking for all other values**:
+  - Only applies when format hint is conclusive (`'netmask_dominant'` or `'hostmask_dominant'`) AND both `--parse-netmask` and `--parse-hostmask` are enabled
+  - If hint is `'netmask_dominant'`: Prefer netmask format when possible (e.g., for ambiguous boundary cases)
+  - If hint is `'hostmask_dominant'`: Prefer hostmask format when possible (e.g., for ambiguous boundary cases)
+  - If hint is `'mixed'` or `'unknown'`: Use standard MSB-based logic (MSB=1 → netmask, MSB=0 → hostmask)
 
-**Step 3: Try netmask format (MSB=1)**
-- If MSB is 1 AND netmask parsing is enabled:
+**Step 3: Try netmask format (MSB=1 or hint=netmask_dominant, with reserved value exclusion)**
+- If (MSB is 1 OR (hint is `'netmask_dominant'` AND mask is NOT `0.0.0.0`)) AND netmask parsing is enabled:
   - Check if second value is contiguous 1s-then-0s (valid netmask)
   - If yes: Parse as subnet mask, mark format as `'subnet_mask'`, done
   - If no (non-contiguous): Extraction fails, skip this pattern
 - If MSB is 1 but netmask parsing is disabled: Continue to Step 4
 
-**Step 4: Try hostmask format (MSB=0)**
-- If MSB is 0 AND hostmask parsing is enabled:
+**Step 4: Try hostmask format (MSB=0 or hint=hostmask_dominant, with reserved value exclusion)**
+- If (MSB is 0 OR (hint is `'hostmask_dominant'` AND mask is NOT `255.255.255.255`)) AND hostmask parsing is enabled:
   - Check if second value inverted is contiguous 0s-then-1s (valid hostmask inverted)
   - If yes: Parse as inverse mask, mark format as `'inverse_mask'`, done
   - If no (non-contiguous): Extraction fails, skip this pattern
@@ -856,7 +868,19 @@ After checking special cases above, apply this algorithm:
 - `192.0.2.1 0.0.0.255` with `--parse-hostmask=none`: MSB=0, hostmask disabled → Two IPs: `192.0.2.1/32` and `0.0.0.255/32`
 - `192.0.2.1 255.255.255.255` with `--parse-netmask=none`: MSB=1, netmask disabled → Two IPs: `192.0.2.1/32` and `255.255.255.255/32`
 
-**Implementation note**: Extractors must have access to the parse flag settings (`--parse-netmask`, `--parse-hostmask`, context) so they can make context-aware decisions about which formats are valid in the current parsing mode.
+**Examples with format hints (tie-breaking for ambiguous values)**:
+- Input file: `192.0.2.0 255.255.255.0` and `192.0.2.0 255.255.255.255` (detected as `'netmask_dominant'`)
+  - Line 1 `192.0.2.0 255.255.255.0`: MSB=1 → Try netmask → Success → `192.0.2.0/24`
+  - Line 2 `192.0.2.0 255.255.255.255`: MSB=1 → Try netmask → Success → `192.0.2.0/0`
+- Input file: `192.0.2.1 0.0.0.255` and `192.0.2.1 0.0.0.0` (detected as `'hostmask_dominant'`)
+  - Line 1 `192.0.2.1 0.0.0.255`: MSB=0 → Try hostmask → Success → `192.0.2.0/24`
+  - Line 2 `192.0.2.1 0.0.0.0` with hint=`'hostmask_dominant'`: MSB=0, both parsing enabled → Try hostmask first (per hint) → Check if inverted is valid → Inverted `0.0.0.0` is all 1s (valid) → `192.0.2.1/32`
+- Input file: `192.0.2.0 255.255.255.0` and `192.0.2.0 0.0.0.255` with `--scan-mask=none` (no hint detected)
+  - Line 1 `192.0.2.0 255.255.255.0`: MSB=1 → Try netmask → Success → `192.0.2.0/24`
+  - Line 2 `192.0.2.0 0.0.0.255`: MSB=0 → Try hostmask → Success → `192.0.2.0/24`
+  - Both formats handled independently by standard MSB logic
+
+**Implementation note**: Extractors must have access to the parse flag settings (`--parse-netmask`, `--parse-hostmask`, context) and format hints so they can make context-aware decisions about which formats to try and in what order when both parsing modes are enabled.
 
 ### Inverse/Hostmask Parsing (Cisco Format)
 
@@ -906,51 +930,6 @@ After checking special cases above, apply this algorithm:
 - MSB is 0, so it is hostmask format (not netmask)
 - Invert to get netmask: 0.0.0.0 XOR 0xFFFFFFFF = 255.255.255.255 = /32
 - Example: `192.0.2.1 0.0.0.0` = `192.0.2.1/32`
-
-### Special Case: 0.0.0.0 255.255.255.255 (Entire IPv4 Space)
-
-The pattern `0.0.0.0 255.255.255.255` is an exception to normal two-value parsing rules:
-
-**Why special handling is needed**: 
-- Normally, 255.255.255.255 (all ones) is a netmask (MSB=1), so `0.0.0.0 255.255.255.255` would parse as subnet mask format = `0.0.0.0/32`
-- However, semantically, 255.255.255.255 can be interpreted as "all host bits" (in hostmask notation), representing the entire IPv4 space (`0.0.0.0/0`)
-- This special case pattern is common in network configurations and deserves special recognition
-
-**Parsing rule**:
-- When the parser encounters exactly `0.0.0.0 255.255.255.255`, treat it as a special case BEFORE normal two-value parsing
-- Result: `0.0.0.0/0` (entire IPv4 address space, all 4.3 billion addresses)
-
-**Gating conditions** (ALL must be true):
-1. `--parse-hostmask` is NOT `none` AND matches current context
-   - For patterns: `--parse-hostmask` must be `pattern` or `both`
-   - For input files: `--parse-hostmask` must be `input` or `both`
-2. **AND** mask format hint is `'mixed'` or `'unknown'`
-   - If format hint is `'netmask_dominant'`: File clearly uses netmask format → use normal parsing = `0.0.0.0/32`
-   - If format hint is `'hostmask_dominant'`: File clearly uses hostmask format → use normal parsing = `0.0.0.0/32`
-   - If format hint is `'mixed'` or `'unknown'`: Apply special case = `0.0.0.0/0`
-
-**Implementation note**: This special case check must occur before the normal subnet mask vs. inverse mask detection logic, as an exception override. The mask format hint (detected from first 8KB) is applied to all lines from that input source.
-
-### Special Case: 255.255.255.255 0.0.0.0 (Broadcast Address as Single Host)
-
-The pattern `255.255.255.255 0.0.0.0` is an exception to normal two-value parsing rules:
-
-**Why special handling is needed**: 
-- Normally, 0.0.0.0 (all zeros) is a hostmask (MSB=0), so `255.255.255.255 0.0.0.0` would parse as inverse mask format = `255.255.255.255/32`
-- This special case pattern may appear in network configurations and deserves explicit recognition
-
-**Parsing rule**:
-- When the parser encounters exactly `255.255.255.255 0.0.0.0`, treat it as a special case BEFORE normal two-value parsing
-- Result: `255.255.255.255/32` (single broadcast address)
-
-**Gating conditions** (ALL must be true):
-1. `--parse-hostmask` is NOT `none` AND matches current context
-   - For patterns: `--parse-hostmask` must be `pattern` or `both`
-   - For input files: `--parse-hostmask` must be `input` or `both`
-2. **AND** mask format hint is `'mixed'` or `'unknown'`
-   - If format hint is `'netmask_dominant'` or `'hostmask_dominant'`: Don't apply special case, use standard MSB-based parsing
-
-**Implementation note**: This special case check must occur alongside the `0.0.0.0 255.255.255.255` check before the normal subnet mask vs. inverse mask detection logic, as an exception override.
 
 ### IP Range Parsing
 

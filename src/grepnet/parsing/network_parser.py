@@ -131,7 +131,10 @@ class NetworkParser:
                 reject_zero_mask=parse_hostmask != 'none',
                 enabled=parse_netmask != 'none'
             ),
-            InverseMaskExtractor(enabled=parse_hostmask != 'none'),
+            InverseMaskExtractor(
+                enabled=parse_hostmask != 'none',
+                netmask_enabled=parse_netmask != 'none'
+            ),
             IPRangeExtractor(),
             IPOnlyExtractor(),
         ]
@@ -342,7 +345,12 @@ class NetworkParser:
             
             # Keep calling each extractor until no more networks found
             while True:
-                extraction = extractor.extract(working_line)
+                # Pass format hint only to SubnetMaskExtractor and InverseMaskExtractor
+                # Others don't use it
+                if idx == 1 or idx == 2:  # SubnetMaskExtractor or InverseMaskExtractor
+                    extraction = extractor.extract(working_line, mask_format_hint)
+                else:
+                    extraction = extractor.extract(working_line)
                 if extraction is None:
                     break
                 

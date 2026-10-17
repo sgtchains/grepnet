@@ -1,4 +1,0 @@
-line1 192.0.2.0/24
-line2 /* comment block
-line3   10.0.0.0/8 inside
-line4 */ 203.0.113.0/24 after block

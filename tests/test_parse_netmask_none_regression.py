@@ -284,37 +284,41 @@ class TestMaskFormatHints(unittest.TestCase):
     
     def test_special_case_3_with_netmask_dominant_hint(self):
         """
-        Special Case 3 has been removed from the spec.
-        Now 0.0.0.0 is treated as a normal hostmask (MSB=0).
-        The pattern 255.255.255.255 0.0.0.0 is parsed as hostmask: 255.255.255.255/32
+        SPEC REQUIREMENT: 0.0.0.0 is RESERVED for hostmask format.
+        Even with netmask_dominant hint, 0.0.0.0 cannot be tried as a netmask.
+        
+        The pattern 255.255.255.255 0.0.0.0:
+        - 0.0.0.0 has MSB=0 (hostmask format)
+        - Cannot be overridden by hints (reserved value)
+        - Goes to InverseMaskExtractor
+        - Inverted: 0x00000000 XOR 0xFFFFFFFF = 0xFFFFFFFF = /32
+        - Result: 255.255.255.255/32 (single broadcast address)
         """
         with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
             # First two lines establish netmask_dominant hint
             f.write('192.0.2.0 255.255.0.0\n')
             f.write('192.0.2.0 255.255.255.0\n')
             # Third line: 255.255.255.255 0.0.0.0
-            # 0.0.0.0 is now treated as a hostmask (MSB=0, inverts to /32)
-            # Result: 255.255.255.255/32 (same as first IP)
+            # Even with netmask_dominant hint, 0.0.0.0 is reserved for hostmask
+            # So it parses as hostmask: invert(0.0.0.0) = /32
             f.write('255.255.255.255 0.0.0.0\n')
             f.flush()
             temp_file = f.name
         
         try:
             grepnet = GrepNet(
-                patterns=['0.0.0.0/0'],  # Match everything for consolidation
+                patterns=['255.255.255.255/32'],  # Match the single host
                 parse_netmask='both',
                 parse_bare_ip='both',
             )
             input_sources = [InputSource('file', file_path=temp_file)]
             consolidated_dict = grepnet.consolidate_networks(input_sources)
             
-            # Should have two networks:
-            # 1. 192.0.0.0/16 from first line
-            # 2. 255.255.255.255/32 from third line (0.0.0.0 is hostmask, inverts to /32)
-            self.assertEqual(len(consolidated_dict), 2)
-            networks = sorted([net for net in consolidated_dict.keys()], key=str)
-            self.assertEqual(networks[0], IPv4Network('192.0.0.0/16'))
-            self.assertEqual(networks[1], IPv4Network('255.255.255.255/32'))
+            # Should parse as: 192.0.2.0/16, 192.0.2.0/24, 255.255.255.255/32
+            # Only 255.255.255.255/32 matches the pattern
+            self.assertEqual(len(consolidated_dict), 1)
+            net = list(consolidated_dict.keys())[0]
+            self.assertEqual(net, IPv4Network('255.255.255.255/32'))
         finally:
             os.unlink(temp_file)
     

@@ -31,17 +31,20 @@ class InverseMaskExtractor(NetworkExtractor):
         f'\\b({IP_PATTERN})\\s+({IP_PATTERN})\\b'
     )
     
-    def __init__(self, enabled: bool = True):
+    def __init__(self, enabled: bool = True, netmask_enabled: bool = True):
         """
         Initialize InverseMaskExtractor.
         
         Args:
             enabled: If False, this extractor is disabled (--parse-hostmask=none).
                     When disabled, extract() returns None immediately.
+            netmask_enabled: If True, netmask parsing is also enabled (used for tie-breaking logic).
+                           Needed to determine when format hints should influence parsing.
         """
         self.enabled = enabled
+        self.netmask_enabled = netmask_enabled
     
-    def extract(self, text: str) -> Optional[_RawExtraction]:
+    def extract(self, text: str, mask_format_hint: Optional[str] = None) -> Optional[_RawExtraction]:
         """
         Extract first valid inverse mask notation from text.
         
@@ -49,8 +52,14 @@ class InverseMaskExtractor(NetworkExtractor):
         that has a valid hostmask. Handles overlapping patterns by manually
         advancing search position.
         
+        When mask_format_hint is 'hostmask_dominant', treats MSB=1 values as potential
+        hostmasks (tie-breaker for ambiguous cases like 255.255.255.255).
+        
         Args:
             text: Text to search
+            mask_format_hint: Format hint ('netmask_dominant', 'hostmask_dominant', 'mixed', 'unknown', or None)
+                             Used as tie-breaker for ambiguous values when both netmask and
+                             hostmask parsing are enabled
         
         Returns:
             _RawExtraction if found, None otherwise
@@ -73,12 +82,26 @@ class InverseMaskExtractor(NetworkExtractor):
                 
                 # SPEC REQUIREMENT: Inverse mask MUST have MSB=0 (leading zero bit)
                 # This distinguishes hostmask (0s from MSB) from netmask (1s from MSB)
+                #
+                # CRITICAL: 255.255.255.255 is RESERVED for netmask format and must NEVER be tried
+                # as a hostmask, even with 'hostmask_dominant' hint.
+                #
+                # When netmask parsing IS enabled AND both modes enabled:
+                #   - Reject MSB=1 values here so SubnetMaskExtractor can handle them
+                #   - UNLESS format hint is 'hostmask_dominant' AND mask is NOT 255.255.255.255 (tie-breaker)
+                # When netmask parsing IS disabled:
+                #   - Accept ALL contiguous hostmasks (including 255.255.255.255 inverted)
                 hostmask_int = int(hostmask_addr)
                 if hostmask_int & 0x80000000:  # Check if MSB is 1
                     # MSB=1 means this is netmask format, not hostmask
-                    # Reject and try next pattern
-                    pos = match.start(2)  # Advance to second IP
-                    continue
+                    # Only reject if netmask parsing is enabled (both modes available)
+                    # AND either no hostmask_dominant hint OR mask is reserved 255.255.255.255
+                    if self.netmask_enabled and not (mask_format_hint == 'hostmask_dominant' and hostmask_str != '255.255.255.255'):
+                        # Netmask parsing enabled, and either no hostmask hint or mask is 255.255.255.255
+                        # Let SubnetMaskExtractor handle it
+                        pos = match.start(2)
+                        continue
+                    # else: netmask parsing disabled, hostmask_dominant hint + non-reserved, or fallback - try hostmask
                 
                 # SPEC REQUIREMENT: Hostmask must be contiguous (all 0s from MSB, then all 1s)
                 # Check if it matches pattern: 0+1* (zero or more 0s, then zero or more 1s)

@@ -1,4 +1,0 @@
-line1 192.0.2.0/24 /*
-line2  inside block 10.0.0.0/8
-line3  also inside 172.16.0.0/12
-line4 */ end of block

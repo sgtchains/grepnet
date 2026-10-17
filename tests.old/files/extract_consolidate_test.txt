@@ -1,9 +1,0 @@
-Route 192.0.2.0/24 to primary
-Backup 198.51.100.0/24 via secondary
-Network 10.0.0.0/8 with subnet 10.0.1.0 255.255.255.0
-Range addresses 192.0.2.0-192.0.2.255
-Duplicate entries: 192.0.2.0/31 and 192.0.2.1
-Mixed formats: 192.0.2.0 192.0.2.1 192.0.2.0/31
-Empty lines and comments
-# This is a comment with 10.0.0.0/8
-Last line: 172.16.0.0/12
