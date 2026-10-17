@@ -1165,11 +1165,14 @@ class GrepNet:
         networks_dict = {}  # network_obj -> (parsed_extraction, line_content)
         
         for input_source in input_sources:
+            # Get mask format hint for this source (respects scan_mask setting)
+            mask_format_hint = input_source.get_mask_format_hint(self.scan_mask)
+            
             for line_number, line_content, byte_offset in input_source.lines():
                 line = line_content.rstrip('\n\r')
                 
-                # Extract networks from this line
-                parsed_extractions = self.parser.parse_line(line)
+                # Extract networks from this line, passing mask format hint
+                parsed_extractions = self.parser.parse_line(line, context='input', mask_format_hint=mask_format_hint)
                 
                 for parsed_ext in parsed_extractions:
                     network_obj = parsed_ext.network

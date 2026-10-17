@@ -791,19 +791,27 @@ When a line contains two IPv4 addresses separated by one or more horizontal whit
 These special cases must be checked BEFORE normal parsing logic. They represent edge cases where the standard MSB-based detection would produce unintuitive or conflicting results.
 
 **Special Case 1: `0.0.0.0 255.255.255.255` (Entire IPv4 Space)**
-- **Condition**: Pattern is exactly `0.0.0.0 255.255.255.255` AND `--parse-hostmask` is enabled
+- **Condition**: Pattern is exactly `0.0.0.0 255.255.255.255` AND `--parse-hostmask` is enabled for this context
 - **Normal parsing would produce**: `0.0.0.0/32` (subnet mask: 255.255.255.255 is a /32 netmask)
 - **Special result**: `0.0.0.0/0` (entire IPv4 address space, all 4.3 billion addresses)
 - **Rationale**: This pattern appears in network configurations to represent "match all networks"
-- **Gate**: Only applies when `--parse-hostmask` is NOT `none`
+- **Gating conditions** (ALL must be true):
+  1. `--parse-hostmask` is NOT `none` AND matches current context (pattern or input)
+     - `pattern` context: Must have `--parse-hostmask` set to `pattern` or `both`
+     - `input` context: Must have `--parse-hostmask` set to `input` or `both`
+  2. **AND** mask format hint is `'mixed'` or `'unknown'` (not a conclusive format hint)
+     - If format hint is `'netmask_dominant'` or `'hostmask_dominant'`: Don't apply special case, use standard parsing
+     - If format hint is `'mixed'` or `'unknown'`: Apply special case
 - **Implementation order**: Check this BEFORE normal two-value parsing
 
 **Special Case 2: `255.255.255.255 0.0.0.0` (Broadcast Address as Single Host)**
-- **Condition**: Pattern is exactly `255.255.255.255 0.0.0.0` AND `--parse-hostmask` is enabled
+- **Condition**: Pattern is exactly `255.255.255.255 0.0.0.0` AND `--parse-hostmask` is enabled for this context
 - **Normal parsing would produce**: `255.255.255.255/32` (inverse mask: hostmask 0.0.0.0 inverts to /32)
 - **Special result**: `255.255.255.255/32` (same as normal parsing - this is documented for clarity)
 - **Rationale**: This pattern appears in network configurations; special case check clarifies the behavior
-- **Gate**: Only applies when `--parse-hostmask` is NOT `none`
+- **Gating conditions** (ALL must be true):
+  1. `--parse-hostmask` is NOT `none` AND matches current context (pattern or input)
+  2. **AND** mask format hint is `'mixed'` or `'unknown'` (not a conclusive format hint)
 - **Implementation order**: Check alongside Special Case 1
 
 **Special Case 3: Second Value is `0.0.0.0` (Reserved for Inverse Mask)**
@@ -923,10 +931,17 @@ The pattern `0.0.0.0 255.255.255.255` is an exception to normal two-value parsin
 **Parsing rule**:
 - When the parser encounters exactly `0.0.0.0 255.255.255.255`, treat it as a special case BEFORE normal two-value parsing
 - Result: `0.0.0.0/0` (entire IPv4 address space, all 4.3 billion addresses)
-- **Gating condition**: Only apply this special case if `--parse-inverse` has NOT been set to false (enabled by default)
-- If `--parse-inverse` is false/disabled: Falls through to normal parsing → `0.0.0.0/32` (single address)
 
-**Implementation note**: This special case check must occur before the normal subnet mask vs. inverse mask detection logic, as an exception override.
+**Gating conditions** (ALL must be true):
+1. `--parse-hostmask` is NOT `none` AND matches current context
+   - For patterns: `--parse-hostmask` must be `pattern` or `both`
+   - For input files: `--parse-hostmask` must be `input` or `both`
+2. **AND** mask format hint is `'mixed'` or `'unknown'`
+   - If format hint is `'netmask_dominant'`: File clearly uses netmask format → use normal parsing = `0.0.0.0/32`
+   - If format hint is `'hostmask_dominant'`: File clearly uses hostmask format → use normal parsing = `0.0.0.0/32`
+   - If format hint is `'mixed'` or `'unknown'`: Apply special case = `0.0.0.0/0`
+
+**Implementation note**: This special case check must occur before the normal subnet mask vs. inverse mask detection logic, as an exception override. The mask format hint (detected from first 8KB) is applied to all lines from that input source.
 
 ### Special Case: 255.255.255.255 0.0.0.0 (Broadcast Address as Single Host)
 
@@ -939,8 +954,13 @@ The pattern `255.255.255.255 0.0.0.0` is an exception to normal two-value parsin
 **Parsing rule**:
 - When the parser encounters exactly `255.255.255.255 0.0.0.0`, treat it as a special case BEFORE normal two-value parsing
 - Result: `255.255.255.255/32` (single broadcast address)
-- **Gating condition**: Only apply this special case if `--parse-inverse` has NOT been set to false (enabled by default)
-- If `--parse-inverse` is false/disabled: Falls through to normal parsing → `255.255.255.255/32` (same result)
+
+**Gating conditions** (ALL must be true):
+1. `--parse-hostmask` is NOT `none` AND matches current context
+   - For patterns: `--parse-hostmask` must be `pattern` or `both`
+   - For input files: `--parse-hostmask` must be `input` or `both`
+2. **AND** mask format hint is `'mixed'` or `'unknown'`
+   - If format hint is `'netmask_dominant'` or `'hostmask_dominant'`: Don't apply special case, use standard MSB-based parsing
 
 **Implementation note**: This special case check must occur alongside the `0.0.0.0 255.255.255.255` check before the normal subnet mask vs. inverse mask detection logic, as an exception override.
 

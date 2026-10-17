@@ -281,6 +281,54 @@ class NetworkParser:
         working_line = filtered_line
         original_line = filtered_line  # Keep original for position tracking
         
+        # SPECIAL CASE: 0.0.0.0 255.255.255.255 (entire IPv4 space)
+        # Per spec: Represents 0.0.0.0/0 (entire IPv4 space)
+        # Gating: Only apply if:
+        #   1. Format hint is 'mixed' or 'unknown' (not conclusively netmask or hostmask)
+        #   2. AND hostmask parsing is enabled in this context
+        special_case_0_0_pattern = re.compile(r'\b0\.0\.0\.0\s+255\.255\.255\.255\b')
+        should_apply_0_0_special = (
+            special_case_0_0_pattern.search(original_line) and
+            mask_format_hint in ('mixed', 'unknown') and
+            self._should_use_extractor('hostmask', context)
+        )
+        if should_apply_0_0_special:
+            match = special_case_0_0_pattern.search(original_line)
+            if match:
+                from ipaddress import ip_network
+                network = ip_network('0.0.0.0/0')
+                raw_extractions.append(_RawExtraction(
+                    network=network,
+                    format_type='inverse_mask',
+                    matched_text=match.group(0),
+                    was_normalized=False,
+                ))
+                working_line = working_line.replace(match.group(0), '', 1)
+        
+        # SPECIAL CASE: 255.255.255.255 0.0.0.0 (broadcast as single host)
+        # Per spec: Represents 255.255.255.255/32
+        # Gating: Only apply if:
+        #   1. Format hint is 'mixed' or 'unknown' (not conclusively netmask or hostmask)
+        #   2. AND hostmask parsing is enabled
+        special_case_bcast_pattern = re.compile(r'\b255\.255\.255\.255\s+0\.0\.0\.0\b')
+        should_apply_bcast_special = (
+            special_case_bcast_pattern.search(original_line) and
+            mask_format_hint in ('mixed', 'unknown') and
+            self._should_use_extractor('hostmask', context)
+        )
+        if should_apply_bcast_special:
+            match = special_case_bcast_pattern.search(original_line)
+            if match:
+                from ipaddress import ip_network
+                network = ip_network('255.255.255.255/32')
+                raw_extractions.append(_RawExtraction(
+                    network=network,
+                    format_type='inverse_mask',
+                    matched_text=match.group(0),
+                    was_normalized=False,
+                ))
+                working_line = working_line.replace(match.group(0), '', 1)
+        
         for idx, extractor in enumerate(self.extractors):
             # Check extractor-level skip decisions (never line-level rejection)
             if decisions.should_skip(idx):
@@ -361,26 +409,14 @@ class NetworkParser:
                                     is_netmask = _is_valid_netmask(second_ip)
                                     is_hostmask = _is_valid_hostmask(second_ip)
                                     
-                                    # Only mark as not-bare-ip if second value is actually a netmask/hostmask
-                                    if is_netmask or is_hostmask:
-                                        is_bare_ip = False
+                                    # Only mark as not-bare-ip if:
+                                    # 1. Second value is actually a valid netmask/hostmask
+                                    # 2. AND that parsing mode is enabled in this context
+                                    netmask_enabled = self._should_use_extractor('netmask', context)
+                                    hostmask_enabled = self._should_use_extractor('hostmask', context)
                                     
-                                    if is_netmask:
-                                        # It's netmask format (space-separated pair)
-                                        if self.parse_netmask == 'none':
-                                            skip_extraction = True
-                                        elif self.parse_netmask == 'pattern' and context != 'pattern':
-                                            skip_extraction = True
-                                        elif self.parse_netmask == 'input' and context == 'pattern':
-                                            skip_extraction = True
-                                    elif is_hostmask:
-                                        # It's hostmask format (space-separated pair)
-                                        if self.parse_hostmask == 'none':
-                                            skip_extraction = True
-                                        elif self.parse_hostmask == 'pattern' and context != 'pattern':
-                                            skip_extraction = True
-                                        elif self.parse_hostmask == 'input' and context == 'pattern':
-                                            skip_extraction = True
+                                    if (is_netmask and netmask_enabled) or (is_hostmask and hostmask_enabled):
+                                        is_bare_ip = False
                         
                         # Check what comes BEFORE the matched IP (for 2nd part of space-separated pairs)
                         if not skip_extraction and orig_pos > 0:
@@ -394,26 +430,14 @@ class NetworkParser:
                                 is_netmask = _is_valid_netmask(extraction.matched_text)
                                 is_hostmask = _is_valid_hostmask(extraction.matched_text)
                                 
-                                # Only mark as not-bare-ip if this IP is actually a netmask/hostmask
-                                if is_netmask or is_hostmask:
-                                    is_bare_ip = False
+                                # Only mark as not-bare-ip if:
+                                # 1. This value is actually a valid netmask/hostmask
+                                # 2. AND that parsing mode is enabled in this context
+                                netmask_enabled = self._should_use_extractor('netmask', context)
+                                hostmask_enabled = self._should_use_extractor('hostmask', context)
                                 
-                                if is_netmask:
-                                    # It's the netmask part (space-separated pair)
-                                    if self.parse_netmask == 'none':
-                                        skip_extraction = True
-                                    elif self.parse_netmask == 'pattern' and context != 'pattern':
-                                        skip_extraction = True
-                                    elif self.parse_netmask == 'input' and context == 'pattern':
-                                        skip_extraction = True
-                                elif is_hostmask:
-                                    # It's the hostmask part (space-separated pair)
-                                    if self.parse_hostmask == 'none':
-                                        skip_extraction = True
-                                    elif self.parse_hostmask == 'pattern' and context != 'pattern':
-                                        skip_extraction = True
-                                    elif self.parse_hostmask == 'input' and context == 'pattern':
-                                        skip_extraction = True
+                                if (is_netmask and netmask_enabled) or (is_hostmask and hostmask_enabled):
+                                    is_bare_ip = False
                         
                         # If it's a bare IP (not part of another format), validate parse_bare_ip control
                         if not skip_extraction and is_bare_ip:

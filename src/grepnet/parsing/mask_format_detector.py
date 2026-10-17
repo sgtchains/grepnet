@@ -74,7 +74,7 @@ class MaskFormatDetector:
         total = netmask_count + hostmask_count
         
         if total <= 1:
-            # Not enough clearly-identified patterns to determine format
+            # Spec: 'unknown' when ≤1 total patterns (need at least 2 for conclusive hint)
             return 'unknown'
         
         # Calculate ratio
