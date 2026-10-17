@@ -123,9 +123,6 @@ By default, grepnet finds all matches. Use these flags to filter by relationship
 **`--no-filename`**
 : Suppress filename in output
 
-**-T**, `--initial-tab`
-: Insert tab after line number/byte offset for alignment
-
 **-c**, `--count`
 : Print count of matching lines instead of lines
 
@@ -171,10 +168,6 @@ Network extraction and consolidation are two related operations for analyzing an
 
 **Consolidation** (`--consolidate`): Merges overlapping and adjacent networks into larger blocks, reducing complexity. For example, `192.0.2.0/25` and `192.0.2.128/25` merge into `192.0.2.0/24`. This simplifies network inventories and highlights coverage gaps.
 
-**Gap Filling** (`--fill-pct`): Optional consolidation enhancement. Instead of merging only adjacent networks, allows filling small gaps if the gap is ≤ N% of the combined network size. Useful for simplifying "nearly complete" network ranges. For example, with `--fill-pct=25`:
-- `192.0.2.0/25` and `192.0.2.192/26` (gap of 64 IPs = 25% of /24) merge into `192.0.2.0/24`
-- With `--fill-pct=10`: `192.0.2.0/25` and `192.0.2.224/26` (gap of 32 IPs = 12.5% of /24) do NOT merge (gap exceeds 10%)
-
 **Output Formats**: Extracted/consolidated networks can be output in multiple formats (CIDR, IP ranges, short-ranges, individual IPs, or original format).
 
 ## Flags
@@ -184,13 +177,6 @@ Network extraction and consolidation are two related operations for analyzing an
 
 **`--consolidate`**
 : Consolidate overlapping and adjacent networks into larger blocks
-
-**`--fill-pct`** *N*
-: Allow consolidation to fill gaps up to N% of network size (only with `--consolidate`; range 0-100)
-
-- Finds the smallest supernet for each network where gap_ratio ≤ N%
-- Single-pass: fill-pct applies once per extracted network, then networks merge via `collapse_addresses()`
-- Examples: `--fill-pct=50` allows up to 50% gap filling; `--fill-pct=0` disallows any gap
 
 **`--show-content`**
 : Include original line content in extract/consolidate output
@@ -213,9 +199,6 @@ grepnet --extract network_logs.txt
 # Consolidate overlapping networks into larger blocks
 grepnet --consolidate all_networks.txt
 
-# Consolidate with gap filling (up to 50%)
-grepnet --consolidate --fill-pct=50 network_ranges.txt
-
 # Extract networks matching a pattern, output as ranges
 grepnet --extract '10.0.0.0/8' systems.txt --format range
 
@@ -224,9 +207,6 @@ grepnet --consolidate --format ips networks.txt
 
 # Consolidate and show which lines contained each network
 grepnet --consolidate --show-content config.txt
-
-# Combine fill-pct with IP list output
-grepnet --consolidate --fill-pct=50 --format ips network_ranges.txt
 ```
 
 # FILTERING
