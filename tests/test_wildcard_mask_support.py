@@ -59,6 +59,7 @@ class TestWildcardMaskExpansion(unittest.TestCase):
                 '--parse-wildcard', 'input',
                 '--wildcard-search', '10.0.0.0/8',
                 '-o',  # Only show matching parts
+                '10.4.0.0 0.0.127.252',  # Pattern to search for
                 temp_file
             )
             
@@ -312,6 +313,7 @@ class TestWildcardMaskEdgeCases(unittest.TestCase):
             stdout, stderr, rc = self.run_grepnet(
                 '--parse-wildcard', 'input',
                 '--wildcard-search', '10.0.0.0/8',
+                '-e', '10.4.0.0/32',  # Pattern to match
                 temp_file
             )
             
