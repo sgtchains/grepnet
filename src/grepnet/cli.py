@@ -100,6 +100,12 @@ def run():
         dest='pattern_file',
         help='Read patterns from file (one per line)',
     )
+    parser.add_argument(
+        '--wildcard-search',
+        action='store',
+        dest='wildcard_search_scope',
+        help='Scope boundary for wildcard mask detection (CIDR format, e.g., 0.0.0.0/17)',
+    )
     
     # Matching options
     parser.add_argument(
@@ -271,6 +277,12 @@ def run():
         choices=['pattern', 'input', 'both', 'none'],
         default='both',
         help='Where to accept hostmasks (default: both)',
+    )
+    parser.add_argument(
+        '--parse-wildcard',
+        choices=['pattern', 'input', 'both', 'none'],
+        default='none',
+        help='Where to accept wildcard masks (default: none)',
     )
     parser.add_argument(
         '--parse-ranges',
@@ -721,6 +733,29 @@ def run():
             sys.exit(2)
         except KeyboardInterrupt:
             sys.exit(130)
+    
+    # Process --wildcard-search scope
+    # Validation: --wildcard-search requires --parse-wildcard to be set to something other than 'none'
+    wildcard_search_scope = None
+    if args.wildcard_search_scope:
+        if args.parse_wildcard == 'none':
+            if not args.no_messages:
+                print('grepnet: error: --wildcard-search requires --parse-wildcard to be set (pattern, input, or both)', file=sys.stderr)
+            sys.exit(2)
+        # Parse the scope as a CIDR network
+        try:
+            from ipaddress import ip_network
+            wildcard_search_scope = ip_network(args.wildcard_search_scope, strict=False)
+            # Ensure it's IPv4
+            if wildcard_search_scope.version != 4:
+                if not args.no_messages:
+                    print('grepnet: error: --wildcard-search only supports IPv4 CIDR notation', file=sys.stderr)
+                sys.exit(2)
+        except ValueError as e:
+            if not args.no_messages:
+                print(f'grepnet: error: invalid CIDR in --wildcard-search: {e}', file=sys.stderr)
+            sys.exit(2)
+    
     # Create GrepNet instance
     try:
         # For extract/consolidate, use default patterns if none provided
@@ -768,6 +803,8 @@ def run():
             parse_cidr=args.parse_cidr,
             parse_netmask=args.parse_netmask,
             parse_hostmask=args.parse_hostmask,
+            parse_wildcard=args.parse_wildcard,
+            wildcard_search_scope=wildcard_search_scope,
             parse_ranges=args.parse_ranges,
             parse_bare_ip=args.parse_bare_ip,
             scan_mask=args.scan_mask,

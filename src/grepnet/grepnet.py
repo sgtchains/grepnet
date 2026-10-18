@@ -13,7 +13,7 @@ import re
 from typing import List, Iterator, Tuple, Optional, Union, Dict
 from ipaddress import IPv4Network, IPv6Network
 
-from .core import ParsedExtraction, MatchResult, MatchType, Colorizer, BinaryDetector
+from .core import ParsedExtraction, MatchResult, MatchType, Colorizer, BinaryDetector, WildcardMaskRange
 from .parsing import NetworkParser
 from .input import InputSource, InputDiscovery
 from .matching import CIDRMatcher, RangeMatcher
@@ -50,6 +50,7 @@ class GrepNet:
         'subnet_mask_notation': 'SUBNET_MASK',
         'inverse_mask': 'INVERSE_MASK',
         'inverse_mask_notation': 'INVERSE_MASK',
+        'wildcard_mask': 'WILDCARD_MASK',
         'ipv4_range': 'RANGE',
         'ipv6_range': 'RANGE',
         'ip_range_notation': 'RANGE',
@@ -75,6 +76,8 @@ class GrepNet:
         parse_cidr: str = 'both',
         parse_netmask: str = 'both',
         parse_hostmask: str = 'both',
+        parse_wildcard: str = 'none',
+        wildcard_search_scope=None,
         parse_ranges: str = 'both',
         parse_bare_ip: str = 'both',
         scan_mask: str = 'both',
@@ -104,6 +107,8 @@ class GrepNet:
             strict_mode: If True, reject malformed CIDR
             strict_cidr_action: Action on strict CIDR validation error ('fail', 'normalize', 'ignore', 'warn')
             strict_cidr_mode: Strict CIDR validation mode ('pattern', 'input', 'both', 'none')
+            parse_wildcard: Where to accept wildcard masks ('pattern', 'input', 'both', 'none')
+            wildcard_search_scope: IPv4Network scope boundary for wildcard mask filtering (optional)
             enable_colors: If True, use ANSI colors
             match_type_filter: List of MatchType to include (default: all except UNMATCHED)
             invert_match: If True, invert match logic
@@ -152,6 +157,8 @@ class GrepNet:
         self.parse_cidr = parse_cidr
         self.parse_netmask = parse_netmask
         self.parse_hostmask = parse_hostmask
+        self.parse_wildcard = parse_wildcard
+        self.wildcard_search_scope = wildcard_search_scope
         self.parse_ranges = parse_ranges
         self.parse_bare_ip = parse_bare_ip
         self.scan_mask = scan_mask
@@ -167,6 +174,8 @@ class GrepNet:
             parse_cidr=parse_cidr,
             parse_netmask=parse_netmask,
             parse_hostmask=parse_hostmask,
+            parse_wildcard=parse_wildcard,
+            wildcard_search_scope=wildcard_search_scope,
             parse_ranges=parse_ranges,
             parse_bare_ip=parse_bare_ip,
             scan_mask=scan_mask,
@@ -991,7 +1000,8 @@ class GrepNet:
             marked_texts = set()  # Track which unique texts have been marked (to avoid double-marking duplicates)
             
             # Group extractions by format_type for ordered processing
-            format_priority = ['cidr_notation', 'subnet_mask', 'inverse_mask', 'ipv4_range', 'ipv6_range', 'ip_only']
+            # Priority order: CIDR > Subnet Mask > Inverse Mask > Wildcard Mask > Ranges > Bare IP
+            format_priority = ['cidr_notation', 'subnet_mask', 'inverse_mask', 'wildcard_mask', 'ipv4_range', 'ipv6_range', 'ip_only']
             
             for format_type_name in format_priority:
                 for file_extraction in file_extractions:
@@ -1088,7 +1098,13 @@ class GrepNet:
         """
         Determine match type between file network and pattern.
         
-        Supports cross-type matching: CIDR ↔ Range
+        Supports cross-type matching: CIDR ↔ Range ↔ WildcardMaskRange
+        
+        WildcardMaskRange handling:
+        - EQUALS: pattern equals ANY expanded CIDR
+        - SUBSET: pattern is subset of ANY expanded CIDR
+        - SUPERSET: pattern is superset of ALL expanded CIDRs (entire range)
+        - OVERLAP: partial overlap with any expanded CIDR
         
         Priority order (first match wins):
         1. EQUALS
@@ -1106,6 +1122,13 @@ class GrepNet:
         """
         file_net = file_extraction.network
         pattern_net = pattern_extraction.network
+        
+        # Check if either is WildcardMaskRange
+        file_is_wildcard = isinstance(file_net, WildcardMaskRange)
+        pattern_is_wildcard = isinstance(pattern_net, WildcardMaskRange)
+        
+        if file_is_wildcard or pattern_is_wildcard:
+            return self._find_match_type_with_wildcard(file_net, pattern_net, file_is_wildcard, pattern_is_wildcard)
         
         # Check if both are CIDR or both are ranges
         file_is_cidr = isinstance(file_net, (IPv4Network, IPv6Network))
@@ -1131,6 +1154,101 @@ class GrepNet:
             # Now both are (start_int, end_int) tuples, use range matcher
             matcher = RangeMatcher([(file_start, file_end)])
             return self._check_match_type_against_pattern(matcher, pattern_start, pattern_end)
+    
+    def _find_match_type_with_wildcard(
+        self,
+        file_net: object,
+        pattern_net: object,
+        file_is_wildcard: bool,
+        pattern_is_wildcard: bool,
+    ) -> MatchType:
+        """
+        Handle matching when WildcardMaskRange is involved.
+        
+        When file is wildcard: Check pattern against all expanded CIDRs
+        When pattern is wildcard: Check file against all expanded CIDRs
+        
+        Args:
+            file_net: File network (may be WildcardMaskRange)
+            pattern_net: Pattern network (may be WildcardMaskRange)
+            file_is_wildcard: True if file_net is WildcardMaskRange
+            pattern_is_wildcard: True if pattern_net is WildcardMaskRange
+        
+        Returns:
+            MatchType
+        """
+        # Extract CIDRs from wildcard ranges
+        file_cidrs = file_net.expanded_cidrs if file_is_wildcard else [file_net]
+        pattern_cidrs = pattern_net.expanded_cidrs if pattern_is_wildcard else [pattern_net]
+        
+        # Priority: EQUALS > SUBSET > SUPERSET > OVERLAP
+        
+        # 1. Check EQUALS: Does any file CIDR equal any pattern CIDR?
+        for file_cidr in file_cidrs:
+            for pattern_cidr in pattern_cidrs:
+                if file_cidr == pattern_cidr:
+                    return MatchType.EQUALS
+        
+        # 2. Check SUBSET: Does any pattern CIDR subset any file CIDR?
+        for pattern_cidr in pattern_cidrs:
+            for file_cidr in file_cidrs:
+                if pattern_cidr != file_cidr and pattern_cidr.subnet_of(file_cidr):
+                    return MatchType.SUBSET
+        
+        # 3. Check SUPERSET: Does pattern contain all file CIDRs?
+        # A pattern is superset if ALL file CIDRs are subsets of at least one pattern CIDR
+        all_file_covered = True
+        for file_cidr in file_cidrs:
+            covered = False
+            for pattern_cidr in pattern_cidrs:
+                if file_cidr == pattern_cidr or file_cidr.subnet_of(pattern_cidr):
+                    covered = True
+                    break
+            if not covered:
+                all_file_covered = False
+                break
+        
+        if all_file_covered and len(file_cidrs) > 0:
+            return MatchType.SUPERSET
+        
+        # 4. Check OVERLAP: Do any CIDRs overlap?
+        # CIDR overlap occurs when networks share address space without subset/superset relationship
+        for file_cidr in file_cidrs:
+            for pattern_cidr in pattern_cidrs:
+                if self._cidr_overlap(file_cidr, pattern_cidr):
+                    return MatchType.OVERLAP
+        
+        return MatchType.UNMATCHED
+    
+    def _cidr_overlap(self, net1: IPv4Network, net2: IPv4Network) -> bool:
+        """
+        Check if two CIDR networks overlap (share address space).
+        
+        Two CIDRs overlap if their address ranges intersect but neither is a subnet of the other.
+        
+        Args:
+            net1: First IPv4Network
+            net2: Second IPv4Network
+        
+        Returns:
+            True if networks overlap (partial intersection)
+        """
+        # Convert to integer ranges for comparison
+        net1_start = int(net1.network_address)
+        net1_end = int(net1.broadcast_address)
+        net2_start = int(net2.network_address)
+        net2_end = int(net2.broadcast_address)
+        
+        # Check if ranges overlap: start of one is within the other's range
+        overlap = (net1_start <= net2_start <= net1_end) or (net2_start <= net1_start <= net2_end)
+        
+        # But exclude subset relationships (that's handled by SUBSET/SUPERSET)
+        if overlap:
+            if net1.subnet_of(net2) or net2.subnet_of(net1):
+                return False
+        
+        return overlap
+
     
     def _cidr_to_range(self, network: Union[IPv4Network, IPv6Network]) -> tuple:
         """

@@ -14,6 +14,7 @@ Classes:
 - ParsedExtraction: Represents a single extracted network object with all matched text variations
 - MatchResult: Represents a match between a pattern and file data
 - MatchType: Enumeration of match relationship types
+- WildcardMaskRange: Represents a network range specified via Cisco ACL wildcard mask notation
 - Colorizer: ANSI color code generation and application
 - BinaryDetector: Binary file detection for VTY protection
 """
@@ -32,6 +33,57 @@ MatchType: Enumeration of match relationship types.
 from enum import Enum, auto
 from typing import NamedTuple, Optional
 from ipaddress import IPv4Network, IPv6Network, IPv4Address, IPv6Address
+
+
+class WildcardMaskRange:
+    """
+    Represents a network range specified via Cisco ACL wildcard mask notation.
+    
+    Wildcard masks use 1-bits to indicate "don't care" positions (can be 0 or 1)
+    and 0-bits for positions that must match exactly. This is inverse of netmask notation.
+    
+    Example: "10.4.0.0 0.0.127.252" represents all IPs matching the pattern where
+    the specified bits are wildcarded (1s in the mask allow variation).
+    
+    This class stores:
+    - original_text: The raw user input for display purposes (e.g., "10.4.0.0 0.0.127.252")
+    - expanded_cidrs: A list of IPv4Network objects representing all possible CIDR blocks
+                      that together cover exactly the range specified by the wildcard mask.
+                      These are already aggregated into the minimal set by collapse_addresses().
+    
+    Attributes:
+        original_text: String representation of the wildcard mask (base_ip + " " + wildcard_mask)
+        expanded_cidrs: list[IPv4Network] - aggregated CIDR blocks covering the range
+    """
+    
+    def __init__(self, original_text: str, expanded_cidrs: list):
+        """
+        Initialize WildcardMaskRange.
+        
+        Args:
+            original_text: String representation of the wildcard mask (base_ip + " " + wildcard_mask)
+            expanded_cidrs: list[IPv4Network] - aggregated CIDR blocks covering the range
+        """
+        self.original_text = original_text
+        self.expanded_cidrs = expanded_cidrs
+    
+    def __str__(self) -> str:
+        """Return original text representation for display."""
+        return self.original_text
+    
+    def __repr__(self) -> str:
+        """Return detailed representation for debugging."""
+        return f"WildcardMaskRange('{self.original_text}', {self.expanded_cidrs})"
+    
+    def __eq__(self, other):
+        """Check equality based on original_text and expanded_cidrs."""
+        if not isinstance(other, WildcardMaskRange):
+            return False
+        return self.original_text == other.original_text and self.expanded_cidrs == other.expanded_cidrs
+    
+    def __hash__(self):
+        """Hash based on original_text for use in dicts/sets."""
+        return hash(self.original_text)
 
 
 class MatchType(Enum):
@@ -70,14 +122,14 @@ class ParsedExtraction(NamedTuple):
     Result of parsing a single network expression from text.
     
     Attributes:
-        network: IPv4Network, IPv6Network, or tuple (start_int, end_int) for ranges
-        format_type: One of: 'cidr_notation', 'subnet_mask', 'inverse_mask', 
+        network: IPv4Network, IPv6Network, WildcardMaskRange, or tuple (start_int, end_int) for ranges
+        format_type: One of: 'cidr_notation', 'subnet_mask', 'inverse_mask', 'wildcard_mask',
                      'ipv4_range', 'ipv6_range', 'ip_only'
         was_normalized: True if ANY matched text required normalization
         matched_texts: List of dicts with text and per-text normalization info
                        [{"text": "192.0.2.2/24", "was_normalized": true}, ...]
     """
-    network: object  # IPv4Network | IPv6Network | tuple[int, int]
+    network: object  # IPv4Network | IPv6Network | WildcardMaskRange | tuple[int, int]
     format_type: str
     was_normalized: bool  # True if ANY text in matched_texts was normalized
     matched_texts: list  # List[dict] with {"text": str, "was_normalized": bool}
@@ -346,6 +398,7 @@ class Colorizer:
         'match_unmatched': '0',      # mu= (no color for UNMATCHED)
         'match_text': '0',           # mt= (match text color)
         'normalized': '04',          # mn= (underline for normalized CIDR)
+        'wildcard_mask': '38;5;75',  # wm= (bright cyan for wildcard mask format)
     }
     
     # Code name mappings for environment variables
@@ -365,6 +418,7 @@ class Colorizer:
         'mo': 'match_overlap',
         'mu': 'match_unmatched',
         'mn': 'normalized',
+        'wm': 'wildcard_mask',  # Wildcard mask format color
     }
     
     def __init__(self, enable_colors: bool = True):
@@ -1640,6 +1694,7 @@ Extractors:
 - CIDRExtractor: IPv4/IPv6 CIDR notation
 - SubnetMaskExtractor: IPv4 subnet mask notation
 - InverseMaskExtractor: IPv4 inverse mask notation
+- WildcardMaskExtractor: Cisco ACL wildcard mask notation
 - IPRangeExtractor: IP range notation
 - IPv6Extractor: IPv6 addresses and CIDR blocks
 - IPOnlyExtractor: Bare IP addresses
@@ -2104,7 +2159,7 @@ class SubnetMaskExtractor(NetworkExtractor):
         self.reject_zero_mask = reject_zero_mask
         self.enabled = enabled
     
-    def extract(self, text: str) -> Optional[_RawExtraction]:
+    def extract(self, text: str, mask_format_hint: Optional[str] = None) -> Optional[_RawExtraction]:
         """
         Extract first valid subnet mask notation from text.
         
@@ -2112,8 +2167,14 @@ class SubnetMaskExtractor(NetworkExtractor):
         that has a valid subnet mask (contiguous 1-bits from left).
         Handles overlapping patterns by manually advancing search position.
         
+        When mask_format_hint is 'netmask_dominant', treats MSB=0 values as potential
+        netmasks (tie-breaker for ambiguous cases like 0.0.0.0).
+        
         Args:
             text: Text to search
+            mask_format_hint: Format hint ('netmask_dominant', 'hostmask_dominant', 'mixed', 'unknown', or None)
+                             Used as tie-breaker for ambiguous values when both netmask and
+                             hostmask parsing are enabled
         
         Returns:
             _RawExtraction if found, None otherwise
@@ -2138,16 +2199,26 @@ class SubnetMaskExtractor(NetworkExtractor):
                 # Netmask (subnet mask): MSB=1 (has leading 1s, e.g., 255.255.255.0)
                 # Hostmask (inverse mask): MSB=0 (has leading 0s, e.g., 0.0.0.255)
                 # 
+                # CRITICAL: 0.0.0.0 is RESERVED for hostmask format and must NEVER be tried
+                # as a netmask, even with 'netmask_dominant' hint.
+                #
                 # When hostmask parsing IS enabled:
                 #   - Reject MSB=0 values here so InverseMaskExtractor can handle them
+                #   - UNLESS format hint is 'netmask_dominant' AND mask is NOT 0.0.0.0 (tie-breaker)
                 # When hostmask parsing IS disabled:
                 #   - Accept ALL contiguous masks (including 0.0.0.0)
                 has_msb_one = bool(mask_int & 0x80000000)
                 if not has_msb_one and self.reject_zero_mask:
-                    # MSB=0 indicates hostmask format, and hostmask parsing is enabled
-                    # Skip this and let InverseMaskExtractor handle it
-                    pos = match.start(2)
-                    continue
+                    # MSB=0 indicates hostmask format
+                    # Only accept if: netmask_dominant hint AND mask is NOT reserved 0.0.0.0
+                    if mask_format_hint == 'netmask_dominant' and mask_str != '0.0.0.0':
+                        # Hint says prefer netmask AND this is not the reserved 0.0.0.0, so try netmask
+                        pass  # continue with validation below
+                    else:
+                        # MSB=0 and either no netmask-dominant hint or mask is 0.0.0.0
+                        # Let InverseMaskExtractor handle it
+                        pos = match.start(2)
+                        continue
                 
                 # A valid netmask has contiguous 1-bits from the left
                 # Count leading 1s, then all remaining bits should be 0
@@ -2215,15 +2286,18 @@ class InverseMaskExtractor(NetworkExtractor):
         f'\\b({IP_PATTERN})\\s+({IP_PATTERN})\\b'
     )
     
-    def __init__(self, enabled: bool = True):
+    def __init__(self, enabled: bool = True, netmask_enabled: bool = True):
         """
         Initialize InverseMaskExtractor.
         
         Args:
             enabled: If False, this extractor is disabled (--parse-hostmask=none).
                     When disabled, extract() returns None immediately.
+            netmask_enabled: If True, netmask parsing is also enabled (used for tie-breaking logic).
+                           Needed to determine when format hints should influence parsing.
         """
         self.enabled = enabled
+        self.netmask_enabled = netmask_enabled
     
     def extract(self, text: str, mask_format_hint: Optional[str] = None) -> Optional[_RawExtraction]:
         """
@@ -2233,10 +2307,14 @@ class InverseMaskExtractor(NetworkExtractor):
         that has a valid hostmask. Handles overlapping patterns by manually
         advancing search position.
         
+        When mask_format_hint is 'hostmask_dominant', treats MSB=1 values as potential
+        hostmasks (tie-breaker for ambiguous cases like 255.255.255.255).
+        
         Args:
             text: Text to search
-            mask_format_hint: Format hint ('netmask_dominant', 'hostmask_dominant', 'mixed', 'unknown')
-                             Used to gate Special Case 3 (second value is 0.0.0.0)
+            mask_format_hint: Format hint ('netmask_dominant', 'hostmask_dominant', 'mixed', 'unknown', or None)
+                             Used as tie-breaker for ambiguous values when both netmask and
+                             hostmask parsing are enabled
         
         Returns:
             _RawExtraction if found, None otherwise
@@ -2257,22 +2335,28 @@ class InverseMaskExtractor(NetworkExtractor):
                 ip_addr = IPv4Address(ip_str)
                 hostmask_addr = IPv4Address(hostmask_str)
                 
-                # SPECIAL CASE 3 GATING: Second value is 0.0.0.0 (all zeros)
-                # Only apply if hint is 'mixed' or 'unknown' (not conclusive format)
-                # If hint is 'netmask_dominant' or 'hostmask_dominant', skip this extraction
-                if hostmask_str == '0.0.0.0' and mask_format_hint not in ('mixed', 'unknown', None):
-                    # Format hint is conclusive, don't treat 0.0.0.0 as special
-                    pos = match.start(2)
-                    continue
-                
                 # SPEC REQUIREMENT: Inverse mask MUST have MSB=0 (leading zero bit)
                 # This distinguishes hostmask (0s from MSB) from netmask (1s from MSB)
+                #
+                # CRITICAL: 255.255.255.255 is RESERVED for netmask format and must NEVER be tried
+                # as a hostmask, even with 'hostmask_dominant' hint.
+                #
+                # When netmask parsing IS enabled AND both modes enabled:
+                #   - Reject MSB=1 values here so SubnetMaskExtractor can handle them
+                #   - UNLESS format hint is 'hostmask_dominant' AND mask is NOT 255.255.255.255 (tie-breaker)
+                # When netmask parsing IS disabled:
+                #   - Accept ALL contiguous hostmasks (including 255.255.255.255 inverted)
                 hostmask_int = int(hostmask_addr)
                 if hostmask_int & 0x80000000:  # Check if MSB is 1
                     # MSB=1 means this is netmask format, not hostmask
-                    # Reject and try next pattern
-                    pos = match.start(2)  # Advance to second IP
-                    continue
+                    # Only reject if netmask parsing is enabled (both modes available)
+                    # AND either no hostmask_dominant hint OR mask is reserved 255.255.255.255
+                    if self.netmask_enabled and not (mask_format_hint == 'hostmask_dominant' and hostmask_str != '255.255.255.255'):
+                        # Netmask parsing enabled, and either no hostmask hint or mask is 255.255.255.255
+                        # Let SubnetMaskExtractor handle it
+                        pos = match.start(2)
+                        continue
+                    # else: netmask parsing disabled, hostmask_dominant hint + non-reserved, or fallback - try hostmask
                 
                 # SPEC REQUIREMENT: Hostmask must be contiguous (all 0s from MSB, then all 1s)
                 # Check if it matches pattern: 0+1* (zero or more 0s, then zero or more 1s)
@@ -2754,6 +2838,7 @@ class ExtractorDecisions:
         self.skip_cidr = False
         self.skip_netmask = False
         self.skip_hostmask = False
+        self.skip_wildcard = False
         self.skip_range = False
         self.skip_bare_ip = False
     
@@ -2762,12 +2847,12 @@ class ExtractorDecisions:
         Check if a specific extractor should be skipped.
         
         Args:
-            extractor_index: Index of extractor (0=CIDR, 1=netmask, 2=hostmask, 3=range, 4=bare_ip)
+            extractor_index: Index of extractor (0=CIDR, 1=netmask, 2=hostmask, 3=wildcard, 4=range, 5=bare_ip)
         
         Returns:
             True if this extractor should be skipped
         """
-        skip_flags = [self.skip_cidr, self.skip_netmask, self.skip_hostmask, self.skip_range, self.skip_bare_ip]
+        skip_flags = [self.skip_cidr, self.skip_netmask, self.skip_hostmask, self.skip_wildcard, self.skip_range, self.skip_bare_ip]
         if extractor_index < len(skip_flags):
             return skip_flags[extractor_index]
         return False
@@ -2798,6 +2883,8 @@ class NetworkParser:
         parse_cidr: str = 'both',
         parse_netmask: str = 'both',
         parse_hostmask: str = 'both',
+        parse_wildcard: str = 'none',
+        wildcard_search_scope=None,
         parse_ranges: str = 'both',
         parse_bare_ip: str = 'both',
         scan_mask: str = 'both',
@@ -2812,6 +2899,8 @@ class NetworkParser:
             parse_cidr: Where to accept CIDR ('pattern', 'input', 'both', 'none')
             parse_netmask: Where to accept subnet masks ('pattern', 'input', 'both', 'none')
             parse_hostmask: Where to accept hostmasks ('pattern', 'input', 'both', 'none')
+            parse_wildcard: Where to accept wildcard masks ('pattern', 'input', 'both', 'none')
+            wildcard_search_scope: IPv4Network scope boundary for wildcard mask filtering (optional)
             parse_ranges: Where to accept IP ranges ('pattern', 'input', 'both', 'none')
             parse_bare_ip: Where to accept bare IPs ('pattern', 'input', 'both', 'none')
             scan_mask: Where to scan for format hints ('pattern', 'input', 'both', 'none')
@@ -2822,6 +2911,8 @@ class NetworkParser:
         self.parse_cidr = parse_cidr
         self.parse_netmask = parse_netmask
         self.parse_hostmask = parse_hostmask
+        self.parse_wildcard = parse_wildcard
+        self.wildcard_search_scope = wildcard_search_scope
         self.parse_ranges = parse_ranges
         self.parse_bare_ip = parse_bare_ip
         self.scan_mask = scan_mask
@@ -2831,13 +2922,21 @@ class NetworkParser:
         self.comment_handler = CommentHandler()
         
         # Initialize extractors in priority order
+        # Priority: CIDR → Subnet Mask → Inverse Mask → Wildcard Mask → Ranges → Bare IP
         self.extractors = [
             CIDRExtractor(strict=strict_mode),
             SubnetMaskExtractor(
                 reject_zero_mask=parse_hostmask != 'none',
                 enabled=parse_netmask != 'none'
             ),
-            InverseMaskExtractor(enabled=parse_hostmask != 'none'),
+            InverseMaskExtractor(
+                enabled=parse_hostmask != 'none',
+                netmask_enabled=parse_netmask != 'none'
+            ),
+            WildcardMaskExtractor(
+                wildcard_mode_enabled=parse_wildcard != 'none',
+                wildcard_search_scope=wildcard_search_scope
+            ),
             IPRangeExtractor(),
             IPOnlyExtractor(),
         ]
@@ -2890,7 +2989,7 @@ class NetworkParser:
         Determine if an extractor should be used based on parse control flags.
         
         Args:
-            extractor_type: Type of extractor ('cidr', 'netmask', 'hostmask', 'range')
+            extractor_type: Type of extractor ('cidr', 'netmask', 'hostmask', 'wildcard', 'range')
             context: Context ('pattern' or 'input')
         
         Returns:
@@ -2916,6 +3015,13 @@ class NetworkParser:
             if self.parse_hostmask == 'pattern' and context != 'pattern':
                 return False
             if self.parse_hostmask == 'input' and context != 'input':
+                return False
+        elif extractor_type == 'wildcard':
+            if self.parse_wildcard == 'none':
+                return False
+            if self.parse_wildcard == 'pattern' and context != 'pattern':
+                return False
+            if self.parse_wildcard == 'input' and context != 'input':
                 return False
         elif extractor_type == 'range':
             if self.parse_ranges == 'none':
@@ -2949,7 +3055,7 @@ class NetworkParser:
             line: Line text
             line_number: Line number (1-based, for reference)
             context: Context for parsing ('pattern' for search patterns, 'input' for file input)
-            mask_format_hint: Format hint from peek buffer analysis
+            mask_format_hint: Format hint from peek buffer analysis (used for Special Cases 1 & 2)
         
         Returns:
             List of ParsedExtraction objects, deduplicated by network value.
@@ -2977,8 +3083,9 @@ class NetworkParser:
             'cidr',       # 0: CIDRExtractor
             'netmask',    # 1: SubnetMaskExtractor
             'hostmask',   # 2: InverseMaskExtractor
-            'range',      # 3: IPRangeExtractor
-            'ip_only',    # 4: IPOnlyExtractor
+            'wildcard',   # 3: WildcardMaskExtractor
+            'range',      # 4: IPRangeExtractor
+            'ip_only',    # 5: IPOnlyExtractor
         ]
         
         # Extract networks using each extractor
@@ -3048,9 +3155,10 @@ class NetworkParser:
             
             # Keep calling each extractor until no more networks found
             while True:
-                # Pass mask_format_hint to extractor for special case gating
-                if hasattr(extractor, 'extract') and 'mask_format_hint' in extractor.extract.__code__.co_varnames:
-                    extraction = extractor.extract(working_line, mask_format_hint=mask_format_hint)
+                # Pass format hint only to SubnetMaskExtractor and InverseMaskExtractor
+                # Others don't use it
+                if idx == 1 or idx == 2:  # SubnetMaskExtractor or InverseMaskExtractor
+                    extraction = extractor.extract(working_line, mask_format_hint)
                 else:
                     extraction = extractor.extract(working_line)
                 if extraction is None:
@@ -3288,6 +3396,7 @@ class GrepNet:
         'subnet_mask_notation': 'SUBNET_MASK',
         'inverse_mask': 'INVERSE_MASK',
         'inverse_mask_notation': 'INVERSE_MASK',
+        'wildcard_mask': 'WILDCARD_MASK',
         'ipv4_range': 'RANGE',
         'ipv6_range': 'RANGE',
         'ip_range_notation': 'RANGE',
@@ -3313,6 +3422,8 @@ class GrepNet:
         parse_cidr: str = 'both',
         parse_netmask: str = 'both',
         parse_hostmask: str = 'both',
+        parse_wildcard: str = 'none',
+        wildcard_search_scope=None,
         parse_ranges: str = 'both',
         parse_bare_ip: str = 'both',
         scan_mask: str = 'both',
@@ -3342,6 +3453,8 @@ class GrepNet:
             strict_mode: If True, reject malformed CIDR
             strict_cidr_action: Action on strict CIDR validation error ('fail', 'normalize', 'ignore', 'warn')
             strict_cidr_mode: Strict CIDR validation mode ('pattern', 'input', 'both', 'none')
+            parse_wildcard: Where to accept wildcard masks ('pattern', 'input', 'both', 'none')
+            wildcard_search_scope: IPv4Network scope boundary for wildcard mask filtering (optional)
             enable_colors: If True, use ANSI colors
             match_type_filter: List of MatchType to include (default: all except UNMATCHED)
             invert_match: If True, invert match logic
@@ -3390,6 +3503,8 @@ class GrepNet:
         self.parse_cidr = parse_cidr
         self.parse_netmask = parse_netmask
         self.parse_hostmask = parse_hostmask
+        self.parse_wildcard = parse_wildcard
+        self.wildcard_search_scope = wildcard_search_scope
         self.parse_ranges = parse_ranges
         self.parse_bare_ip = parse_bare_ip
         self.scan_mask = scan_mask
@@ -3405,6 +3520,8 @@ class GrepNet:
             parse_cidr=parse_cidr,
             parse_netmask=parse_netmask,
             parse_hostmask=parse_hostmask,
+            parse_wildcard=parse_wildcard,
+            wildcard_search_scope=wildcard_search_scope,
             parse_ranges=parse_ranges,
             parse_bare_ip=parse_bare_ip,
             scan_mask=scan_mask,
@@ -4229,7 +4346,8 @@ class GrepNet:
             marked_texts = set()  # Track which unique texts have been marked (to avoid double-marking duplicates)
             
             # Group extractions by format_type for ordered processing
-            format_priority = ['cidr_notation', 'subnet_mask', 'inverse_mask', 'ipv4_range', 'ipv6_range', 'ip_only']
+            # Priority order: CIDR > Subnet Mask > Inverse Mask > Wildcard Mask > Ranges > Bare IP
+            format_priority = ['cidr_notation', 'subnet_mask', 'inverse_mask', 'wildcard_mask', 'ipv4_range', 'ipv6_range', 'ip_only']
             
             for format_type_name in format_priority:
                 for file_extraction in file_extractions:
@@ -4326,7 +4444,13 @@ class GrepNet:
         """
         Determine match type between file network and pattern.
         
-        Supports cross-type matching: CIDR ↔ Range
+        Supports cross-type matching: CIDR ↔ Range ↔ WildcardMaskRange
+        
+        WildcardMaskRange handling:
+        - EQUALS: pattern equals ANY expanded CIDR
+        - SUBSET: pattern is subset of ANY expanded CIDR
+        - SUPERSET: pattern is superset of ALL expanded CIDRs (entire range)
+        - OVERLAP: partial overlap with any expanded CIDR
         
         Priority order (first match wins):
         1. EQUALS
@@ -4344,6 +4468,13 @@ class GrepNet:
         """
         file_net = file_extraction.network
         pattern_net = pattern_extraction.network
+        
+        # Check if either is WildcardMaskRange
+        file_is_wildcard = isinstance(file_net, WildcardMaskRange)
+        pattern_is_wildcard = isinstance(pattern_net, WildcardMaskRange)
+        
+        if file_is_wildcard or pattern_is_wildcard:
+            return self._find_match_type_with_wildcard(file_net, pattern_net, file_is_wildcard, pattern_is_wildcard)
         
         # Check if both are CIDR or both are ranges
         file_is_cidr = isinstance(file_net, (IPv4Network, IPv6Network))
@@ -4369,6 +4500,101 @@ class GrepNet:
             # Now both are (start_int, end_int) tuples, use range matcher
             matcher = RangeMatcher([(file_start, file_end)])
             return self._check_match_type_against_pattern(matcher, pattern_start, pattern_end)
+    
+    def _find_match_type_with_wildcard(
+        self,
+        file_net: object,
+        pattern_net: object,
+        file_is_wildcard: bool,
+        pattern_is_wildcard: bool,
+    ) -> MatchType:
+        """
+        Handle matching when WildcardMaskRange is involved.
+        
+        When file is wildcard: Check pattern against all expanded CIDRs
+        When pattern is wildcard: Check file against all expanded CIDRs
+        
+        Args:
+            file_net: File network (may be WildcardMaskRange)
+            pattern_net: Pattern network (may be WildcardMaskRange)
+            file_is_wildcard: True if file_net is WildcardMaskRange
+            pattern_is_wildcard: True if pattern_net is WildcardMaskRange
+        
+        Returns:
+            MatchType
+        """
+        # Extract CIDRs from wildcard ranges
+        file_cidrs = file_net.expanded_cidrs if file_is_wildcard else [file_net]
+        pattern_cidrs = pattern_net.expanded_cidrs if pattern_is_wildcard else [pattern_net]
+        
+        # Priority: EQUALS > SUBSET > SUPERSET > OVERLAP
+        
+        # 1. Check EQUALS: Does any file CIDR equal any pattern CIDR?
+        for file_cidr in file_cidrs:
+            for pattern_cidr in pattern_cidrs:
+                if file_cidr == pattern_cidr:
+                    return MatchType.EQUALS
+        
+        # 2. Check SUBSET: Does any pattern CIDR subset any file CIDR?
+        for pattern_cidr in pattern_cidrs:
+            for file_cidr in file_cidrs:
+                if pattern_cidr != file_cidr and pattern_cidr.subnet_of(file_cidr):
+                    return MatchType.SUBSET
+        
+        # 3. Check SUPERSET: Does pattern contain all file CIDRs?
+        # A pattern is superset if ALL file CIDRs are subsets of at least one pattern CIDR
+        all_file_covered = True
+        for file_cidr in file_cidrs:
+            covered = False
+            for pattern_cidr in pattern_cidrs:
+                if file_cidr == pattern_cidr or file_cidr.subnet_of(pattern_cidr):
+                    covered = True
+                    break
+            if not covered:
+                all_file_covered = False
+                break
+        
+        if all_file_covered and len(file_cidrs) > 0:
+            return MatchType.SUPERSET
+        
+        # 4. Check OVERLAP: Do any CIDRs overlap?
+        # CIDR overlap occurs when networks share address space without subset/superset relationship
+        for file_cidr in file_cidrs:
+            for pattern_cidr in pattern_cidrs:
+                if self._cidr_overlap(file_cidr, pattern_cidr):
+                    return MatchType.OVERLAP
+        
+        return MatchType.UNMATCHED
+    
+    def _cidr_overlap(self, net1: IPv4Network, net2: IPv4Network) -> bool:
+        """
+        Check if two CIDR networks overlap (share address space).
+        
+        Two CIDRs overlap if their address ranges intersect but neither is a subnet of the other.
+        
+        Args:
+            net1: First IPv4Network
+            net2: Second IPv4Network
+        
+        Returns:
+            True if networks overlap (partial intersection)
+        """
+        # Convert to integer ranges for comparison
+        net1_start = int(net1.network_address)
+        net1_end = int(net1.broadcast_address)
+        net2_start = int(net2.network_address)
+        net2_end = int(net2.broadcast_address)
+        
+        # Check if ranges overlap: start of one is within the other's range
+        overlap = (net1_start <= net2_start <= net1_end) or (net2_start <= net1_start <= net2_end)
+        
+        # But exclude subset relationships (that's handled by SUBSET/SUPERSET)
+        if overlap:
+            if net1.subnet_of(net2) or net2.subnet_of(net1):
+                return False
+        
+        return overlap
+
     
     def _cidr_to_range(self, network: Union[IPv4Network, IPv6Network]) -> tuple:
         """
@@ -4642,6 +4868,12 @@ def run():
         dest='pattern_file',
         help='Read patterns from file (one per line)',
     )
+    parser.add_argument(
+        '--wildcard-search',
+        action='store',
+        dest='wildcard_search_scope',
+        help='Scope boundary for wildcard mask detection (CIDR format, e.g., 0.0.0.0/17)',
+    )
     
     # Matching options
     parser.add_argument(
@@ -4813,6 +5045,12 @@ def run():
         choices=['pattern', 'input', 'both', 'none'],
         default='both',
         help='Where to accept hostmasks (default: both)',
+    )
+    parser.add_argument(
+        '--parse-wildcard',
+        choices=['pattern', 'input', 'both', 'none'],
+        default='none',
+        help='Where to accept wildcard masks (default: none)',
     )
     parser.add_argument(
         '--parse-ranges',
@@ -5263,6 +5501,29 @@ def run():
             sys.exit(2)
         except KeyboardInterrupt:
             sys.exit(130)
+    
+    # Process --wildcard-search scope
+    # Validation: --wildcard-search requires --parse-wildcard to be set to something other than 'none'
+    wildcard_search_scope = None
+    if args.wildcard_search_scope:
+        if args.parse_wildcard == 'none':
+            if not args.no_messages:
+                print('grepnet: error: --wildcard-search requires --parse-wildcard to be set (pattern, input, or both)', file=sys.stderr)
+            sys.exit(2)
+        # Parse the scope as a CIDR network
+        try:
+            from ipaddress import ip_network
+            wildcard_search_scope = ip_network(args.wildcard_search_scope, strict=False)
+            # Ensure it's IPv4
+            if wildcard_search_scope.version != 4:
+                if not args.no_messages:
+                    print('grepnet: error: --wildcard-search only supports IPv4 CIDR notation', file=sys.stderr)
+                sys.exit(2)
+        except ValueError as e:
+            if not args.no_messages:
+                print(f'grepnet: error: invalid CIDR in --wildcard-search: {e}', file=sys.stderr)
+            sys.exit(2)
+    
     # Create GrepNet instance
     try:
         # For extract/consolidate, use default patterns if none provided
@@ -5310,6 +5571,8 @@ def run():
             parse_cidr=args.parse_cidr,
             parse_netmask=args.parse_netmask,
             parse_hostmask=args.parse_hostmask,
+            parse_wildcard=args.parse_wildcard,
+            wildcard_search_scope=wildcard_search_scope,
             parse_ranges=args.parse_ranges,
             parse_bare_ip=args.parse_bare_ip,
             scan_mask=args.scan_mask,

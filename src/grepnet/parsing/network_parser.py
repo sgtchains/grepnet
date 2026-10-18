@@ -17,6 +17,7 @@ from .extractors import (
     CIDRExtractor,
     SubnetMaskExtractor,
     InverseMaskExtractor,
+    WildcardMaskExtractor,
     IPRangeExtractor,
     IPv6Extractor,
     IPOnlyExtractor,
@@ -48,6 +49,7 @@ class ExtractorDecisions:
         self.skip_cidr = False
         self.skip_netmask = False
         self.skip_hostmask = False
+        self.skip_wildcard = False
         self.skip_range = False
         self.skip_bare_ip = False
     
@@ -56,12 +58,12 @@ class ExtractorDecisions:
         Check if a specific extractor should be skipped.
         
         Args:
-            extractor_index: Index of extractor (0=CIDR, 1=netmask, 2=hostmask, 3=range, 4=bare_ip)
+            extractor_index: Index of extractor (0=CIDR, 1=netmask, 2=hostmask, 3=wildcard, 4=range, 5=bare_ip)
         
         Returns:
             True if this extractor should be skipped
         """
-        skip_flags = [self.skip_cidr, self.skip_netmask, self.skip_hostmask, self.skip_range, self.skip_bare_ip]
+        skip_flags = [self.skip_cidr, self.skip_netmask, self.skip_hostmask, self.skip_wildcard, self.skip_range, self.skip_bare_ip]
         if extractor_index < len(skip_flags):
             return skip_flags[extractor_index]
         return False
@@ -92,6 +94,8 @@ class NetworkParser:
         parse_cidr: str = 'both',
         parse_netmask: str = 'both',
         parse_hostmask: str = 'both',
+        parse_wildcard: str = 'none',
+        wildcard_search_scope=None,
         parse_ranges: str = 'both',
         parse_bare_ip: str = 'both',
         scan_mask: str = 'both',
@@ -106,6 +110,8 @@ class NetworkParser:
             parse_cidr: Where to accept CIDR ('pattern', 'input', 'both', 'none')
             parse_netmask: Where to accept subnet masks ('pattern', 'input', 'both', 'none')
             parse_hostmask: Where to accept hostmasks ('pattern', 'input', 'both', 'none')
+            parse_wildcard: Where to accept wildcard masks ('pattern', 'input', 'both', 'none')
+            wildcard_search_scope: IPv4Network scope boundary for wildcard mask filtering (optional)
             parse_ranges: Where to accept IP ranges ('pattern', 'input', 'both', 'none')
             parse_bare_ip: Where to accept bare IPs ('pattern', 'input', 'both', 'none')
             scan_mask: Where to scan for format hints ('pattern', 'input', 'both', 'none')
@@ -116,6 +122,8 @@ class NetworkParser:
         self.parse_cidr = parse_cidr
         self.parse_netmask = parse_netmask
         self.parse_hostmask = parse_hostmask
+        self.parse_wildcard = parse_wildcard
+        self.wildcard_search_scope = wildcard_search_scope
         self.parse_ranges = parse_ranges
         self.parse_bare_ip = parse_bare_ip
         self.scan_mask = scan_mask
@@ -125,6 +133,7 @@ class NetworkParser:
         self.comment_handler = CommentHandler()
         
         # Initialize extractors in priority order
+        # Priority: CIDR → Subnet Mask → Inverse Mask → Wildcard Mask → Ranges → Bare IP
         self.extractors = [
             CIDRExtractor(strict=strict_mode),
             SubnetMaskExtractor(
@@ -134,6 +143,10 @@ class NetworkParser:
             InverseMaskExtractor(
                 enabled=parse_hostmask != 'none',
                 netmask_enabled=parse_netmask != 'none'
+            ),
+            WildcardMaskExtractor(
+                wildcard_mode_enabled=parse_wildcard != 'none',
+                wildcard_search_scope=wildcard_search_scope
             ),
             IPRangeExtractor(),
             IPOnlyExtractor(),
@@ -187,7 +200,7 @@ class NetworkParser:
         Determine if an extractor should be used based on parse control flags.
         
         Args:
-            extractor_type: Type of extractor ('cidr', 'netmask', 'hostmask', 'range')
+            extractor_type: Type of extractor ('cidr', 'netmask', 'hostmask', 'wildcard', 'range')
             context: Context ('pattern' or 'input')
         
         Returns:
@@ -213,6 +226,13 @@ class NetworkParser:
             if self.parse_hostmask == 'pattern' and context != 'pattern':
                 return False
             if self.parse_hostmask == 'input' and context != 'input':
+                return False
+        elif extractor_type == 'wildcard':
+            if self.parse_wildcard == 'none':
+                return False
+            if self.parse_wildcard == 'pattern' and context != 'pattern':
+                return False
+            if self.parse_wildcard == 'input' and context != 'input':
                 return False
         elif extractor_type == 'range':
             if self.parse_ranges == 'none':
@@ -274,8 +294,9 @@ class NetworkParser:
             'cidr',       # 0: CIDRExtractor
             'netmask',    # 1: SubnetMaskExtractor
             'hostmask',   # 2: InverseMaskExtractor
-            'range',      # 3: IPRangeExtractor
-            'ip_only',    # 4: IPOnlyExtractor
+            'wildcard',   # 3: WildcardMaskExtractor
+            'range',      # 4: IPRangeExtractor
+            'ip_only',    # 5: IPOnlyExtractor
         ]
         
         # Extract networks using each extractor

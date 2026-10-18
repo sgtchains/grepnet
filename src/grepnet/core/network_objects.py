@@ -11,6 +11,57 @@ from typing import NamedTuple, Optional
 from ipaddress import IPv4Network, IPv6Network, IPv4Address, IPv6Address
 
 
+class WildcardMaskRange:
+    """
+    Represents a network range specified via Cisco ACL wildcard mask notation.
+    
+    Wildcard masks use 1-bits to indicate "don't care" positions (can be 0 or 1)
+    and 0-bits for positions that must match exactly. This is inverse of netmask notation.
+    
+    Example: "10.4.0.0 0.0.127.252" represents all IPs matching the pattern where
+    the specified bits are wildcarded (1s in the mask allow variation).
+    
+    This class stores:
+    - original_text: The raw user input for display purposes (e.g., "10.4.0.0 0.0.127.252")
+    - expanded_cidrs: A list of IPv4Network objects representing all possible CIDR blocks
+                      that together cover exactly the range specified by the wildcard mask.
+                      These are already aggregated into the minimal set by collapse_addresses().
+    
+    Attributes:
+        original_text: String representation of the wildcard mask (base_ip + " " + wildcard_mask)
+        expanded_cidrs: list[IPv4Network] - aggregated CIDR blocks covering the range
+    """
+    
+    def __init__(self, original_text: str, expanded_cidrs: list):
+        """
+        Initialize WildcardMaskRange.
+        
+        Args:
+            original_text: String representation of the wildcard mask (base_ip + " " + wildcard_mask)
+            expanded_cidrs: list[IPv4Network] - aggregated CIDR blocks covering the range
+        """
+        self.original_text = original_text
+        self.expanded_cidrs = expanded_cidrs
+    
+    def __str__(self) -> str:
+        """Return original text representation for display."""
+        return self.original_text
+    
+    def __repr__(self) -> str:
+        """Return detailed representation for debugging."""
+        return f"WildcardMaskRange('{self.original_text}', {self.expanded_cidrs})"
+    
+    def __eq__(self, other):
+        """Check equality based on original_text and expanded_cidrs."""
+        if not isinstance(other, WildcardMaskRange):
+            return False
+        return self.original_text == other.original_text and self.expanded_cidrs == other.expanded_cidrs
+    
+    def __hash__(self):
+        """Hash based on original_text for use in dicts/sets."""
+        return hash(self.original_text)
+
+
 class MatchType(Enum):
     """
     Match relationship types between pattern and file data.
@@ -47,14 +98,14 @@ class ParsedExtraction(NamedTuple):
     Result of parsing a single network expression from text.
     
     Attributes:
-        network: IPv4Network, IPv6Network, or tuple (start_int, end_int) for ranges
-        format_type: One of: 'cidr_notation', 'subnet_mask', 'inverse_mask', 
+        network: IPv4Network, IPv6Network, WildcardMaskRange, or tuple (start_int, end_int) for ranges
+        format_type: One of: 'cidr_notation', 'subnet_mask', 'inverse_mask', 'wildcard_mask',
                      'ipv4_range', 'ipv6_range', 'ip_only'
         was_normalized: True if ANY matched text required normalization
         matched_texts: List of dicts with text and per-text normalization info
                        [{"text": "192.0.2.2/24", "was_normalized": true}, ...]
     """
-    network: object  # IPv4Network | IPv6Network | tuple[int, int]
+    network: object  # IPv4Network | IPv6Network | WildcardMaskRange | tuple[int, int]
     format_type: str
     was_normalized: bool  # True if ANY text in matched_texts was normalized
     matched_texts: list  # List[dict] with {"text": str, "was_normalized": bool}

@@ -54,6 +54,7 @@ class Colorizer:
         'match_unmatched': '0',      # mu= (no color for UNMATCHED)
         'match_text': '0',           # mt= (match text color)
         'normalized': '04',          # mn= (underline for normalized CIDR)
+        'wildcard_mask': '38;5;75',  # wm= (bright cyan for wildcard mask format)
     }
     
     # Code name mappings for environment variables
@@ -73,6 +74,7 @@ class Colorizer:
         'mo': 'match_overlap',
         'mu': 'match_unmatched',
         'mn': 'normalized',
+        'wm': 'wildcard_mask',  # Wildcard mask format color
     }
     
     def __init__(self, enable_colors: bool = True):
@@ -228,11 +230,19 @@ class Colorizer:
         # Convert markup to ANSI codes
         def replace_markup(match):
             match_type_str = match.group(1)  # EQUALS, SUBSET, etc.
-            obj_type = match.group(2)        # CIDR, BARE_IP, etc.
+            obj_type = match.group(2)        # CIDR, BARE_IP, WILDCARD_MASK, etc.
             was_normalized = match.group(3) == 'true'
             network_text = match.group(4)
             
-            # Map match type to color code
+            # Special handling for WILDCARD_MASK format
+            if obj_type == 'WILDCARD_MASK':
+                # Use wildcard_mask color code (wm=) instead of match type colors
+                wm_code = self.colors.get('wildcard_mask', '0')
+                if wm_code == '0':
+                    return network_text
+                return f'\x1b[{wm_code}m{network_text}\x1b[0m'
+            
+            # Standard match type colors for other OBJ types
             color_map = {
                 'EQUALS': self.colors.get('match_equals', '0'),
                 'SUBSET': self.colors.get('match_subset', '0'),

@@ -5,6 +5,7 @@ Extractors:
 - CIDRExtractor: IPv4/IPv6 CIDR notation
 - SubnetMaskExtractor: IPv4 subnet mask notation
 - InverseMaskExtractor: IPv4 inverse mask notation
+- WildcardMaskExtractor: Cisco ACL wildcard mask notation
 - IPRangeExtractor: IP range notation
 - IPv6Extractor: IPv6 addresses and CIDR blocks
 - IPOnlyExtractor: Bare IP addresses
@@ -47,6 +48,7 @@ class NetworkExtractor(ABC):
 from .cidr_extractor import CIDRExtractor
 from .subnet_mask_extractor import SubnetMaskExtractor
 from .inverse_mask_extractor import InverseMaskExtractor
+from .wildcard_mask_extractor import WildcardMaskExtractor
 from .ip_range_extractor import IPRangeExtractor
 from .ipv6_extractor import IPv6Extractor
 from .ip_only_extractor import IPOnlyExtractor
@@ -56,6 +58,7 @@ __all__ = [
     'CIDRExtractor',
     'SubnetMaskExtractor',
     'InverseMaskExtractor',
+    'WildcardMaskExtractor',
     'IPRangeExtractor',
     'IPOnlyExtractor',
 ]
