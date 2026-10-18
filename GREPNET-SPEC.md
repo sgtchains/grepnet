@@ -616,8 +616,8 @@ Networks are extracted in a deliberate fixed order to avoid duplication:
 **Important**: Subnet mask, inverse mask, and wildcard mask formats compete for the same pattern space (two space-separated values). When a pattern matching two IP addresses is found:
 
 1. First, attempt to parse as a subnet mask (must have all 1s from MSB in second value)
-2. If that fails and MSB is 0 (not netmask format), attempt to parse as an inverse mask (must have all 0s from MSB in second value)
-3. If that fails and wildcard mask parsing is enabled (`--parse-wildcard` and `--wildcard-search`), attempt to parse as a wildcard mask (represents a valid ACL range with 1-bits for "don't care" positions)
+2. If that fails and MSB is 0 (not netmask format), attempt to parse as an inverse mask (must have contiguous all 0 bits from MSB followed by contiguous all 1 bits; e.g., `0.0.0.255`, `0.15.255.255`, `0.255.255.255`)
+3. If that fails and wildcard mask parsing is enabled (`--parse-wildcard` and `--wildcard-search`), attempt to parse as a wildcard mask (represents a valid ACL range with 1-bits for "don't care" positions and 0-bits for "must match" positions)
 4. If all three fail, do NOT extract the individual IPs from this pattern (treat as failed extraction)
 
 **Why this order matters**: If you extract plain IPs first, then a CIDR block `192.0.2.0/24` would produce five matches: the network address, three intermediate addresses, and the broadcast address—all from the same logical network. The extraction order prevents this.
@@ -2921,16 +2921,16 @@ Behavior:
 
 **Dependency**: This flag MUST be used together with `--wildcard-search`; using one without the other produces an error.
 
-**--wildcard-search CIDR**: Define the scope (boundary CIDR block) within which wildcard masks are considered valid.
+**--wildcard-search CIDR**: Define the scope (boundary CIDR block) within which wildcard mask values are considered valid.
 
 Arguments:
 - `CIDR` - Any valid IPv4 CIDR block (e.g., `0.0.0.0/0`, `10.0.0.0/8`, `192.168.0.0/16`)
-- Wildcard masks whose expanded CIDR ranges fall completely within this scope are accepted
-- Wildcard masks with any expanded CIDR outside this scope are rejected and fall back to other extractors
+- Wildcard masks whose mask values fall within this scope are accepted
+- Wildcard masks whose mask values fall outside this scope are rejected and fall back to other extractors
 
 Behavior:
-- Acts as a DoS protection mechanism: prevents expansion of arbitrarily large wildcard masks
-- Out-of-scope check is O(1) before expensive CIDR expansion
+- Acts as a DoS protection mechanism: prevents parsing of unbounded wildcard masks
+- Scope check is O(1) using IPv4Address containment check
 - If a wildcard mask is out-of-scope, parsing falls back to trying other format extractors
 - Explicit consent model: User must define scope; error if `--parse-wildcard` is set without `--wildcard-search`
 
