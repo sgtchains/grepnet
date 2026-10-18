@@ -615,7 +615,7 @@ Networks are extracted in a deliberate fixed order to avoid duplication:
 
 **Important**: Subnet mask, inverse mask, and wildcard mask formats compete for the same pattern space (two space-separated values). When a pattern matching two IP addresses is found:
 
-1. First, attempt to parse as a subnet mask (must have all 1s from MSB in second value)
+1. First, attempt to parse as a subnet mask (must have contiguous all 1 bits from MSB followed by contiguous all 0 bits; e.g., `255.255.255.0`, `255.240.0.0`, `255.255.0.0`)
 2. If that fails and MSB is 0 (not netmask format), attempt to parse as an inverse mask (must have contiguous all 0 bits from MSB followed by contiguous all 1 bits; e.g., `0.0.0.255`, `0.15.255.255`, `0.255.255.255`)
 3. If that fails and wildcard mask parsing is enabled (`--parse-wildcard` and `--wildcard-search`), attempt to parse as a wildcard mask (represents a valid ACL range with 1-bits for "don't care" positions and 0-bits for "must match" positions)
 4. If all three fail, do NOT extract the individual IPs from this pattern (treat as failed extraction)
