@@ -735,8 +735,18 @@ def run():
             sys.exit(130)
     
     # Process --wildcard-search scope
-    # Validation: --wildcard-search requires --parse-wildcard to be set to something other than 'none'
+    # Validation: Bidirectional dependency check
+    # 1. --wildcard-search requires --parse-wildcard to be set (not 'none')
+    # 2. --parse-wildcard requires --wildcard-search to be provided
     wildcard_search_scope = None
+    
+    # Check reverse dependency: --parse-wildcard set but --wildcard-search not provided
+    if args.parse_wildcard != 'none' and not args.wildcard_search_scope:
+        if not args.no_messages:
+            print('grepnet: error: --parse-wildcard requires --wildcard-search CIDR argument', file=sys.stderr)
+        sys.exit(2)
+    
+    # Check forward dependency: --wildcard-search provided but --parse-wildcard not set
     if args.wildcard_search_scope:
         if args.parse_wildcard == 'none':
             if not args.no_messages:
