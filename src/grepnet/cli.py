@@ -16,6 +16,14 @@ def _handle_sigint(signum, frame):
 
 signal.signal(signal.SIGINT, _handle_sigint)
 
+# Handle broken pipe gracefully (like grep does)
+# SIGPIPE is raised when output pipe is closed (e.g., piping to head)
+try:
+    signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+except AttributeError:
+    # SIGPIPE not available on Windows
+    pass
+
 # In bundled version, these classes are already defined in current namespace
 # In packaged version, import from grepnet
 try:
