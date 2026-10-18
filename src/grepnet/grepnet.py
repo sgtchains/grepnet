@@ -271,9 +271,13 @@ class GrepNet:
         """
         network = parsed_extraction.network
         is_cidr = isinstance(network, (IPv4Network, IPv6Network))
+        is_wildcard = isinstance(network, WildcardMaskRange)
         
         # Handle 'original' format: output in the format it was parsed
         if self.output_format == 'original':
+            # For wildcard masks, use the original text
+            if is_wildcard:
+                return network.original_text
             # Use the original matched text
             if parsed_extraction.matched_texts:
                 return parsed_extraction.matched_texts[0]['text']
@@ -283,6 +287,9 @@ class GrepNet:
         if self.output_format == 'cidr':
             if is_cidr:
                 return str(network)
+            elif is_wildcard:
+                # For wildcard masks, output all expanded CIDR blocks
+                return '\n'.join(str(cidr) for cidr in network.expanded_cidrs)
             else:
                 # Convert range to CIDR blocks
                 start_int, end_int = network
@@ -308,6 +315,9 @@ class GrepNet:
                 else:
                     from ipaddress import ip_address
                     return f"{ip_address(start_int)}-{ip_address(end_int)}"
+            elif is_wildcard:
+                # For wildcard masks, return the original text (it's already in mask format)
+                return network.original_text
             else:
                 # Already a range
                 start_int, end_int = network
@@ -322,30 +332,34 @@ class GrepNet:
                 start_int = int(network.network_address)
                 end_int = int(network.broadcast_address)
                 network_obj = network
+            elif is_wildcard:
+                # For wildcard masks in short-range format, use original text
+                return network.original_text
             else:
                 start_int, end_int = network
                 # Determine if IPv4 or IPv6 by address size
                 from ipaddress import ip_address
                 network_obj = None  # We only know the range
             
-            from ipaddress import ip_address
-            start_addr = ip_address(start_int)
-            end_addr = ip_address(end_int)
-            
-            # IPv4 short-range: abbreviate last octet
-            if start_addr.version == 4:
-                start_parts = str(start_addr).split('.')
-                end_parts = str(end_addr).split('.')
+            if is_cidr:
+                from ipaddress import ip_address
+                start_addr = ip_address(start_int)
+                end_addr = ip_address(end_int)
                 
-                if start_parts[0:3] == end_parts[0:3]:  # Same first 3 octets
-                    # Can abbreviate
-                    return f"{'.'.join(start_parts[0:3])}.{start_parts[3]}-{end_parts[3]}"
+                # IPv4 short-range: abbreviate last octet
+                if start_addr.version == 4:
+                    start_parts = str(start_addr).split('.')
+                    end_parts = str(end_addr).split('.')
+                    
+                    if start_parts[0:3] == end_parts[0:3]:  # Same first 3 octets
+                        # Can abbreviate
+                        return f"{'.'.join(start_parts[0:3])}.{start_parts[3]}-{end_parts[3]}"
+                    else:
+                        # Can't abbreviate, use full range
+                        return f"{start_addr}-{end_addr}"
                 else:
-                    # Can't abbreviate, use full range
+                    # IPv6: use full range notation
                     return f"{start_addr}-{end_addr}"
-            else:
-                # IPv6: use full range notation
-                return f"{start_addr}-{end_addr}"
         
         else:
             raise ValueError(f"Unknown output format: {self.output_format}")
