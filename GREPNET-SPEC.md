@@ -330,6 +330,40 @@ The standard library provides network objects (e.g., Python's `ipaddress.IPv4Net
 
 **Key invariant**: Two networks are equal if they represent the same set of addresses (regardless of syntax). E.g., `192.0.2.0/24` and `192.0.2.0 255.255.255.0` are equal.
 
+### 2.1 WildcardMaskRange Object
+
+Represents Cisco ACL wildcard mask notation using network address and wildcard mask (non-CIDR-aligned).
+
+**Fields**:
+- `original_text`: String representation of the wildcard mask notation (e.g., `"10.4.0.0 0.0.127.252"`)
+  - Stored as-is from input for display purposes
+  - Format: "{base_ip} {wildcard_mask}"
+- `expanded_cidrs`: List of IPv4Network objects representing the constituent CIDR blocks that exactly cover the IP range specified by the wildcard mask
+  - Already aggregated into minimal set using `ipaddress.collapse_addresses()`
+  - Example: `"10.4.0.0 0.0.127.252"` expands to multiple /24, /25 blocks covering 10.4.0.0-10.4.127.252
+
+**Purpose**: Support Cisco ACL wildcard mask notation (e.g., `10.4.0.0 0.0.127.252`). Internally expanded into constituent CIDRs using standard wildcard mask computation for matching, but preserves original format for display.
+
+**Key property**: Two WildcardMaskRange objects are equal if their original_text and expanded_cidrs are identical. The expanded_cidrs set represents the exact IP space covered.
+
+**Wildcard Mask Computation**: Based on standard Cisco ACL algorithm:
+- Range: [network_address & ~wildcard_mask, (network_address & ~wildcard_mask) | wildcard_mask]
+- Valid IPs: Only those where (ip & ~wildcard_mask) == (network_address & ~wildcard_mask)
+  - 1-bits in wildcard mask = "don't care" (can be 0 or 1)
+  - 0-bits in wildcard mask = "must match exactly"
+
+**Example**:
+```
+Input: 10.4.0.0 0.0.127.252
+Interpretation:
+  - Base: 10.4.0.0
+  - Wildcard: 0.0.127.252 (binary: ...01111111.11111100)
+  - 1-bits at positions allow variation, 0-bits must match
+Valid IP range: 10.4.0.0 through 10.4.127.252 (constrained by 0-bits)
+Valid count: ~32K addresses matching (ip & ~mask) == (base & ~mask)
+expanded_cidrs: [10.4.0.0/25, 10.4.1.0/25, ..., 10.4.127.0/25] (aggregated)
+```
+
 ### 3. ParsedExtraction Tuple
 
 When extracting networks from a line, each unique network is represented as a single ParsedExtraction:
@@ -342,6 +376,7 @@ When extracting networks from a line, each unique network is represented as a si
   - `'cidr_notation'` (e.g., `192.0.2.0/24`)
   - `'subnet_mask'` (IPv4 only, e.g., `192.0.2.0 255.255.255.0`)
   - `'inverse_mask'` (IPv4 only, Cisco hostmask, e.g., `192.0.2.0 0.0.0.255`)
+  - `'wildcard_mask'` (IPv4 only, Cisco wildcard mask, e.g., `10.4.0.0 0.0.127.252`; requires `--parse-wildcard {pattern|input|both}` and `--wildcard-search` to enable parsing)
   - `'ipv4_range'` (e.g., `192.0.2.0-192.0.2.255`)
   - `'ipv6_range'` (e.g., `2001:db8::0-2001:db8::255`)
   - `'ip_only'` (single IP, treated as /32 or /128)
@@ -358,12 +393,14 @@ When extracting networks from a line, each unique network is represented as a si
 
 **Key design**: Same network appearing multiple times in different formats is deduplicated to a single ParsedExtraction. The `matched_texts` list contains ALL text representations found on the line, preserving which specific texts were normalized (e.g., `192.0.2.2/24` → `192.0.2.0/24`). The group-level `was_normalized` flag indicates if ANY variation required normalization.
 
+**Note on wildcard_mask format**: When format_type is 'wildcard_mask', the matched_texts list contains the original space-separated Cisco wildcard mask notation (e.g., `"10.4.0.0 0.0.127.252"`). No normalization occurs for wildcard mask format; `was_normalized` is always False for this format type.
+
 ### 4. FileEntry Object
 
 When networks are extracted from a file, each unique network is stored with aggregated information:
 ```
 {
-'network': (Network or IPRange object),
+'network': (Network or IPRange or WildcardMaskRange object),
 'format_type': (format_type string from ParsedExtraction),
 'line_number': (1-based line number),
 'line_content': (raw line text, newline stripped),
@@ -386,7 +423,7 @@ After a match is found, results are assembled into a match result containing:
 'match_index': (index into extracted networks on this line for lookup),
 'discovered': {
 'network': (string representation of matched network),
-'format_type': (format_type string: 'cidr_notation', 'subnet_mask', 'inverse_mask', 'ipv4_range', 'ipv6_range', 'ip_only'),
+'format_type': (format_type string: 'cidr_notation', 'subnet_mask', 'inverse_mask', 'wildcard_mask', 'ipv4_range', 'ipv6_range', 'ip_only'),
 'was_normalized': (boolean - True if ANY matched_text was normalized),
 'matched_texts': (list of {"text": str, "was_normalized": bool} - all text variations),
 'match_type': ('EQUALS', 'SUBSET', 'SUPERSET', 'OVERLAP', 'UNMATCHED')
@@ -455,7 +492,7 @@ When rendering a match line, the system uses an internal markup system that enco
    - `▶` = field separator
    - `◀/TYPE▶` = markup end delimiter
    - TYPE values: EQUALS, SUBSET, SUPERSET, OVERLAP, UNMATCHED
-   - OBJ values: CIDR, BARE_IP, RANGE, SUBNET_MASK, INVERSE_MASK
+   - OBJ values: CIDR, BARE_IP, RANGE, SUBNET_MASK, INVERSE_MASK, WILDCARD_MASK
    - NORM values: true or false
 
 3. **Output phase** (NO re-scanning, only finalization):
@@ -524,7 +561,7 @@ The **extraction pipeline** is a sequence of operations applied to any text (pat
 2. **Network Extraction**: Scan searchable content using extraction order
    - Try each network format in priority order (see "Extraction Order" section)
    - Extract networks and their original text representation
-   - Track format type (CIDR, subnet_mask, inverse_mask, ip_range, bare_ip)
+   - Track format type (CIDR, subnet_mask, inverse_mask, wildcard_mask, ip_range, bare_ip)
 
 3. **False-Positive Filtering**: Apply semantic validation
    - Reject OID patterns (1.2.3.4.5.6... with more than 4 octets)
@@ -559,15 +596,17 @@ Networks are extracted in a deliberate fixed order to avoid duplication:
 1. CIDR notation (e.g., `192.0.2.0/24`)
 2. Subnet mask format (e.g., `192.0.2.0 255.255.255.0`) – IPv4 only, try first
 3. Inverse/Cisco mask format (e.g., `192.0.2.0 0.0.0.255`) – IPv4 only, try if subnet mask fails
-4. IP ranges (long form) (e.g., `192.0.2.0-192.0.2.255`)
-5. IP ranges (short form) (e.g., `192.0.2.0-255`)
-6. Plain IP addresses (treated as /32 or /128)
+4. Wildcard/Cisco ACL mask format (e.g., `10.4.0.0 0.0.127.252`) – IPv4 only, requires `--parse-wildcard {pattern|input|both}` and `--wildcard-search` scope to enable; try if inverse mask fails
+5. IP ranges (long form) (e.g., `192.0.2.0-192.0.2.255`)
+6. IP ranges (short form) (e.g., `192.0.2.0-255`)
+7. Plain IP addresses (treated as /32 or /128)
 
-**Important**: Subnet mask and inverse mask formats compete for the same pattern space (two space-separated values). When a pattern matching two IP addresses is found:
+**Important**: Subnet mask, inverse mask, and wildcard mask formats compete for the same pattern space (two space-separated values). When a pattern matching two IP addresses is found:
 
 1. First, attempt to parse as a subnet mask (must have all 1s from MSB in second value)
 2. If that fails and MSB is 0 (not netmask format), attempt to parse as an inverse mask (must have all 0s from MSB in second value)
-3. If both fail, do NOT extract the individual IPs from this pattern (treat as failed extraction)
+3. If that fails and wildcard mask parsing is enabled (`--parse-wildcard` and `--wildcard-search`), attempt to parse as a wildcard mask (represents a valid ACL range with 1-bits for "don't care" positions)
+4. If all three fail, do NOT extract the individual IPs from this pattern (treat as failed extraction)
 
 **Why this order matters**: If you extract plain IPs first, then a CIDR block `192.0.2.0/24` would produce five matches: the network address, three intermediate addresses, and the broadcast address—all from the same logical network. The extraction order prevents this.
 
@@ -1802,6 +1841,43 @@ When the pattern is a CIDR and file contains ranges (or vice versa), convert bet
 - **CIDR → Range**: Convert CIDR network to its start and end integer addresses.
 - **Range → CIDR**: Use `summarize_address_range()` (or equivalent) to convert a range into the minimal set of CIDR blocks covering that range. A range may require multiple CIDR blocks. Match the pattern against each block.
 
+**Wildcard Mask Matching (WildcardMaskRange)**
+
+When wildcard masks are enabled (`--parse-wildcard` and `--wildcard-search`):
+
+- **Wildcard mask expansion**: Each WildcardMaskRange is expanded into a list of constituent CIDR blocks (stored in `expanded_cidrs`), pre-computed and aggregated using `ipaddress.collapse_addresses()`
+- **Matching against wildcard masks**: Pattern is matched against each CIDR in the wildcard mask's expanded_cidrs list individually
+  - Pattern matches if it has any relationship (equals, subset, superset, overlap) with ANY CIDR in the expanded list
+  - All individual CIDR matches are treated as a single WildcardMaskRange match (not split into separate matches per CIDR)
+- **Wildcard mask as pattern**: If a pattern is itself a wildcard mask:
+  - Pattern is expanded to its constituent CIDRs
+  - Each file network (whether CIDR, range, or wildcard mask) is compared against the pattern's expanded_cidrs
+  - A file network matches if any of its addresses overlap with the pattern's address space
+- **Bidirectional matching**:
+  - File contains wildcard mask, pattern is CIDR → Compare pattern CIDR against all expanded_cidrs from file wildcard mask
+  - File contains CIDR, pattern is wildcard mask → Compare file CIDR against all expanded_cidrs from pattern wildcard mask
+  - Both are wildcard masks → Expand both, compare constituent CIDRs
+
+**Match type priority** (unchanged): EQUALS > SUBSET > SUPERSET > OVERLAP > UNMATCHED
+
+**Example**:
+```
+File line: deny 10.4.0.0 0.0.127.252 any
+Pattern: 10.4.0.0/25
+
+During parsing:
+  - File: 10.4.0.0 0.0.127.252 → WildcardMaskRange(
+      original_text='10.4.0.0 0.0.127.252',
+      expanded_cidrs=[10.4.0.0/25, 10.4.1.0/24, 10.4.2.0/23, ..., 10.4.127.0/25]
+    )
+  - Pattern: 10.4.0.0/25 → CIDR(10.4.0.0/25)
+
+During matching:
+  - Pattern 10.4.0.0/25 compared against file WildcardMaskRange
+  - Check: Does pattern equal any expanded CIDR? YES, 10.4.0.0/25 ∈ expanded_cidrs → EQUALS match
+  - Result: Single MatchResult with match_type='equals', displayed as "deny [EQUALS: 10.4.0.0 0.0.127.252] any"
+```
+
 ---
 
 ## Result Filtering and Output Rendering
@@ -2413,6 +2489,20 @@ If attempted, print error and exit with code 2:
 grepnet: error: context flags (-B/-A/-C) cannot be used with -l, -L, --extract, or --consolidate
 ```
 
+**Wildcard mask flag errors**:
+- **`--parse-wildcard` without `--wildcard-search`**: Error and exit 2
+  ```
+  grepnet: error: --parse-wildcard requires --wildcard-search CIDR argument
+  ```
+- **`--wildcard-search` without `--parse-wildcard`**: Error and exit 2
+  ```
+  grepnet: error: --wildcard-search requires --parse-wildcard argument
+  ```
+- **Invalid CIDR in `--wildcard-search`**: Error and exit 2
+  ```
+  grepnet: error: invalid CIDR block in --wildcard-search: 999.999.999.999/32
+  ```
+
 ---
 
 ## Environment Variables
@@ -2436,10 +2526,11 @@ Grepnet-specific extension for color codes. Format: `code=value:code=value:...`
 - `ln=` (line number prefix)
 - `bn=` (byte offset prefix)
 - `se=` (separator/colon between prefix parts)
+- `wm=` (wildcard mask format, when --parse-wildcard is enabled)
 
 **Example with custom colors**:
 ```
-export GREPNET_COLORS="me=01;31:mb=01;36:mS=01;35:mo=0:mu=0:mn=04:fn=35:ln=32:bn=32:se=36"
+export GREPNET_COLORS="me=01;31:mb=01;36:mS=01;35:mo=0:mu=0:mn=04:fn=35:ln=32:bn=32:se=36:wm=38;5;75"
 ```
 
 **Default values**:
@@ -2455,7 +2546,15 @@ fn=35        # Filename (magenta, grep-compatible)
 ln=32        # Line number (green, grep-compatible)
 bn=32        # Byte offset (green, grep-compatible)
 se=36        # Separator colon (cyan, grep-compatible)
+wm=38;5;75   # Wildcard mask (bright cyan) - only used when --parse-wildcard is enabled
 ```
+
+**Wildcard Mask Color Code** (`wm=`):
+- **Used when**: `--parse-wildcard` flag is enabled
+- **Applies to**: Cisco ACL wildcard mask notation in original format
+- **Example**: With default `wm=38;5;75`, the text `10.4.0.0 0.0.127.252` appears in bright cyan
+- **Default value**: `38;5;75` (bright cyan)
+- **Customization**: Set to any valid ANSI code; ignored if `--parse-wildcard` is not enabled
 
 ---
 
@@ -2787,6 +2886,71 @@ grepnet -o -C1 '192.0.2.0/24' file.txt                # Networks with -- separat
 - `input` - Scan input files only (analyze first 8KB for format hints)
 - `both` - Scan both patterns and input (default, provides format hints for all sources)
 - `none` - Don't scan; disable format detection optimization
+
+#### Wildcard Mask Configuration
+```
+--parse-wildcard {pattern|input|both|none}   WHERE to parse Cisco ACL wildcard masks (default: none)
+--wildcard-search CIDR                       WHICH scope defines valid wildcard mask ranges (required if --parse-wildcard is set)
+```
+
+**--parse-wildcard {pattern|input|both|none}**: Enable parsing of Cisco ACL wildcard mask notation (e.g., `10.4.0.0 0.0.127.252`).
+
+Arguments:
+- `pattern` - Parse wildcard masks in search patterns only
+- `input` - Parse wildcard masks in file input only
+- `both` - Parse wildcard masks in both patterns and input files (recommended)
+- `none` - Don't parse wildcard masks (default; wildcard format treated as failed extraction)
+
+Behavior:
+- When enabled, two-value patterns like `10.4.0.0 0.0.127.252` are parsed as Cisco ACL wildcard masks
+- The wildcard mask is converted to its constituent CIDR blocks for internal matching
+- Original format is preserved for display purposes
+- Networks found in wildcard mask format are marked with `format_type: 'wildcard_mask'`
+
+**Dependency**: This flag MUST be used together with `--wildcard-search`; using one without the other produces an error.
+
+**--wildcard-search CIDR**: Define the scope (boundary CIDR block) within which wildcard masks are considered valid.
+
+Arguments:
+- `CIDR` - Any valid IPv4 CIDR block (e.g., `0.0.0.0/0`, `10.0.0.0/8`, `192.168.0.0/16`)
+- Wildcard masks whose expanded CIDR ranges fall completely within this scope are accepted
+- Wildcard masks with any expanded CIDR outside this scope are rejected and fall back to other extractors
+
+Behavior:
+- Acts as a DoS protection mechanism: prevents expansion of arbitrarily large wildcard masks
+- Out-of-scope check is O(1) before expensive CIDR expansion
+- If a wildcard mask is out-of-scope, parsing falls back to trying other format extractors
+- Explicit consent model: User must define scope; error if `--parse-wildcard` is set without `--wildcard-search`
+
+**Examples**:
+```bash
+# Enable wildcard mask parsing for both patterns and input; scope to 10.0.0.0/8
+grepnet --parse-wildcard both --wildcard-search 10.0.0.0/8 '10.4.0.0 0.0.127.252' input.txt
+
+# Parse only in file input; scope to private address space (RFC 1918)
+grepnet --parse-wildcard input --wildcard-search 10.0.0.0/8 config.txt
+
+# Unrestricted scope (not recommended for untrusted input)
+grepnet --parse-wildcard both --wildcard-search 0.0.0.0/0 file.txt
+
+# Error: missing scope (this will fail)
+grepnet --parse-wildcard both file.txt    # ERROR: --wildcard-search required
+
+# Error: missing --parse-wildcard (this will fail)
+grepnet --wildcard-search 10.0.0.0/8 file.txt  # ERROR: --parse-wildcard required
+```
+
+**Interaction with other flags**:
+- Works with all match type flags (-e, -s, -S, -O, -u)
+- Works with --extract and --consolidate (wildcard masks expanded and consolidated with other networks)
+- Works with --format for output formatting (original, cidr, range, short-range, ips)
+- Works with --no-filter-comments (wildcard masks in comments are still rejected during comment stripping)
+
+**Error handling**:
+- If `--parse-wildcard` is used without `--wildcard-search`, exit with error code 2
+- If `--wildcard-search` is used without `--parse-wildcard`, exit with error code 2
+- If `CIDR` argument to `--wildcard-search` is invalid, exit with error code 2
+- If no `--wildcard-search` scope is defined, wildcard masks are never parsed (treated as failed extraction)
 
 #### Strict CIDR Validation (v2.0 API)
 ```
