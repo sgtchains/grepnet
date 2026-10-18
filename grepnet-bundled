@@ -573,11 +573,19 @@ class Colorizer:
         # Convert markup to ANSI codes
         def replace_markup(match):
             match_type_str = match.group(1)  # EQUALS, SUBSET, etc.
-            obj_type = match.group(2)        # CIDR, BARE_IP, etc.
+            obj_type = match.group(2)        # CIDR, BARE_IP, WILDCARD_MASK, etc.
             was_normalized = match.group(3) == 'true'
             network_text = match.group(4)
             
-            # Map match type to color code
+            # Special handling for WILDCARD_MASK format
+            if obj_type == 'WILDCARD_MASK':
+                # Use wildcard_mask color code (wm=) instead of match type colors
+                wm_code = self.colors.get('wildcard_mask', '0')
+                if wm_code == '0':
+                    return network_text
+                return f'\x1b[{wm_code}m{network_text}\x1b[0m'
+            
+            # Standard match type colors for other OBJ types
             color_map = {
                 'EQUALS': self.colors.get('match_equals', '0'),
                 'SUBSET': self.colors.get('match_subset', '0'),
@@ -3617,9 +3625,13 @@ class GrepNet:
         """
         network = parsed_extraction.network
         is_cidr = isinstance(network, (IPv4Network, IPv6Network))
+        is_wildcard = isinstance(network, WildcardMaskRange)
         
         # Handle 'original' format: output in the format it was parsed
         if self.output_format == 'original':
+            # For wildcard masks, use the original text
+            if is_wildcard:
+                return network.original_text
             # Use the original matched text
             if parsed_extraction.matched_texts:
                 return parsed_extraction.matched_texts[0]['text']
@@ -3629,6 +3641,9 @@ class GrepNet:
         if self.output_format == 'cidr':
             if is_cidr:
                 return str(network)
+            elif is_wildcard:
+                # For wildcard masks, output all expanded CIDR blocks
+                return '\n'.join(str(cidr) for cidr in network.expanded_cidrs)
             else:
                 # Convert range to CIDR blocks
                 start_int, end_int = network
@@ -3654,6 +3669,9 @@ class GrepNet:
                 else:
                     from ipaddress import ip_address
                     return f"{ip_address(start_int)}-{ip_address(end_int)}"
+            elif is_wildcard:
+                # For wildcard masks, return the original text (it's already in mask format)
+                return network.original_text
             else:
                 # Already a range
                 start_int, end_int = network
@@ -3668,30 +3686,34 @@ class GrepNet:
                 start_int = int(network.network_address)
                 end_int = int(network.broadcast_address)
                 network_obj = network
+            elif is_wildcard:
+                # For wildcard masks in short-range format, use original text
+                return network.original_text
             else:
                 start_int, end_int = network
                 # Determine if IPv4 or IPv6 by address size
                 from ipaddress import ip_address
                 network_obj = None  # We only know the range
             
-            from ipaddress import ip_address
-            start_addr = ip_address(start_int)
-            end_addr = ip_address(end_int)
-            
-            # IPv4 short-range: abbreviate last octet
-            if start_addr.version == 4:
-                start_parts = str(start_addr).split('.')
-                end_parts = str(end_addr).split('.')
+            if is_cidr:
+                from ipaddress import ip_address
+                start_addr = ip_address(start_int)
+                end_addr = ip_address(end_int)
                 
-                if start_parts[0:3] == end_parts[0:3]:  # Same first 3 octets
-                    # Can abbreviate
-                    return f"{'.'.join(start_parts[0:3])}.{start_parts[3]}-{end_parts[3]}"
+                # IPv4 short-range: abbreviate last octet
+                if start_addr.version == 4:
+                    start_parts = str(start_addr).split('.')
+                    end_parts = str(end_addr).split('.')
+                    
+                    if start_parts[0:3] == end_parts[0:3]:  # Same first 3 octets
+                        # Can abbreviate
+                        return f"{'.'.join(start_parts[0:3])}.{start_parts[3]}-{end_parts[3]}"
+                    else:
+                        # Can't abbreviate, use full range
+                        return f"{start_addr}-{end_addr}"
                 else:
-                    # Can't abbreviate, use full range
+                    # IPv6: use full range notation
                     return f"{start_addr}-{end_addr}"
-            else:
-                # IPv6: use full range notation
-                return f"{start_addr}-{end_addr}"
         
         else:
             raise ValueError(f"Unknown output format: {self.output_format}")
@@ -4786,6 +4808,14 @@ def _handle_sigint(signum, frame):
 
 signal.signal(signal.SIGINT, _handle_sigint)
 
+# Handle broken pipe gracefully (like grep does)
+# SIGPIPE is raised when output pipe is closed (e.g., piping to head)
+try:
+    signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+except AttributeError:
+    # SIGPIPE not available on Windows
+    pass
+
 # In bundled version, these classes are already defined in current namespace
 # In packaged version, import from grepnet
 try:
@@ -5503,8 +5533,18 @@ def run():
             sys.exit(130)
     
     # Process --wildcard-search scope
-    # Validation: --wildcard-search requires --parse-wildcard to be set to something other than 'none'
+    # Validation: Bidirectional dependency check
+    # 1. --wildcard-search requires --parse-wildcard to be set (not 'none')
+    # 2. --parse-wildcard requires --wildcard-search to be provided
     wildcard_search_scope = None
+    
+    # Check reverse dependency: --parse-wildcard set but --wildcard-search not provided
+    if args.parse_wildcard != 'none' and not args.wildcard_search_scope:
+        if not args.no_messages:
+            print('grepnet: error: --parse-wildcard requires --wildcard-search CIDR argument', file=sys.stderr)
+        sys.exit(2)
+    
+    # Check forward dependency: --wildcard-search provided but --parse-wildcard not set
     if args.wildcard_search_scope:
         if args.parse_wildcard == 'none':
             if not args.no_messages:
