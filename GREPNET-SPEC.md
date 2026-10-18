@@ -2921,16 +2921,20 @@ Behavior:
 
 **Dependency**: This flag MUST be used together with `--wildcard-search`; using one without the other produces an error.
 
-**--wildcard-search CIDR**: Define the scope (boundary CIDR block) within which wildcard mask values are considered valid.
+**--wildcard-search CIDR**: Define the scope (boundary CIDR block) within which wildcard **mask values** (the second IP in the pair) are considered valid.
+
+**CRITICAL**: Only the mask value is scope-checked. The base address (first IP) is completely ignored for scope validation and can be any valid IPv4 address.
 
 Arguments:
 - `CIDR` - Any valid IPv4 CIDR block (e.g., `0.0.0.0/0`, `10.0.0.0/8`, `192.168.0.0/16`)
+- Only the wildcard mask value (second IP) is checked against this scope
 - Wildcard masks whose mask values fall within this scope are accepted
 - Wildcard masks whose mask values fall outside this scope are rejected and fall back to other extractors
+- Base address (first IP) is irrelevant to scope validation
 
 Behavior:
 - Acts as a DoS protection mechanism: prevents parsing of unbounded wildcard masks
-- Scope check is O(1) using IPv4Address containment check
+- Scope check is O(1) using IPv4Address containment check against mask value only
 - If a wildcard mask is out-of-scope, parsing falls back to trying other format extractors
 - Explicit consent model: User must define scope; error if `--parse-wildcard` is set without `--wildcard-search`
 
