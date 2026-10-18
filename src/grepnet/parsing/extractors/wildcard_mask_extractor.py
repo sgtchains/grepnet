@@ -147,9 +147,9 @@ class WildcardMaskExtractor(NetworkExtractor):
         try:
             # Validate scope if provided
             if self.wildcard_search_scope is not None:
-                # Check if the base IP address falls within the search scope
-                base_ip = IPv4Address(base_ip_str)
-                if base_ip not in self.wildcard_search_scope:
+                # Check if the wildcard mask (as an IP address) falls within the search scope
+                wildcard_mask_ip = IPv4Address(wildcard_mask_str)
+                if wildcard_mask_ip not in self.wildcard_search_scope:
                     # Mask is outside scope - return None, let other extractors handle it
                     return None
             
