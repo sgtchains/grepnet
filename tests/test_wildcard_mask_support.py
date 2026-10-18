@@ -594,5 +594,125 @@ class TestBrokenPipeHandling(unittest.TestCase):
             os.unlink(temp_file)
 
 
+class TestWildcardMaskConsolidate(unittest.TestCase):
+    """Test wildcard mask with --consolidate mode."""
+    
+    def setUp(self):
+        """Set up test environment."""
+        self.grepnet_script = Path(__file__).parent.parent / 'grepnet'
+    
+    def run_grepnet(self, *args, stdin_data=None, input_file=None):
+        """
+        Run grepnet with given arguments.
+        
+        Returns:
+            (stdout, stderr, returncode) tuple
+        """
+        cmd = [str(self.grepnet_script)] + list(args)
+        if input_file:
+            cmd.append(input_file)
+        
+        result = subprocess.run(
+            cmd,
+            input=stdin_data,
+            capture_output=True,
+            text=True
+        )
+        return result.stdout, result.stderr, result.returncode
+    
+    def test_consolidate_with_wildcard_mask_stdin(self):
+        """Test --consolidate with wildcard mask from stdin."""
+        stdin_data = "192.0.2.0 0.0.127.252\n"
+        stdout, stderr, code = self.run_grepnet(
+            '0.0.0.0/0',
+            '--parse-wildcard=both',
+            '--wildcard-search', '0.0.0.0/17',
+            '--consolidate',
+            stdin_data=stdin_data
+        )
+        
+        # Should produce consolidated output (not empty)
+        self.assertEqual(code, 0, f"Expected exit code 0, got {code}. stderr: {stderr}")
+        self.assertTrue(len(stdout.strip()) > 0, "Consolidate should produce output")
+        
+        # Output should contain CIDR notation (consolidated result)
+        lines = stdout.strip().split('\n')
+        self.assertTrue(len(lines) > 0, "Should have at least one output line")
+    
+    def test_consolidate_with_wildcard_mask_file(self):
+        """Test --consolidate with wildcard mask from file."""
+        # Create temp file with wildcard masks
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+            f.write('10.4.0.0 0.0.127.252\n')
+            f.write('10.5.0.0 0.0.63.255\n')
+            temp_file = f.name
+        
+        try:
+            stdout, stderr, code = self.run_grepnet(
+                '10.0.0.0/8',
+                '--parse-wildcard=both',
+                '--wildcard-search', '10.0.0.0/8',
+                '--consolidate',
+                input_file=temp_file
+            )
+            
+            # Should produce consolidated output
+            self.assertEqual(code, 0, f"Expected exit code 0, got {code}. stderr: {stderr}")
+            self.assertTrue(len(stdout.strip()) > 0, "Consolidate should produce output")
+        finally:
+            os.unlink(temp_file)
+    
+    def test_consolidate_wildcard_mixed_with_cidr(self):
+        """Test --consolidate with both wildcard masks and CIDR notation."""
+        # Create temp file with mixed formats
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+            f.write('10.4.0.0 0.0.127.252\n')  # Wildcard mask
+            f.write('10.6.0.0/16\n')             # CIDR
+            f.write('192.0.2.0/24\n')            # Another CIDR
+            temp_file = f.name
+        
+        try:
+            stdout, stderr, code = self.run_grepnet(
+                '--parse-wildcard=both',
+                '--wildcard-search', '0.0.0.0/0',
+                '--consolidate',
+                input_file=temp_file
+            )
+            
+            # Should produce consolidated output with all networks merged
+            self.assertEqual(code, 0, f"Expected exit code 0, got {code}. stderr: {stderr}")
+            output_lines = stdout.strip().split('\n')
+            self.assertTrue(len(output_lines) > 0, "Should have consolidated output")
+            
+            # All output lines should be valid CIDR notation
+            for line in output_lines:
+                if line.strip():
+                    try:
+                        IPv4Network(line.strip())
+                    except ValueError:
+                        self.fail(f"Output line '{line}' is not valid CIDR notation")
+        finally:
+            os.unlink(temp_file)
+    
+    def test_consolidate_wildcard_out_of_scope(self):
+        """Test --consolidate with out-of-scope wildcard mask falls back to bare IPs."""
+        stdin_data = "192.0.2.0 0.0.127.252\n"
+        stdout, stderr, code = self.run_grepnet(
+            '0.0.0.0/0',
+            '--parse-wildcard=both',
+            '--wildcard-search', '0.0.0.0/17',  # Only covers 0.0.0.0-0.0.127.255
+            '--consolidate',
+            stdin_data=stdin_data
+        )
+        
+        # Should produce output (bare IPs as fallback)
+        self.assertEqual(code, 0, f"Expected exit code 0, got {code}. stderr: {stderr}")
+        self.assertTrue(len(stdout.strip()) > 0, "Consolidate should produce output even with out-of-scope mask")
+        
+        # Output should contain the IPs (as bare /32s or consolidated)
+        output = stdout.strip()
+        self.assertTrue('192.0.2' in output, "Output should contain addresses from the out-of-scope mask")
+
+
 if __name__ == '__main__':
     unittest.main()
