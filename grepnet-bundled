@@ -398,7 +398,7 @@ class Colorizer:
         'match_unmatched': '0',      # mu= (no color for UNMATCHED)
         'match_text': '0',           # mt= (match text color)
         'normalized': '04',          # mn= (underline for normalized CIDR)
-        'wildcard_mask': '38;5;75',  # wm= (bright cyan for wildcard mask format)
+        'wildcard_mask': '4:3',  # wm= (curly underline for wildcard mask format)
     }
     
     # Code name mappings for environment variables
