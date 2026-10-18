@@ -510,5 +510,89 @@ class TestWildcardMaskRegressionTests(unittest.TestCase):
             os.unlink(temp_file)
 
 
+class TestBrokenPipeHandling(unittest.TestCase):
+    """Test graceful handling of broken pipes (like grep does)."""
+    
+    def setUp(self):
+        """Set up test environment."""
+        self.grepnet_script = Path(__file__).parent.parent / 'grepnet'
+    
+    def test_pipe_to_head_no_error_output(self):
+        """Test that piping to head doesn't print error messages (real-world scenario)."""
+        # Create a file with networks
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+            # Write many CIDR blocks to ensure we have enough output for head
+            for i in range(256):
+                f.write(f'10.0.{i}.0/24\n')
+            temp_file = f.name
+        
+        try:
+            # Simulate: grepnet ... | head -5
+            # This closes the pipe after 5 lines, which would cause SIGPIPE
+            cmd = f"{str(self.grepnet_script)} '10.0.0.0/8' {temp_file} | head -5"
+            result = subprocess.run(
+                cmd,
+                shell=True,
+                capture_output=True,
+                text=True
+            )
+            
+            # The key test: should have NO error output even though pipe was closed
+            self.assertEqual(result.stderr, '', f"Unexpected stderr: {result.stderr}")
+            # Should have output from head
+            lines = result.stdout.strip().split('\n')
+            self.assertEqual(len(lines), 5, f"Expected 5 lines from head, got {len(lines)}")
+        finally:
+            os.unlink(temp_file)
+    
+    def test_normal_pipe_completion(self):
+        """Test that normal pipe completion works correctly."""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+            f.write('10.0.0.0/24\n')
+            temp_file = f.name
+        
+        try:
+            # Normal run with pipe to grep
+            cmd = f"{str(self.grepnet_script)} -e '10.0.0.0/24' {temp_file} | grep -c '10.0.0.0'"
+            result = subprocess.run(
+                cmd,
+                shell=True,
+                capture_output=True,
+                text=True
+            )
+            
+            # Should succeed with count of 1
+            self.assertEqual(result.returncode, 0)
+            self.assertIn('1', result.stdout)
+            self.assertEqual(result.stderr, '')
+        finally:
+            os.unlink(temp_file)
+    
+    def test_pipe_to_wc_no_error(self):
+        """Test that piping to wc doesn't produce error messages."""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+            # Write many networks
+            for i in range(100):
+                f.write(f'10.{i}.0.0/16\n')
+            temp_file = f.name
+        
+        try:
+            # Simulate: grepnet ... | wc -l
+            cmd = f"{str(self.grepnet_script)} '10.0.0.0/8' {temp_file} | wc -l"
+            result = subprocess.run(
+                cmd,
+                shell=True,
+                capture_output=True,
+                text=True
+            )
+            
+            # Should exit cleanly without error output
+            self.assertEqual(result.stderr, '', f"Unexpected stderr: {result.stderr}")
+            # Should have output (line count)
+            self.assertTrue(int(result.stdout.strip()) > 0)
+        finally:
+            os.unlink(temp_file)
+
+
 if __name__ == '__main__':
     unittest.main()
