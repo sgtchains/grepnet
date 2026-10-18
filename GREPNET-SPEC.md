@@ -2530,7 +2530,7 @@ Grepnet-specific extension for color codes. Format: `code=value:code=value:...`
 
 **Example with custom colors**:
 ```
-export GREPNET_COLORS="me=01;31:mb=01;36:mS=01;35:mo=0:mu=0:mn=04:fn=35:ln=32:bn=32:se=36:wm=38;5;75"
+export GREPNET_COLORS="me=01;31:mb=01;36:mS=01;35:mo=0:mu=0:mn=04:fn=35:ln=32:bn=32:se=36:wm=4:3"
 ```
 
 **Default values**:
@@ -2546,14 +2546,14 @@ fn=35        # Filename (magenta, grep-compatible)
 ln=32        # Line number (green, grep-compatible)
 bn=32        # Byte offset (green, grep-compatible)
 se=36        # Separator colon (cyan, grep-compatible)
-wm=38;5;75   # Wildcard mask (bright cyan) - only used when --parse-wildcard is enabled
+wm=4:3       # Wildcard mask (curly underline) - only used when --parse-wildcard is enabled
 ```
 
 **Wildcard Mask Color Code** (`wm=`):
 - **Used when**: `--parse-wildcard` flag is enabled
 - **Applies to**: Cisco ACL wildcard mask notation in original format
-- **Example**: With default `wm=38;5;75`, the text `10.4.0.0 0.0.127.252` appears in bright cyan
-- **Default value**: `38;5;75` (bright cyan)
+- **Example**: With default `wm=4:3`, the text `10.4.0.0 0.0.127.252` appears with curly underline
+- **Default value**: `4:3` (curly underline)
 - **Customization**: Set to any valid ANSI code; ignored if `--parse-wildcard` is not enabled
 
 ---
