@@ -570,22 +570,14 @@ class Colorizer:
             # Strip markup entirely
             return re.sub(pattern, r'\4', content_marked)
         
-        # Convert markup to ANSI codes
+        # Convert markup to ANSI codes with proper nesting hierarchy
         def replace_markup(match):
             match_type_str = match.group(1)  # EQUALS, SUBSET, etc.
             obj_type = match.group(2)        # CIDR, BARE_IP, WILDCARD_MASK, etc.
             was_normalized = match.group(3) == 'true'
             network_text = match.group(4)
             
-            # Special handling for WILDCARD_MASK format
-            if obj_type == 'WILDCARD_MASK':
-                # Use wildcard_mask color code (wm=) instead of match type colors
-                wm_code = self.colors.get('wildcard_mask', '0')
-                if wm_code == '0':
-                    return network_text
-                return f'\x1b[{wm_code}m{network_text}\x1b[0m'
-            
-            # Standard match type colors for other OBJ types
+            # Get match type color (outermost layer)
             color_map = {
                 'EQUALS': self.colors.get('match_equals', '0'),
                 'SUBSET': self.colors.get('match_subset', '0'),
@@ -593,27 +585,38 @@ class Colorizer:
                 'OVERLAP': self.colors.get('match_overlap', '0'),
                 'UNMATCHED': self.colors.get('match_unmatched', '0'),
             }
+            match_type_code = color_map.get(match_type_str, '0')
             
-            base_code = color_map.get(match_type_str, '0')
+            # Get format-specific code (middle layer) - wildcard mask
+            format_code = '0'
+            if obj_type == 'WILDCARD_MASK':
+                format_code = self.colors.get('wildcard_mask', '0')
             
-            # Stack with normalization code if applicable
+            # Get normalization code (innermost layer)
+            norm_code = '0'
             if was_normalized:
                 norm_code = self.colors.get('normalized', '0')
-                if base_code != '0' and norm_code != '0':
-                    # Combine codes: e.g., "01;32;04" for green + underline
-                    combined_code = f"{base_code};{norm_code}"
-                elif norm_code != '0':
-                    combined_code = norm_code
-                else:
-                    combined_code = base_code
-            else:
-                combined_code = base_code
             
-            # No color needed
-            if combined_code == '0':
+            # If no colors needed at all
+            if match_type_code == '0' and format_code == '0' and norm_code == '0':
                 return network_text
             
-            return f'\x1b[{combined_code}m{network_text}\x1b[0m'
+            # Build nested ANSI codes (outermost to innermost)
+            result = network_text
+            
+            # Innermost: normalization
+            if norm_code != '0':
+                result = f'\x1b[{norm_code}m{result}\x1b[0m'
+            
+            # Middle: format-specific (wildcard mask)
+            if format_code != '0':
+                result = f'\x1b[{format_code}m{result}\x1b[0m'
+            
+            # Outermost: match type
+            if match_type_code != '0':
+                result = f'\x1b[{match_type_code}m{result}\x1b[0m'
+            
+            return result
         
         result = re.sub(pattern, replace_markup, content_marked)
         return result

@@ -440,14 +440,17 @@ After a match is found, results are assembled into a match result containing:
 
 ### Color Code Categories
 
-**Match type codes** (one applied per match, based on match semantics):
+**Match type codes** (outermost layer, one applied per match):
 - `me=ANSI_CODE`: Match type equals (exact network match) — default: bright green (01;32)
 - `mb=ANSI_CODE`: Match type subset (pattern is subset of file data) — default: bright blue (01;34)
 - `mS=ANSI_CODE`: Match type superset (pattern is superset of file data) — default: bright yellow (01;33)
 - `mo=ANSI_CODE`: Match type overlap (partial overlap) — default: no color (0)
 - `mu=ANSI_CODE`: Match type unmatched (networks that don't match any pattern when using `-u` flag) — default: no color (0)
 
-**Normalization flag** (applied when CIDR was corrected, used with color stacking):
+**Format-specific codes** (applied inside match type, when applicable):
+- `wm=ANSI_CODE`: Wildcard mask format (Cisco ACL notation) — default: curly underline (4:3), only used when `--parse-wildcard` is enabled
+
+**Normalization flag** (innermost layer, applied when CIDR was corrected):
 - `mn=ANSI_CODE`: Normalized CIDR (malformed input was corrected from non-strict mode) — default: underlined (04)
 
 **Other codes** (parsed but not used for highlighting):
@@ -460,11 +463,20 @@ After a match is found, results are assembled into a match result containing:
 - `se=ANSI_CODE`: Separator color
 - `sl=ANSI_CODE`: Entire selected line background
 
-### Color Stacking (Additive)
-- Base: `mt=` code (line context: matched line, context with matches, context without matches)
-- Match-type overlay: One of `me=` (equals), `mb=` (subset), `mS=` (superset), `mo=` (overlap), or `mu=` (unmatched)
-- Normalization overlay: `mn=` code if `was_normalized=true` (can be stacked with match-type code)
-- Final ANSI sequence: combine applicable codes with semicolons (e.g., `\033[01;32;04m` for bright green + underline when EQUALS and normalized)
+### Color Nesting Hierarchy
+
+Colors are applied in nested layers, with the outermost layer taking precedence for terminal interpretation:
+
+**Nesting order** (outermost to innermost):
+1. **Match type** (`me=`, `mb=`, `mS=`, `mo=`, `mu=`) — outermost
+2. **Format-specific** (`wm=` for wildcard masks) — middle
+3. **Normalization** (`mn=` if corrected) — innermost
+
+**Example renderings**:
+- Plain EQUALS match: `\033[01;32m192.0.2.0/24\033[0m` (bright green)
+- EQUALS + normalized: `\033[01;32m\033[04m192.0.2.0/24\033[0m` (bright green wrapping underline)
+- SUBSET + wildcard mask: `\033[01;34m\033[4:3m10.4.0.0 0.0.127.252\033[0m` (bright blue wrapping curly underline)
+- SUPERSET + wildcard + normalized: `\033[01;33m\033[4:3m\033[04m10.4.0.0 0.0.127.252\033[0m` (bright yellow wrapping curly underline wrapping underline)
 
 ### Color Auto Detection
 
