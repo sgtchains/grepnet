@@ -1272,7 +1272,12 @@ against extracted networks from files 4.
 (comments appear uncolorized; see COLOR OUTPUT section)
 .PP
 \f[B]Recognized comment markers\f[R]: \f[V]#\f[R], \f[V]!\f[R],
-\f[V]--\f[R], \f[V]//\f[R], \f[V]/* */\f[R], \f[V];\f[R]
+\f[V]--\f[R], \f[V]//\f[R], \f[V]/* */\f[R], \f[V]<!-- -->\f[R],
+\f[V];\f[R]
+.PP
+\f[B]Recognized Cisco keywords\f[R] (must be preceded/followed by
+whitespace): \f[V]remark\f[R], \f[V]rem\f[R], \f[V]description\f[R],
+\f[V]desc\f[R] (case-insensitive)
 .PP
 \f[B]Critical distinction\f[R]: The entire line is output when matched,
 but networks in the comment portion are NOT parsed, extracted, or

@@ -48,38 +48,6 @@
         .markdown-body strong {
             color: #0366d6;
         }
-        nav {
-            position: fixed;
-            left: 20px;
-            top: 20px;
-            width: 200px;
-            max-height: 80vh;
-            overflow-y: auto;
-            background-color: #f6f8fa;
-            border: 1px solid #e1e4e8;
-            border-radius: 6px;
-            padding: 15px;
-            display: none;
-        }
-        nav.show {
-            display: block;
-        }
-        nav a {
-            display: block;
-            padding: 8px 12px;
-            color: #0366d6;
-            text-decoration: none;
-            font-size: 14px;
-        }
-        nav a:hover {
-            background-color: #e1e4e8;
-            border-radius: 3px;
-        }
-        @media (min-width: 1200px) {
-            nav.show {
-                display: block;
-            }
-        }
     </style>
 </head>
 <body>
@@ -1158,7 +1126,10 @@ phase</strong>: The original file line WITH comments is printed
 (comments appear uncolorized; see COLOR OUTPUT section)</p>
 <p><strong>Recognized comment markers</strong>: <code>#</code>,
 <code>!</code>, <code>--</code>, <code>//</code>, <code>/* */</code>,
-<code>;</code></p>
+<code>&lt;!-- --&gt;</code>, <code>;</code></p>
+<p><strong>Recognized Cisco keywords</strong> (must be preceded/followed
+by whitespace): <code>remark</code>, <code>rem</code>,
+<code>description</code>, <code>desc</code> (case-insensitive)</p>
 <p><strong>Critical distinction</strong>: The entire line is output when
 matched, but networks in the comment portion are NOT parsed, extracted,
 or counted in results.</p>

@@ -84,7 +84,7 @@ grepnet --consolidate networks.txt
 
 # MATCH TYPES
 
-By default, grepnet finds all matches. Use these flags to filter by relationship type:
+By default, grepnet returns networks that match the pattern (equals, subsets, supersets, overlaps) but NOT unmatched networks. Use these flags to filter by relationship type:
 
 **-e**, `--equal`
 : Match only networks that are exactly equal
@@ -101,15 +101,23 @@ By default, grepnet finds all matches. Use these flags to filter by relationship
 **-u**, `--unmatched`
 : Include networks that don't match any pattern (for use with other match type flags)
 
-**-v**, `--invert-match`
-: Show lines that do NOT match (inverse logic)
+**Clarification on -u (unmatched networks)**:
 
-**Example**: `grepnet -s '192.0.0.0/16' data.txt` finds all /24 or /25 networks within 192.0.0.0/16
+**Default behavior (no flags)**: Returns networks that match the pattern in any relationship type (equals, subsets, supersets, or overlaps). Unmatched networks are NOT included by default.
+
+**With -u alone**: Returns ONLY unmatched networks (those that don't match any relationship type to the pattern). This is similar to `-v` but operates at the network level instead of the line level: while `-v` excludes entire lines without matches, `-u` excludes entire networks that matched any relationship type.
+
+**With -u and a match type filter**: Returns both unmatched networks AND networks matching that specific filter type. For example, `grepnet -u -s '192.0.0.0/16' data.txt` returns networks that are either unmatched OR subsets of 192.0.0.0/16 (excludes supersets, equals, and overlaps). This is useful for finding networks to audit: "show me everything that either doesn't match my pattern, or only matches as a subset."
+
+**-v**, `--invert-match`
+: Show lines that do NOT contain any matching networks (inverse logic; opposite of normal behavior)
+
+**Example with -v**: `grepnet -v '10.0.0.0/8' config.txt` finds lines that do NOT contain any networks from 10.0.0.0/8 (useful for finding lines without internal networks)
 
 # OUTPUT OPTIONS
 
 **-o**, `--only-matching`
-: Print only the matched networks, not the entire line
+: Print only the matched networks, not the entire line. Each matched network is printed on a separate line, respecting the match flags (only networks matching the specified relationship types are included).
 
 **-n**, `--line-number`
 : Prefix output with 1-based line numbers
@@ -141,6 +149,27 @@ By default, grepnet finds all matches. Use these flags to filter by relationship
 **-m** *NUM*, `--max-count` *NUM*
 : Stop searching after *NUM* matches
 
+**-Z**, `--null`
+: Output NUL-terminated filenames instead of newlines (for use with `xargs -0` or `xargs -z`)
+
+**-z**, `--null-data`
+: Treat input records as NUL-terminated instead of newline-terminated (for binary-safe record processing)
+
+**Clarification on null-termination**:
+These flags enable safe handling of filenames and records with spaces or special characters:
+- **-Z** (with `-l` flag): Makes `-l` output filenames terminated by NUL instead of newline, safe for piping to `xargs -0`
+- **-z**: Changes how records are split (usually lines), allowing NUL-terminated records instead
+- **Common use**: `grepnet -l -Z '192.0.2.0/24' *.txt | xargs -0 some_command` - safely process results even with spaces in filenames
+
+**Examples**:
+```bash
+# Pipe matches to xargs safely (handles filenames with spaces)
+grepnet -l -Z '192.0.2.0/24' /etc/ | xargs -0 grep "rule"
+
+# Process NUL-terminated records (e.g., from find -print0)
+find /var/log -type f -print0 | grepnet -z '192.0.0.0/16'
+```
+
 # CONTEXT OPTIONS
 
 **-A** *NUM*, `--after-context` *NUM*
@@ -158,7 +187,7 @@ By default, grepnet finds all matches. Use these flags to filter by relationship
 **`--no-group-separator`**
 : Suppress group separator
 
-**Example**: `grepnet -C 2 '192.0.2.0/24' config.txt` shows each match with 2 lines of context
+**Example**: `grepnet -C 2 '192.0.2.0/24' config.txt` shows each match with 2 lines of context before and after
 
 # EXTRACTION AND CONSOLIDATION
 
@@ -179,7 +208,14 @@ Network extraction and consolidation are two related operations for analyzing an
 : Consolidate overlapping and adjacent networks into larger blocks
 
 **`--show-content`**
-: Include original line content in extract/consolidate output
+: Include original line content in extract output (shows where each network was found)
+
+**Clarification on --show-content behavior**:
+When used with `--extract`, this flag shows the original line from which each network was extracted. The format is:
+```
+<network>    <original line content>
+```
+This helps trace which configuration or context each network came from. This flag only works with `--extract`; it is not supported with `--consolidate`.
 
 **`--format`** {**cidr**|**range**|**short-range**|**ips**|**original**}
 : Output format for networks (default: **cidr**)
@@ -200,7 +236,7 @@ grepnet --extract network_logs.txt
 grepnet --consolidate all_networks.txt
 
 # Extract networks matching a pattern, output as ranges
-grepnet --extract '10.0.0.0/8' systems.txt --format range
+grepnet --extract -s '10.0.0.0/8' systems.txt --format range
 
 # Consolidate and output individual IPs
 grepnet --consolidate --format ips networks.txt
@@ -213,12 +249,12 @@ grepnet --consolidate --show-content config.txt
 
 Filtering allows you to narrow or refine search results by excluding networks or matches that don't meet your criteria. Two independent filtering approaches:
 
-**Text-based filtering** (`--exclude-string`): Excludes individual network matches whose matched text contains a regex pattern. Useful for filtering by context (e.g., "deprecated", "testing", "archived"). Applied after network matching—a network match is excluded if its matched text matches the regex. If a line has no remaining matches after text filtering, the entire line is removed from output.
+**Text-based filtering** (`--exclude-string`): Excludes individual network objects based on regex patterns matching the network as found in the source. Applied after network matching—a network object is excluded if its matched text (the exact string representation) matches the provided regex pattern. Useful for filtering by specific network representations or formats.
 
 **Network-based filtering** (`--exclude-cidr`): Excludes network matches that have specific relationships to excluded CIDR blocks. The relationship is determined by `--exclude-cidr-behavior`. Useful for filtering by network hierarchy (e.g., exclude all internal networks, keep only external references).
 
 **Combining filters**: Text and network filters are independent and stackable:
-- `--exclude-string 'deprecated' --exclude-cidr '192.168.0.0/16'` excludes matches where the text contains "deprecated" OR the network is in 192.168.0.0/16
+- `--exclude-string '192\.0\.2' --exclude-cidr '10.0.0.0/8'` excludes network objects where the matched text matches "192\.0\.2" OR the network falls under 10.0.0.0/8
 - Multiple `--exclude-string` or `--exclude-cidr` flags accumulate (any match causes exclusion)
 
 ## Text Filtering
@@ -229,7 +265,7 @@ Filtering allows you to narrow or refine search results by excluding networks or
 **`--exclude-strings-file`** *FILE*
 : Load text patterns to exclude from file
 
-**Behavior**: For each network match found, test the matched text against each regex pattern. If any match, exclude that result. If a line's last network match is excluded by text filtering, the entire line is removed from output.
+**Behavior**: For each network match found, test its matched text (the network as represented in the source) against each regex pattern. If any pattern matches, exclude that network object from results.
 
 ## Network Filtering
 
@@ -398,7 +434,7 @@ Parsing control allows you to restrict which network formats grepnet accepts. Th
 
 **Key concept**: Each format type can be enabled/disabled independently for patterns (search terms) and input (data being searched). This allows asymmetric rules like "accept any format in input, but only CIDR in patterns."
 
-**Default behavior**: All formats accepted everywhere (`both`). This provides maximum flexibility but may catch unintended matches.
+**Default behavior**: Most formats default to `both` (CIDR, netmask, hostmask, ranges, bare IP), except wildcard masks which default to `none`. This provides flexibility while preventing ambiguous wildcard matches by default.
 
 ## Format Options
 
@@ -525,10 +561,10 @@ grepnet --parse-cidr both \
 # Result: All networks normalized to CIDR, regardless of original format
 ```
 
-**Disable wildcard mask parsing (tighten security)**:
+**Disable wildcard mask parsing**:
 ```bash
-# Prevent accidental wildcard mask parsing in untrusted input
-grepnet --parse-wildcard none '192.0.2.0/24' untrusted.txt
+# Reject wildcard mask formats (while still accepting others)
+grepnet --parse-wildcard none '192.0.2.0/24' file.txt
 ```
 
 ## Asymmetric Parsing Example
@@ -791,17 +827,52 @@ grepnet --extract --format cidr config.txt
 
 # BINARY FILE HANDLING
 
+When searching directories, you may encounter binary files (executables, libraries, archives). By default, grepnet treats binary files specially to avoid corrupting output with unprintable characters.
+
+**Default behavior**: Binary files are scanned, but if a match is found, the entire line is marked as "binary" and printed as `Binary file <filename> matches` instead of the actual match content. This prevents terminal corruption while still reporting which binary files contain matches.
+
+**When binary handling matters**: Searching `/usr/bin` or other directories with mixed binary/text files, or scanning backups/archives alongside configs.
+
+## Flags
+
 **-a**, `--text`
-: Treat all files as text
+: Treat all files as text (even binary files; raw output with potential corruption)
 
 **-U**, `--binary`
-: Do not strip CR characters at EOL (MSDOS/Windows line endings)
+: Do not strip CR characters at EOL (MSDOS/Windows line endings; still respects binary file handling)
 
 **-I**
-: Skip binary files
+: Skip binary files entirely (do not scan; faster for mixed directories)
 
 **`--binary-files`** {**binary**|**text**|**without-match**}
 : How to handle binary files (default: **binary**)
+  - **binary** (default) - Report matches but show `Binary file <name> matches` instead of actual line
+  - **text** - Treat as text (same as `-a`; raw output)
+  - **without-match** - Exclude from results (same as `-I`)
+
+## Examples
+
+**Search directories with binary files (safe)**:
+```bash
+# Search /usr/bin with mixed binary/text files
+grepnet '192.0.2.0/24' /usr/bin/
+# Output: Shows "Binary file /usr/bin/curl matches" for binary matches
+# No terminal corruption
+```
+
+**Skip binary files (faster)**:
+```bash
+# Search config directories, ignore binaries
+grepnet -I '10.0.0.0/8' /etc/ /opt/
+# Only scans text files, skips binaries entirely
+```
+
+**Force text mode (debug only)**:
+```bash
+# Treat binary as text (rarely needed; may corrupt output)
+grepnet -a '192.0.2.0/24' /usr/bin/myapp
+# Raw binary output
+```
 
 # COMMENT FILTERING
 
@@ -817,7 +888,9 @@ Comment filtering controls whether networks inside comments are parsed and match
 3. **Matching phase**: Extracted networks from patterns matched against extracted networks from files
 4. **Output phase**: The original file line WITH comments is printed (comments appear uncolorized; see COLOR OUTPUT section)
 
-**Recognized comment markers**: `#`, `!`, `--`, `//`, `/* */`, `;`
+**Recognized comment markers**: `#`, `!`, `--`, `//`, `/* */`, `<!-- -->`, `;`
+
+**Recognized Cisco keywords** (must be preceded/followed by whitespace): `remark`, `rem`, `description`, `desc` (case-insensitive)
 
 **Critical distinction**: The entire line is output when matched, but networks in the comment portion are NOT parsed, extracted, or counted in results.
 
@@ -1126,8 +1199,6 @@ Useful for safe handling of filenames with special characters: `grepnet -lZ '192
 
 # DEBUGGING
 
-# DEBUGGING
-
 **`--debug`** [*FUNCTIONS*] **(DEPRECATED)**
 : Enable debug output to stderr
 
@@ -1249,7 +1320,7 @@ All four patterns are valid; each can be a different format. The file has 4 patt
 ```bash
 grepnet -e '192.0.2.0/24' networks.txt
 ```
-Returns only lines containing exactly 192.0.2.0/24 (no 192.0.2.0/25, no 192.0.2.1, no 192.0.0.0/16).
+Returns only lines containing exactly 192.0.2.0/24 or 192.0.2.0-192.0.2.255 (no 192.0.2.0/25, no 192.0.2.1, no 192.0.0.0/16).
 
 **Find networks contained within the pattern:**
 ```bash
@@ -1333,7 +1404,7 @@ Combines line numbers, context, and colors for visual identification in large lo
 ```bash
 grepnet --extract firewall_rules.txt
 ```
-Scans the file, finds all network objects (CIDR blocks, ranges, bare IPs), and outputs each unique network once. Useful for inventory: "what networks are referenced in this config?"
+Scans the file, finds all network objects (CIDR blocks, ranges, bare IPs, etc.), and outputs each unique network as expressed in the input (deduplicates identical expressions only). For example, `192.0.2.0/24` and `192.0.2.0-192.0.2.255` are kept separate because they're different representations. Use `--format` to normalize different representations to the same output format.
 
 **Extract and normalize to CIDR:**
 ```bash
@@ -1374,11 +1445,11 @@ Pipeline: extract all networks from rules, consolidate them, then use that conso
 
 ## Exclusion
 
-**Exclude deprecated networks:**
+**Exclude networks matching a pattern:**
 ```bash
-grepnet --exclude-string 'deprecated' '192.0.0.0/16' config.txt
+grepnet --exclude-string '\.0$' '192.0.0.0/16' ips.txt
 ```
-Finds all IPs in 192.0.0.0/16, but skips any line containing the word "deprecated". Useful for active inventory vs. archived/commented configs.
+Finds all networks in 192.0.0.0/16, but excludes any whose matched text ends with ".0" (e.g., excludes bare IPs like 192.0.2.0 but keeps 192.0.2.1 and CIDR blocks like 192.0.2.0/24).
 
 **Exclude specific network from results:**
 ```bash
@@ -1481,13 +1552,13 @@ Skips binary files entirely, searches only text files. Fastest approach when you
 
 **Search using netmask notation in patterns:**
 ```bash
-grepnet --parse-pattern netmask '192.0.2.0/255.255.255.0' data.txt
+grepnet --parse-netmask pattern '192.0.2.0 255.255.255.0' data.txt
 ```
-Allows patterns to use netmask format instead of only CIDR. Matches against any format in input file.
+Allows patterns to use netmask format (base IP with subnet mask, space-separated). Matches against any format in input file.
 
 **Accept only CIDR format in input files:**
 ```bash
-grepnet --parse-input cidr '192.0.2.0/24' networks.txt
+grepnet --parse-cidr both --parse-netmask none --parse-ranges none --parse-bare-ip none '192.0.2.0/24' networks.txt
 ```
 Enforces CIDR notation in input file; rejects netmask/range format. Useful for strict validation: "this file must use only CIDR."
 
@@ -1901,10 +1972,34 @@ ANSI codes are SGR (Select Graphic Rendition) values. Common values:
 - `31-37` = foreground colors (red, green, yellow, blue, magenta, cyan, white)
 - Combine with semicolons: `01;32` = bold green
 
-**Example**:
+**Examples**:
+
+**Customize all match types**:
 ```bash
-export GREPNET_COLORS="fn=35 me=01;31 mb=01;36"
+export GREPNET_COLORS="me=01;32 mb=01;34 mS=01;33 mo=01;31"
+grepnet -e -s -S -O '192.0.2.0/24' *.txt
+# Green for equals, blue for subset, yellow for superset, red for overlap
+```
+
+**Highlight normalized CIDRs**:
+```bash
+export GREPNET_COLORS="mn=01;31"
+grepnet '192.0.2.0/24' config.txt
+# Normalized CIDRs (those with host bits stripped) shown in bold red
+```
+
+**High-contrast theme for presentations**:
+```bash
+export GREPNET_COLORS="fn=01;37 ln=01;32 mb=01;36 me=01;32 mS=01;33 mo=01;31"
+grepnet -e -s -S -O '192.0.0.0/16' configs/ | less -R
+# Bold white filenames, green line numbers, bold match types, ANSI codes preserved with -R
+```
+
+**Simplified output (no color)**:
+```bash
+export GREPNET_COLORS="fn=0 ln=0 me=0 mb=0 mS=0 mo=0"
 grepnet '192.0.2.0/24' *.txt
+# All colors disabled, plain output
 ```
 
 # AUTHOR
