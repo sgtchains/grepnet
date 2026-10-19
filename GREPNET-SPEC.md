@@ -1755,14 +1755,22 @@ Pattern and file data have overlapping but neither is subset/superset.
 
 Logical definition: Some but not all addresses overlap; neither network contains the other.
 
-**Critical note - CIDR networks CANNOT overlap**: Due to binary alignment and the contiguous nature of subnet masks and hostmasks, two CIDR-based networks can only have three relationships:
+**Critical note - CIDR networks CANNOT overlap when both are pure CIDR**: Due to binary alignment and the contiguous nature of subnet masks and hostmasks, two pure CIDR-based networks can only have three relationships:
 - **Equals**: Same network
 - **Subset/Superset**: One contains the other
 - **Disjoint**: Completely separate address spaces (no relationship, not "overlap")
 
-OVERLAP ONLY OCCURS WITH IP RANGES: Arbitrary ranges like `192.0.0.0-192.0.0.100` and `192.0.0.50-192.0.0.150` can partially overlap (sharing `192.0.0.50-192.0.0.100` but each having unique addresses).
+**OVERLAP CAN OCCUR WITH:**
+1. **IP RANGES**: Arbitrary ranges like `192.0.0.0-192.0.0.100` and `192.0.0.50-192.0.0.150` can partially overlap (sharing `192.0.0.50-192.0.0.100` but each having unique addresses).
+   
+2. **WILDCARD MASKS (when expanded to CIDR sets)**: Wildcard masks expand to constituent CIDR blocks, which form a set. A pattern (CIDR or range) can partially overlap with a wildcard mask's CIDR set. For example:
+   - File: `192.0.2.0 0.0.0.128` expands to `{192.0.2.0/32, 192.0.2.128/32}`
+   - Pattern: `192.0.2.128/25` (covers 192.0.2.128-192.0.2.255)
+   - Overlap: Pattern includes `192.0.2.128/32` from file BUT ALSO includes `192.0.2.129-192.0.2.255` not in file set
 
-Example (ranges only): Pattern range `192.0.0.0-192.0.0.100` with file data range `192.0.0.50-192.0.0.150`. They share addresses `192.0.0.50-192.0.0.100`, but pattern has `192.0.0.0-192.0.0.49` and file has `192.0.0.101-192.0.0.150` unique to each.
+Examples:
+- **Ranges example**: Pattern range `192.0.0.0-192.0.0.100` with file data range `192.0.0.50-192.0.0.150`. They share addresses `192.0.0.50-192.0.0.100`, but pattern has `192.0.0.0-192.0.0.49` and file has `192.0.0.101-192.0.0.150` unique to each.
+- **Wildcard mask example**: File `192.0.2.0 0.0.0.128` (two /32s) with pattern `192.0.2.128/25` (covers 128 /32s including the one from file).
 
 Color code: `mo=` (match type overlap)
 
@@ -1886,37 +1894,52 @@ When the pattern is a CIDR and file contains ranges (or vice versa), convert bet
 When wildcard masks are enabled (`--parse-wildcard` and `--wildcard-search`):
 
 - **Wildcard mask expansion**: Each WildcardMaskRange is expanded into a list of constituent CIDR blocks (stored in `expanded_cidrs`), pre-computed and aggregated using `ipaddress.collapse_addresses()`
-- **Matching against wildcard masks**: Pattern is matched against each CIDR in the wildcard mask's expanded_cidrs list individually
-  - Pattern matches if it has any relationship (equals, subset, superset, overlap) with ANY CIDR in the expanded list
-  - All individual CIDR matches are treated as a single WildcardMaskRange match (not split into separate matches per CIDR)
-- **Wildcard mask as pattern**: If a pattern is itself a wildcard mask:
-  - Pattern is expanded to its constituent CIDRs
-  - Each file network (whether CIDR, range, or wildcard mask) is compared against the pattern's expanded_cidrs
-  - A file network matches if any of its addresses overlap with the pattern's address space
-- **Bidirectional matching**:
-  - File contains wildcard mask, pattern is CIDR → Compare pattern CIDR against all expanded_cidrs from file wildcard mask
-  - File contains CIDR, pattern is wildcard mask → Compare file CIDR against all expanded_cidrs from pattern wildcard mask
-  - Both are wildcard masks → Expand both, compare constituent CIDRs
+- **Matching against wildcard masks**: When file contains a wildcard mask (file_cidrs set) and pattern is any network type (pattern_cidrs set):
+  - Compare file_cidrs set against pattern_cidrs set using set logic
+  - **EQUALS**: file_cidrs_set == pattern_cidrs_set (exact same networks)
+  - **SUPERSET**: pattern_cidrs_set ⊇ file_cidrs_set (pattern completely contains all file CIDRs)
+  - **SUBSET**: pattern_cidrs_set ⊂ file_cidrs_set (pattern is part of file CIDRs, but not all)
+  - **OVERLAP**: partial overlap (some file CIDRs match pattern AND pattern has addresses not in file, OR vice versa)
 
-**Match type priority** (unchanged): EQUALS > SUBSET > SUPERSET > OVERLAP > UNMATCHED
+**Match type priority**: EQUALS > SUPERSET > SUBSET > OVERLAP > UNMATCHED
 
-**Example**:
-```
-File line: deny 10.4.0.0 0.0.127.252 any
-Pattern: 10.4.0.0/25
+**Examples** (File: `192.0.2.0 0.0.0.128` expands to {192.0.2.0/32, 192.0.2.128/32}):
 
-During parsing:
-  - File: 10.4.0.0 0.0.127.252 → WildcardMaskRange(
-      original_text='10.4.0.0 0.0.127.252',
-      expanded_cidrs=[10.4.0.0/25, 10.4.1.0/24, 10.4.2.0/23, ..., 10.4.127.0/25]
-    )
-  - Pattern: 10.4.0.0/25 → CIDR(10.4.0.0/25)
+1. **EQUALS match**:
+   ```
+   File pattern: 192.0.2.0 0.0.0.128
+   Search pattern: 192.0.2.0 0.0.0.128
+   File expands to: {192.0.2.0/32, 192.0.2.128/32}
+   Pattern expands to: {192.0.2.0/32, 192.0.2.128/32}
+   Result: EQUALS (same set)
+   ```
 
-During matching:
-  - Pattern 10.4.0.0/25 compared against file WildcardMaskRange
-  - Check: Does pattern equal any expanded CIDR? YES, 10.4.0.0/25 ∈ expanded_cidrs → EQUALS match
-  - Result: Single MatchResult with match_type='equals', displayed as "deny [EQUALS: 10.4.0.0 0.0.127.252] any"
-```
+2. **SUPERSET match**:
+   ```
+   File pattern: 192.0.2.0 0.0.0.128
+   Search pattern: 192.0.2.0/24
+   File expands to: {192.0.2.0/32, 192.0.2.128/32}
+   Pattern is: {192.0.2.0/24}
+   Result: SUPERSET (pattern 192.0.2.0/24 contains both /32s from file)
+   ```
+
+3. **SUBSET match**:
+   ```
+   File pattern: 192.0.2.0 0.0.0.128
+   Search pattern: 192.0.2.128
+   File expands to: {192.0.2.0/32, 192.0.2.128/32}
+   Pattern is: {192.0.2.128/32}
+   Result: SUBSET (pattern 192.0.2.128/32 is part of file set, but not all)
+   ```
+
+4. **OVERLAP match**:
+   ```
+   File pattern: 192.0.2.0 0.0.0.128
+   Search pattern: 192.0.2.128/25
+   File expands to: {192.0.2.0/32, 192.0.2.128/32}
+   Pattern is: {192.0.2.128/25} (covers 192.0.2.128-192.0.2.255)
+   Result: OVERLAP (includes 192.0.2.128 from file but also 192.0.2.129-192.0.2.255 not in file) Misses 192.0.2.0.
+   ```
 
 ---
 
@@ -2541,6 +2564,10 @@ grepnet: error: context flags (-B/-A/-C) cannot be used with -l, -L, --extract, 
   ```
   grepnet: error: invalid CIDR block in --wildcard-search: 999.999.999.999/32
   ```
+- **Overly broad scope in `--wildcard-search`**: Error and exit 2
+  ```
+  grepnet: error: --wildcard-search scope 0.0.0.0/0 is too broad (would match any IP pair as wildcard mask). Use a more specific CIDR like 10.0.0.0/8
+  ```
 
 ---
 
@@ -2948,22 +2975,39 @@ Behavior:
 
 **Dependency**: This flag MUST be used together with `--wildcard-search`; using one without the other produces an error.
 
-**--wildcard-search CIDR**: Define the scope (boundary CIDR block) within which wildcard **mask values** (the second IP in the pair) are considered valid.
+**--wildcard-search CIDR**: Define the scope (boundary CIDR block) that restricts which IP addresses can be interpreted as wildcard MASK VALUES (the second IP in a space-separated pair).
 
-**CRITICAL**: Only the mask value is scope-checked. The base address (first IP) is completely ignored for scope validation and can be any valid IPv4 address.
+**CRITICAL RESTRICTION**: The scope MUST NOT be `0.0.0.0/0` (IPv4) or `::/0` (IPv6). These unrestricted scopes are rejected with an error to prevent false positives: they would allow ANY IP pair to be misinterpreted as a wildcard mask.
 
-Arguments:
-- `CIDR` - Any valid IPv4 CIDR block (e.g., `0.0.0.0/0`, `10.0.0.0/8`, `192.168.0.0/16`)
+**Why this matters - Example of the problem**:
+```
+Input line: "192.0.2.1 192.0.2.2" (two regular IPs, NOT a wildcard mask)
+
+With --wildcard-search 0.0.0.0/0:
+  The second IP 192.0.2.2 is in scope → falsely parsed as wildcard mask (BUG!)
+
+With --wildcard-search 10.0.0.0/8:
+  The second IP 192.0.2.2 is out-of-scope → correctly falls back to other extractors (CORRECT!)
+```
+
+**Arguments**:
+- `CIDR` - IPv4 CIDR block with more restrictive bounds than the entire IPv4 space
 - Only the wildcard mask value (second IP) is checked against this scope
 - Wildcard masks whose mask values fall within this scope are accepted
 - Wildcard masks whose mask values fall outside this scope are rejected and fall back to other extractors
-- Base address (first IP) is irrelevant to scope validation
+- Base address (first IP) is irrelevant to scope validation and is completely ignored
 
-Behavior:
-- Acts as a DoS protection mechanism: prevents parsing of unbounded wildcard masks
+**Valid scopes**:
+- ✅ `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16` (RFC 1918 private ranges)
+- ✅ `10.0.0.0/24`, `192.168.1.0/28` (smaller subnets)
+- ✅ Any CIDR block that is NOT `0.0.0.0/0` (for IPv4) or `::/0` (for IPv6)
+- ❌ `0.0.0.0/0` (rejected as too broad)
+- ❌ `::/0` (rejected as too broad)
+
+**Behavior**:
 - Scope check is O(1) using IPv4Address containment check against mask value only
-- If a wildcard mask is out-of-scope, parsing falls back to trying other format extractors
-- Explicit consent model: User must define scope; error if `--parse-wildcard` is set without `--wildcard-search`
+- If a wildcard mask is out-of-scope, parsing falls back to trying other format extractors (subnet mask, inverse mask, range, bare IP)
+- Explicit consent model: User must define a specific, bounded scope; error if `--parse-wildcard` is set without `--wildcard-search`
 
 **Examples**:
 ```bash
@@ -2973,8 +3017,8 @@ grepnet --parse-wildcard both --wildcard-search 10.0.0.0/8 '10.4.0.0 0.0.127.252
 # Parse only in file input; scope to private address space (RFC 1918)
 grepnet --parse-wildcard input --wildcard-search 10.0.0.0/8 config.txt
 
-# Unrestricted scope (not recommended for untrusted input)
-grepnet --parse-wildcard both --wildcard-search 0.0.0.0/0 file.txt
+# Error: overly broad scope (will fail)
+grepnet --parse-wildcard both --wildcard-search 0.0.0.0/0 file.txt  # ERROR: scope too broad
 
 # Error: missing scope (this will fail)
 grepnet --parse-wildcard both file.txt    # ERROR: --wildcard-search required
@@ -2993,6 +3037,7 @@ grepnet --wildcard-search 10.0.0.0/8 file.txt  # ERROR: --parse-wildcard require
 - If `--parse-wildcard` is used without `--wildcard-search`, exit with error code 2
 - If `--wildcard-search` is used without `--parse-wildcard`, exit with error code 2
 - If `CIDR` argument to `--wildcard-search` is invalid, exit with error code 2
+- If `--wildcard-search` scope is `0.0.0.0/0` (IPv4) or `::/0` (IPv6), exit with error code 2
 - If no `--wildcard-search` scope is defined, wildcard masks are never parsed (treated as failed extraction)
 
 #### Strict CIDR Validation (v2.0 API)

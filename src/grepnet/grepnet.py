@@ -1210,22 +1210,34 @@ class GrepNet:
         file_cidrs = file_net.expanded_cidrs if file_is_wildcard else [file_net]
         pattern_cidrs = pattern_net.expanded_cidrs if pattern_is_wildcard else [pattern_net]
         
+        # Convert to sets for comparison
+        file_cidrs_set = set(file_cidrs)
+        pattern_cidrs_set = set(pattern_cidrs)
+        
         # Priority: EQUALS > SUBSET > SUPERSET > OVERLAP
         
-        # 1. Check EQUALS: Does any file CIDR equal any pattern CIDR?
-        for file_cidr in file_cidrs:
-            for pattern_cidr in pattern_cidrs:
-                if file_cidr == pattern_cidr:
-                    return MatchType.EQUALS
+        # 1. Check EQUALS: Are the sets exactly equal?
+        if file_cidrs_set == pattern_cidrs_set:
+            return MatchType.EQUALS
         
-        # 2. Check SUBSET: Does any pattern CIDR subset any file CIDR?
+        # 2. Check SUBSET: Are all pattern CIDRs subsets of (contained in) file CIDRs?
+        # Pattern set ⊆ file set (all pattern addresses are in file)
+        all_pattern_contained = True
         for pattern_cidr in pattern_cidrs:
+            contained = False
             for file_cidr in file_cidrs:
-                if pattern_cidr != file_cidr and pattern_cidr.subnet_of(file_cidr):
-                    return MatchType.SUBSET
+                if pattern_cidr == file_cidr or pattern_cidr.subnet_of(file_cidr):
+                    contained = True
+                    break
+            if not contained:
+                all_pattern_contained = False
+                break
+        
+        if all_pattern_contained and len(pattern_cidrs) > 0 and file_cidrs_set != pattern_cidrs_set:
+            return MatchType.SUBSET
         
         # 3. Check SUPERSET: Does pattern contain all file CIDRs?
-        # A pattern is superset if ALL file CIDRs are subsets of at least one pattern CIDR
+        # Pattern set ⊇ file set (all file addresses are in pattern)
         all_file_covered = True
         for file_cidr in file_cidrs:
             covered = False
@@ -1237,17 +1249,41 @@ class GrepNet:
                 all_file_covered = False
                 break
         
-        if all_file_covered and len(file_cidrs) > 0:
+        if all_file_covered and len(file_cidrs) > 0 and file_cidrs_set != pattern_cidrs_set:
             return MatchType.SUPERSET
         
-        # 4. Check OVERLAP: Do any CIDRs overlap?
-        # CIDR overlap occurs when networks share address space without subset/superset relationship
-        for file_cidr in file_cidrs:
-            for pattern_cidr in pattern_cidrs:
-                if self._cidr_overlap(file_cidr, pattern_cidr):
+        # 4. Check OVERLAP: Do any CIDRs have overlapping address space?
+        # For wildcard masks, overlap means partial intersection (some addresses shared, some not)
+        for file_cidr in file_cidrs_set:
+            for pattern_cidr in pattern_cidrs_set:
+                # Check if CIDRs share ANY address space
+                if self._cidrs_overlap_inclusive(file_cidr, pattern_cidr):
                     return MatchType.OVERLAP
         
         return MatchType.UNMATCHED
+    
+    def _cidrs_overlap_inclusive(self, net1: IPv4Network, net2: IPv4Network) -> bool:
+        """
+        Check if two CIDR networks have overlapping address space (inclusive version for wildcards).
+        
+        Returns True if any address is in both networks, UNLESS we've already ruled it out
+        as EQUALS, SUBSET, or SUPERSET (which happens before this check is called).
+        
+        Args:
+            net1: First IPv4Network
+            net2: Second IPv4Network
+        
+        Returns:
+            True if networks share any addresses
+        """
+        # Check if address spaces overlap (inclusive of subset relationships)
+        net1_start = int(net1.network_address)
+        net1_end = int(net1.broadcast_address)
+        net2_start = int(net2.network_address)
+        net2_end = int(net2.broadcast_address)
+        
+        # Ranges overlap if start of one is within the other's range
+        return (net1_start <= net2_start <= net1_end) or (net2_start <= net1_start <= net2_end)
     
     def _cidr_overlap(self, net1: IPv4Network, net2: IPv4Network) -> bool:
         """

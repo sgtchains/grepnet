@@ -762,12 +762,17 @@ def run():
             sys.exit(2)
         # Parse the scope as a CIDR network
         try:
-            from ipaddress import ip_network
+            from ipaddress import ip_network, IPv4Network
             wildcard_search_scope = ip_network(args.wildcard_search_scope, strict=False)
             # Ensure it's IPv4
             if wildcard_search_scope.version != 4:
                 if not args.no_messages:
                     print('grepnet: error: --wildcard-search only supports IPv4 CIDR notation', file=sys.stderr)
+                sys.exit(2)
+            # Reject overly broad scopes (0.0.0.0/0)
+            if wildcard_search_scope == IPv4Network('0.0.0.0/0'):
+                if not args.no_messages:
+                    print('grepnet: error: --wildcard-search scope 0.0.0.0/0 is too broad (would match any IP pair as wildcard mask). Use a more specific CIDR like 10.0.0.0/8', file=sys.stderr)
                 sys.exit(2)
         except ValueError as e:
             if not args.no_messages:

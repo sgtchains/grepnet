@@ -22,7 +22,7 @@ from .extractors import (
     IPv6Extractor,
     IPOnlyExtractor,
 )
-from ..core import ParsedExtraction, _RawExtraction, MatchType
+from ..core import ParsedExtraction, _RawExtraction, MatchType, WildcardMaskRange
 
 
 class ExtractorDecisions:
@@ -425,7 +425,7 @@ class NetworkParser:
                 # Validate extraction against parse control settings
                 skip_extraction = False
                 
-                if extraction.format_type == 'ip_only' and idx == 4:
+                if extraction.format_type == 'ip_only' and idx == 5:
                     # Find position in ORIGINAL line to detect format context
                     orig_pos = original_line.find(extraction.matched_text)
                     
@@ -619,6 +619,54 @@ class NetworkParser:
         """
         file_net = file_extraction.network
         pattern_net = pattern_extraction.network
+        
+        # Handle WildcardMaskRange: set-based comparison
+        file_is_wildcard = isinstance(file_net, WildcardMaskRange)
+        pattern_is_wildcard = isinstance(pattern_net, WildcardMaskRange)
+        
+        if file_is_wildcard or pattern_is_wildcard:
+            # Extract CIDRs from wildcard ranges
+            file_cidrs = file_net.expanded_cidrs if file_is_wildcard else [file_net]
+            pattern_cidrs = pattern_net.expanded_cidrs if pattern_is_wildcard else [pattern_net]
+            
+            # Convert to sets of IPv4Network objects for comparison
+            file_cidrs_set = set(file_cidrs)
+            pattern_cidrs_set = set(pattern_cidrs)
+            
+            # Priority: EQUALS > SUPERSET > SUBSET > OVERLAP > UNMATCHED
+            
+            # 1. Check EQUALS: file_cidrs_set == pattern_cidrs_set
+            if file_cidrs_set == pattern_cidrs_set:
+                return MatchType.EQUALS
+            
+            # 2. Check SUPERSET: pattern_cidrs_set ⊇ file_cidrs_set
+            # All file CIDRs are contained in pattern CIDRs
+            if all(any(file_cidr.subnet_of(pattern_cidr) for pattern_cidr in pattern_cidrs_set) 
+                   for file_cidr in file_cidrs_set):
+                return MatchType.SUPERSET
+            
+            # 3. Check SUBSET: pattern_cidrs_set ⊂ file_cidrs_set
+            # All pattern CIDRs are contained in file CIDRs
+            if all(any(pattern_cidr.subnet_of(file_cidr) for file_cidr in file_cidrs_set) 
+                   for pattern_cidr in pattern_cidrs_set):
+                return MatchType.SUBSET
+            
+            # 4. Check OVERLAP: partial overlap in address space
+            # At least one file CIDR overlaps with at least one pattern CIDR
+            has_overlap = False
+            for file_cidr in file_cidrs_set:
+                for pattern_cidr in pattern_cidrs_set:
+                    # Check if they have overlapping addresses
+                    if file_cidr.overlaps(pattern_cidr):
+                        has_overlap = True
+                        break
+                if has_overlap:
+                    break
+            
+            if has_overlap:
+                return MatchType.OVERLAP
+            
+            return MatchType.UNMATCHED
         
         # Determine if each is a range or CIDR
         file_is_range = isinstance(file_net, tuple)
