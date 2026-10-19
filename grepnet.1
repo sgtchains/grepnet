@@ -134,7 +134,8 @@ Patterns with \f[V]-P\f[R] or \f[V]-f\f[R] are purely optional and only
 needed when searching for multiple different networks.
 .SH MATCH TYPES
 .PP
-By default, grepnet finds all matches.
+By default, grepnet returns networks that match the pattern (equals,
+subsets, supersets, overlaps) but NOT unmatched networks.
 Use these flags to filter by relationship type:
 .TP
 \f[B]-e\f[R], \f[V]--equal\f[R]
@@ -152,16 +153,45 @@ Match only when networks partially overlap
 \f[B]-u\f[R], \f[V]--unmatched\f[R]
 Include networks that don\[cq]t match any pattern (for use with other
 match type flags)
+.PP
+\f[B]Clarification on -u (unmatched networks)\f[R]:
+.PP
+\f[B]Default behavior (no flags)\f[R]: Returns networks that match the
+pattern in any relationship type (equals, subsets, supersets, or
+overlaps).
+Unmatched networks are NOT included by default.
+.PP
+\f[B]With -u alone\f[R]: Returns ONLY unmatched networks (those that
+don\[cq]t match any relationship type to the pattern).
+This is similar to \f[V]-v\f[R] but operates at the network level
+instead of the line level: while \f[V]-v\f[R] excludes entire lines
+without matches, \f[V]-u\f[R] excludes entire networks that matched any
+relationship type.
+.PP
+\f[B]With -u and a match type filter\f[R]: Returns both unmatched
+networks AND networks matching that specific filter type.
+For example, \f[V]grepnet -u -s \[aq]192.0.0.0/16\[aq] data.txt\f[R]
+returns networks that are either unmatched OR subsets of 192.0.0.0/16
+(excludes supersets, equals, and overlaps).
+This is useful for finding networks to audit: \[lq]show me everything
+that either doesn\[cq]t match my pattern, or only matches as a
+subset.\[rq]
 .TP
 \f[B]-v\f[R], \f[V]--invert-match\f[R]
-Show lines that do NOT match (inverse logic)
+Show lines that do NOT contain any matching networks (inverse logic;
+opposite of normal behavior)
 .PP
-\f[B]Example\f[R]: \f[V]grepnet -s \[aq]192.0.0.0/16\[aq] data.txt\f[R]
-finds all /24 or /25 networks within 192.0.0.0/16
+\f[B]Example with -v\f[R]:
+\f[V]grepnet -v \[aq]10.0.0.0/8\[aq] config.txt\f[R] finds lines that do
+NOT contain any networks from 10.0.0.0/8 (useful for finding lines
+without internal networks)
 .SH OUTPUT OPTIONS
 .TP
 \f[B]-o\f[R], \f[V]--only-matching\f[R]
-Print only the matched networks, not the entire line
+Print only the matched networks, not the entire line.
+Each matched network is printed on a separate line, respecting the match
+flags (only networks matching the specified relationship types are
+included).
 .TP
 \f[B]-n\f[R], \f[V]--line-number\f[R]
 Prefix output with 1-based line numbers
@@ -174,9 +204,6 @@ Include filename in output (default when multiple files)
 .TP
 \f[B]\f[VB]--no-filename\f[B]\f[R]
 Suppress filename in output
-.TP
-\f[B]-T\f[R], \f[V]--initial-tab\f[R]
-Insert tab after line number/byte offset for alignment
 .TP
 \f[B]-c\f[R], \f[V]--count\f[R]
 Print count of matching lines instead of lines
@@ -195,6 +222,36 @@ Display stdin as \f[I]LABEL\f[R] instead of \[lq](standard input)\[rq]
 .TP
 \f[B]-m\f[R] \f[I]NUM\f[R], \f[V]--max-count\f[R] \f[I]NUM\f[R]
 Stop searching after \f[I]NUM\f[R] matches
+.TP
+\f[B]-Z\f[R], \f[V]--null\f[R]
+Output NUL-terminated filenames instead of newlines (for use with
+\f[V]xargs -0\f[R] or \f[V]xargs -z\f[R])
+.TP
+\f[B]-z\f[R], \f[V]--null-data\f[R]
+Treat input records as NUL-terminated instead of newline-terminated (for
+binary-safe record processing)
+.PP
+\f[B]Clarification on null-termination\f[R]: These flags enable safe
+handling of filenames and records with spaces or special characters: -
+\f[B]-Z\f[R] (with \f[V]-l\f[R] flag): Makes \f[V]-l\f[R] output
+filenames terminated by NUL instead of newline, safe for piping to
+\f[V]xargs -0\f[R] - \f[B]-z\f[R]: Changes how records are split
+(usually lines), allowing NUL-terminated records instead - \f[B]Common
+use\f[R]:
+\f[V]grepnet -l -Z \[aq]192.0.2.0/24\[aq] *.txt | xargs -0 some_command\f[R]
+- safely process results even with spaces in filenames
+.PP
+\f[B]Examples\f[R]:
+.IP
+.nf
+\f[C]
+# Pipe matches to xargs safely (handles filenames with spaces)
+grepnet -l -Z \[aq]192.0.2.0/24\[aq] /etc/ | xargs -0 grep \[dq]rule\[dq]
+
+# Process NUL-terminated records (e.g., from find -print0)
+find /var/log -type f -print0 | grepnet -z \[aq]192.0.0.0/16\[aq]
+\f[R]
+.fi
 .SH CONTEXT OPTIONS
 .TP
 \f[B]-A\f[R] \f[I]NUM\f[R], \f[V]--after-context\f[R] \f[I]NUM\f[R]
@@ -214,7 +271,7 @@ Suppress group separator
 .PP
 \f[B]Example\f[R]:
 \f[V]grepnet -C 2 \[aq]192.0.2.0/24\[aq] config.txt\f[R] shows each
-match with 2 lines of context
+match with 2 lines of context before and after
 .SH EXTRACTION AND CONSOLIDATION
 .PP
 Network extraction and consolidation are two related operations for
@@ -234,17 +291,6 @@ For example, \f[V]192.0.2.0/25\f[R] and \f[V]192.0.2.128/25\f[R] merge
 into \f[V]192.0.2.0/24\f[R].
 This simplifies network inventories and highlights coverage gaps.
 .PP
-\f[B]Gap Filling\f[R] (\f[V]--fill-pct\f[R]): Optional consolidation
-enhancement.
-Instead of merging only adjacent networks, allows filling small gaps if
-the gap is ≤ N% of the combined network size.
-Useful for simplifying \[lq]nearly complete\[rq] network ranges.
-For example, with \f[V]--fill-pct=25\f[R]: - \f[V]192.0.2.0/25\f[R] and
-\f[V]192.0.2.192/26\f[R] (gap of 64 IPs = 25% of /24) merge into
-\f[V]192.0.2.0/24\f[R] - With \f[V]--fill-pct=10\f[R]:
-\f[V]192.0.2.0/25\f[R] and \f[V]192.0.2.224/26\f[R] (gap of 32 IPs =
-12.5% of /24) do NOT merge (gap exceeds 10%)
-.PP
 \f[B]Output Formats\f[R]: Extracted/consolidated networks can be output
 in multiple formats (CIDR, IP ranges, short-ranges, individual IPs, or
 original format).
@@ -256,20 +302,24 @@ Extract all unique networks found in input (deduplicated)
 \f[B]\f[VB]--consolidate\f[B]\f[R]
 Consolidate overlapping and adjacent networks into larger blocks
 .TP
-\f[B]\f[VB]--fill-pct\f[B]\f[R] \f[I]N\f[R]
-Allow consolidation to fill gaps up to N% of network size (only with
-\f[V]--consolidate\f[R]; range 0-100)
-.IP \[bu] 2
-Finds the smallest supernet for each network where gap_ratio ≤ N%
-.IP \[bu] 2
-Single-pass: fill-pct applies once per extracted network, then networks
-merge via \f[V]collapse_addresses()\f[R]
-.IP \[bu] 2
-Examples: \f[V]--fill-pct=50\f[R] allows up to 50% gap filling;
-\f[V]--fill-pct=0\f[R] disallows any gap
-.TP
 \f[B]\f[VB]--show-content\f[B]\f[R]
-Include original line content in extract/consolidate output
+Include original line content in extract output (shows where each
+network was found)
+.PP
+\f[B]Clarification on \[en]show-content behavior\f[R]: When used with
+\f[V]--extract\f[R], this flag shows the original line from which each
+network was extracted.
+The format is:
+.IP
+.nf
+\f[C]
+<network>    <original line content>
+\f[R]
+.fi
+.PP
+This helps trace which configuration or context each network came from.
+This flag only works with \f[V]--extract\f[R]; it is not supported with
+\f[V]--consolidate\f[R].
 .TP
 \f[B]\f[VB]--format\f[B]\f[R] {\f[B]cidr\f[R]|\f[B]range\f[R]|\f[B]short-range\f[R]|\f[B]ips\f[R]|\f[B]original\f[R]}
 Output format for networks (default: \f[B]cidr\f[R])
@@ -297,20 +347,14 @@ grepnet --extract network_logs.txt
 # Consolidate overlapping networks into larger blocks
 grepnet --consolidate all_networks.txt
 
-# Consolidate with gap filling (up to 50%)
-grepnet --consolidate --fill-pct=50 network_ranges.txt
-
 # Extract networks matching a pattern, output as ranges
-grepnet --extract \[aq]10.0.0.0/8\[aq] systems.txt --format range
+grepnet --extract -s \[aq]10.0.0.0/8\[aq] systems.txt --format range
 
 # Consolidate and output individual IPs
 grepnet --consolidate --format ips networks.txt
 
 # Consolidate and show which lines contained each network
 grepnet --consolidate --show-content config.txt
-
-# Combine fill-pct with IP list output
-grepnet --consolidate --fill-pct=50 --format ips network_ranges.txt
 \f[R]
 .fi
 .SH FILTERING
@@ -320,13 +364,12 @@ networks or matches that don\[cq]t meet your criteria.
 Two independent filtering approaches:
 .PP
 \f[B]Text-based filtering\f[R] (\f[V]--exclude-string\f[R]): Excludes
-individual network matches whose matched text contains a regex pattern.
-Useful for filtering by context (e.g., \[lq]deprecated\[rq],
-\[lq]testing\[rq], \[lq]archived\[rq]).
-Applied after network matching\[em]a network match is excluded if its
-matched text matches the regex.
-If a line has no remaining matches after text filtering, the entire line
-is removed from output.
+individual network objects based on regex patterns matching the network
+as found in the source.
+Applied after network matching\[em]a network object is excluded if its
+matched text (the exact string representation) matches the provided
+regex pattern.
+Useful for filtering by specific network representations or formats.
 .PP
 \f[B]Network-based filtering\f[R] (\f[V]--exclude-cidr\f[R]): Excludes
 network matches that have specific relationships to excluded CIDR
@@ -337,10 +380,11 @@ networks, keep only external references).
 .PP
 \f[B]Combining filters\f[R]: Text and network filters are independent
 and stackable: -
-\f[V]--exclude-string \[aq]deprecated\[aq] --exclude-cidr \[aq]192.168.0.0/16\[aq]\f[R]
-excludes matches where the text contains \[lq]deprecated\[rq] OR the
-network is in 192.168.0.0/16 - Multiple \f[V]--exclude-string\f[R] or
-\f[V]--exclude-cidr\f[R] flags accumulate (any match causes exclusion)
+\f[V]--exclude-string \[aq]192\[rs].0\[rs].2\[aq] --exclude-cidr \[aq]10.0.0.0/8\[aq]\f[R]
+excludes network objects where the matched text matches
+\[lq]192.0.2\[rq] OR the network falls under 10.0.0.0/8 - Multiple
+\f[V]--exclude-string\f[R] or \f[V]--exclude-cidr\f[R] flags accumulate
+(any match causes exclusion)
 .SS Text Filtering
 .TP
 \f[B]\f[VB]--exclude-string\f[B]\f[R] \f[I]PATTERN\f[R]
@@ -350,11 +394,9 @@ Exclude network matches whose matched text matches regex PATTERN
 \f[B]\f[VB]--exclude-strings-file\f[B]\f[R] \f[I]FILE\f[R]
 Load text patterns to exclude from file
 .PP
-\f[B]Behavior\f[R]: For each network match found, test the matched text
-against each regex pattern.
-If any match, exclude that result.
-If a line\[cq]s last network match is excluded by text filtering, the
-entire line is removed from output.
+\f[B]Behavior\f[R]: For each network match found, test its matched text
+(the network as represented in the source) against each regex pattern.
+If any pattern matches, exclude that network object from results.
 .SS Network Filtering
 .TP
 \f[B]\f[VB]--exclude-cidr\f[B]\f[R] \f[I]NETWORK\f[R]
@@ -612,9 +654,11 @@ searched).
 This allows asymmetric rules like \[lq]accept any format in input, but
 only CIDR in patterns.\[rq]
 .PP
-\f[B]Default behavior\f[R]: All formats accepted everywhere
-(\f[V]both\f[R]).
-This provides maximum flexibility but may catch unintended matches.
+\f[B]Default behavior\f[R]: Most formats default to \f[V]both\f[R]
+(CIDR, netmask, hostmask, ranges, bare IP), except wildcard masks which
+default to \f[V]none\f[R].
+This provides flexibility while preventing ambiguous wildcard matches by
+default.
 .SS Format Options
 .PP
 Each format flag accepts one of four modes:
@@ -653,6 +697,54 @@ Accept single IP addresses without CIDR notation (e.g.,
 Accept long/short range formats (default: \f[B]both\f[R]) -
 \f[B]long\f[R]: \f[V]192.0.2.0-192.0.2.255\f[R] - \f[B]short\f[R]:
 \f[V]192.0.2.0-255\f[R]
+.TP
+\f[B]\f[VB]--parse-wildcard\f[B]\f[R] {\f[B]pattern\f[R]|\f[B]input\f[R]|\f[B]both\f[R]|\f[B]none\f[R]}
+Accept Cisco wildcard mask notation (IPv4 only; default: \f[B]none\f[R])
+- Wildcard masks use the format \f[V]BASE_IP WILDCARD_MASK\f[R] (e.g.,
+\f[V]10.4.0.0 0.0.127.252\f[R]) - Each bit in the mask: 0 = \[lq]must
+match\[rq], 1 = \[lq]don\[cq]t care\[rq] (inverse of CIDR netmask
+semantics) - Represents a range: addresses where all 0-bits match the
+base address exactly, and 1-bits can be any value - Example:
+\f[V]192.0.2.0 0.0.0.192\f[R] matches addresses from 192.0.2.0 to
+192.0.2.195 (192 = binary 11000000) - Commonly used in Cisco ACL rules:
+\f[V]permit ip 10.4.0.0 0.0.127.252 any\f[R] - \f[B]Important\f[R]:
+Wildcard mask parsing is disabled by default (\f[V]none\f[R]) to avoid
+false positives.
+Must explicitly enable with
+\f[V]--parse-wildcard {pattern|input|both}\f[R] AND provide
+\f[V]--wildcard-search\f[R] scope
+.TP
+\f[B]\f[VB]--wildcard-search\f[B]\f[R] \f[I]CIDR_SCOPE\f[R]
+Scope boundary for wildcard mask detection (default: not set; disables
+wildcard parsing) - Wildcard mask must fall within this CIDR block to be
+recognized as valid - Format: Standard CIDR notation (e.g.,
+\f[V]0.0.0.0/17\f[R], \f[V]10.0.0.0/8\f[R]) - Prevents false positives
+by restricting wildcard detection to expected address ranges - Example:
+\f[V]--wildcard-search 10.0.0.0/8\f[R] only recognizes wildcard masks
+where both the base IP and resulting range fall within 10.0.0.0/8 -
+\f[B]Combined with \f[VB]--parse-wildcard\f[B]\f[R]: Both flags are
+required to enable wildcard mask parsing - Typical usage:
+\f[V]grepnet --parse-wildcard both --wildcard-search 0.0.0.0/0 pattern.txt\f[R]
+(enables wildcard parsing for any IPv4 address)
+.TP
+\f[B]\f[VB]--scan-mask\f[B]\f[R] {\f[B]pattern\f[R]|\f[B]input\f[R]|\f[B]both\f[R]|\f[B]none\f[R]}
+Detect netmask vs hostmask format hints from file content (default:
+\f[B]both\f[R]) - Analyzes the first 8 KB of files/patterns to determine
+whether netmask (255.255.255.0 style) or hostmask (0.0.0.255 style)
+format predominates - Provides hints to the parser for more intelligent
+extraction when formats are ambiguous - Scans only the enabled formats
+(respects \f[V]--parse-netmask\f[R] and \f[V]--parse-hostmask\f[R]
+settings) - \f[B]Options\f[R]: - \f[B]pattern\f[R]: Scan patterns only
+for format hints - \f[B]input\f[R]: Scan input files only for format
+hints
+.PD 0
+.P
+.PD
+- \f[B]both\f[R]: Scan patterns and input files (default) -
+\f[B]none\f[R]: Disable hint detection; always use default MSB-based
+heuristics - \f[B]Performance note\f[R]: Reuses the 8 KB peek buffer
+from binary detection; zero additional file reads - Helpful when
+extracting from files with mixed or unknown format preferences
 .SS Common Use Cases
 .PP
 \f[B]Enforce CIDR-only patterns\f[R]:
@@ -704,6 +796,45 @@ grepnet --parse-bare-ip both --parse-cidr none \[rs]
 \f[C]
 # Turn off bare IPs (often ambiguous in mixed data) and hostmask (rarely used)
 grepnet --parse-bare-ip none --parse-hostmask none \[aq]192.0.2.0/24\[aq] data.txt
+\f[R]
+.fi
+.PP
+\f[B]Match Cisco ACL wildcard masks\f[R]:
+.IP
+.nf
+\f[C]
+# Search for networks using Cisco ACL wildcard notation
+grepnet --parse-wildcard both --wildcard-search 0.0.0.0/0 \[rs]
+  \[aq]10.4.0.0 0.0.127.252\[aq] acl-config.txt
+
+# Result: Matches any line containing 10.4.0.0 0.0.127.252 or equivalent range
+# Also matches CIDR 10.4.0.0/17 (same network) if --parse-cidr enabled
+\f[R]
+.fi
+.PP
+\f[B]Extract networks from legacy Cisco configs (mixed formats)\f[R]:
+.IP
+.nf
+\f[C]
+# Accept netmask, hostmask, AND wildcard formats in input
+# Patterns must use CIDR only (modern standard)
+grepnet --parse-cidr both \[rs]
+        --parse-netmask input \[rs]
+        --parse-hostmask input \[rs]
+        --parse-wildcard input \[rs]
+        --wildcard-search 0.0.0.0/0 \[rs]
+        --extract --format cidr legacy-config.txt
+
+# Result: All networks normalized to CIDR, regardless of original format
+\f[R]
+.fi
+.PP
+\f[B]Disable wildcard mask parsing\f[R]:
+.IP
+.nf
+\f[C]
+# Reject wildcard mask formats (while still accepting others)
+grepnet --parse-wildcard none \[aq]192.0.2.0/24\[aq] file.txt
 \f[R]
 .fi
 .SS Asymmetric Parsing Example
@@ -1045,15 +1176,73 @@ grepnet --extract --format cidr config.txt
 \f[R]
 .fi
 .SH BINARY FILE HANDLING
+.PP
+When searching directories, you may encounter binary files (executables,
+libraries, archives).
+By default, grepnet treats binary files specially to avoid corrupting
+output with unprintable characters.
+.PP
+\f[B]Default behavior\f[R]: Binary files are scanned, but if a match is
+found, the entire line is marked as \[lq]binary\[rq] and printed as
+\f[V]Binary file <filename> matches\f[R] instead of the actual match
+content.
+This prevents terminal corruption while still reporting which binary
+files contain matches.
+.PP
+\f[B]When binary handling matters\f[R]: Searching \f[V]/usr/bin\f[R] or
+other directories with mixed binary/text files, or scanning
+backups/archives alongside configs.
+.SS Flags
 .TP
 \f[B]-a\f[R], \f[V]--text\f[R]
-Treat all files as text
+Treat all files as text (even binary files; raw output with potential
+corruption)
+.TP
+\f[B]-U\f[R], \f[V]--binary\f[R]
+Do not strip CR characters at EOL (MSDOS/Windows line endings; still
+respects binary file handling)
 .TP
 \f[B]-I\f[R]
-Skip binary files
+Skip binary files entirely (do not scan; faster for mixed directories)
 .TP
 \f[B]\f[VB]--binary-files\f[B]\f[R] {\f[B]binary\f[R]|\f[B]text\f[R]|\f[B]without-match\f[R]}
-How to handle binary files (default: \f[B]binary\f[R])
+How to handle binary files (default: \f[B]binary\f[R]) -
+\f[B]binary\f[R] (default) - Report matches but show
+\f[V]Binary file <name> matches\f[R] instead of actual line -
+\f[B]text\f[R] - Treat as text (same as \f[V]-a\f[R]; raw output) -
+\f[B]without-match\f[R] - Exclude from results (same as \f[V]-I\f[R])
+.SS Examples
+.PP
+\f[B]Search directories with binary files (safe)\f[R]:
+.IP
+.nf
+\f[C]
+# Search /usr/bin with mixed binary/text files
+grepnet \[aq]192.0.2.0/24\[aq] /usr/bin/
+# Output: Shows \[dq]Binary file /usr/bin/curl matches\[dq] for binary matches
+# No terminal corruption
+\f[R]
+.fi
+.PP
+\f[B]Skip binary files (faster)\f[R]:
+.IP
+.nf
+\f[C]
+# Search config directories, ignore binaries
+grepnet -I \[aq]10.0.0.0/8\[aq] /etc/ /opt/
+# Only scans text files, skips binaries entirely
+\f[R]
+.fi
+.PP
+\f[B]Force text mode (debug only)\f[R]:
+.IP
+.nf
+\f[C]
+# Treat binary as text (rarely needed; may corrupt output)
+grepnet -a \[aq]192.0.2.0/24\[aq] /usr/bin/myapp
+# Raw binary output
+\f[R]
+.fi
 .SH COMMENT FILTERING
 .PP
 Comment filtering controls whether networks inside comments are parsed
@@ -1379,6 +1568,13 @@ T}@T{
 0 (none)
 T}
 T{
+\f[V]wm\f[R]
+T}@T{
+Wildcard mask format (Cisco ACL)
+T}@T{
+4:3 (curly underline)
+T}
+T{
 \f[V]mn\f[R]
 T}@T{
 Normalized CIDR (host bits fixed)
@@ -1484,6 +1680,25 @@ grepnet --no-filter-comments \[aq]192.0.2.0/24\[aq] *.conf
 \f[R]
 .fi
 .PP
+\f[B]Customize wildcard mask highlighting\f[R] (when
+\f[V]--parse-wildcard\f[R] is enabled):
+.IP
+.nf
+\f[C]
+export GREPNET_COLORS=\[dq]wm=01;36\[dq]
+# Wildcard masks shown in bold cyan instead of default curly underline
+grepnet --parse-wildcard both --wildcard-search 0.0.0.0/0 \[aq]10.0.0.0 0.255.255.255\[aq] acl.txt
+\f[R]
+.fi
+.PP
+\f[B]Wildcard Mask Color Code\f[R] (\f[V]wm=\f[R]): - Used only when
+\f[V]--parse-wildcard\f[R] is enabled - Highlights Cisco ACL wildcard
+mask format (e.g., \f[V]192.0.2.0 0.0.0.192\f[R]) - Default:
+\f[V]4:3\f[R] (curly underline) - special SGR codes for underline style
+- Can be customized like other format codes (e.g., \f[V]wm=01;35\f[R]
+for bold magenta) - Applies only to the matched wildcard mask text
+itself, not the entire line
+.PP
 \f[B]High contrast for accessibility\f[R]:
 .IP
 .nf
@@ -1543,7 +1758,6 @@ Output NUL after filename instead of colon
 Useful for safe handling of filenames with special characters:
 \f[V]grepnet -lZ \[aq]192.0.0.0/16\[aq] *.txt | xargs -0 cat\f[R]
 .SH DEBUGGING
-.SH DEBUGGING
 .TP
 \f[B]\f[VB]--debug\f[B]\f[R] [\f[I]FUNCTIONS\f[R]] \f[B](DEPRECATED)\f[R]
 Enable debug output to stderr
@@ -1573,6 +1787,16 @@ Displays grepnet version number and exits.
 Show help and exit
 .PP
 Displays command-line help and exits.
+.SH FILES
+.TP
+\f[B]-\f[R]
+File argument \f[V]-\f[R] (dash) is read as stdin (standard input).
+This allows patterns to be piped through grepnet via commands like
+\f[V]cat file.txt | grepnet PATTERN -\f[R] or when using pattern files
+with \f[V]-f /dev/stdin\f[R].
+.PP
+When no files are specified, grepnet reads from stdin by default.
+Explicitly passing \f[V]-\f[R] is equivalent to the default behavior.
 .SH EXIT STATUS
 .TP
 0
@@ -1706,8 +1930,8 @@ grepnet -e \[aq]192.0.2.0/24\[aq] networks.txt
 \f[R]
 .fi
 .PP
-Returns only lines containing exactly 192.0.2.0/24 (no 192.0.2.0/25, no
-192.0.2.1, no 192.0.0.0/16).
+Returns only lines containing exactly 192.0.2.0/24 or
+192.0.2.0-192.0.2.255 (no 192.0.2.0/25, no 192.0.2.1, no 192.0.0.0/16).
 .PP
 \f[B]Find networks contained within the pattern:\f[R]
 .IP
@@ -1863,9 +2087,12 @@ grepnet --extract firewall_rules.txt
 .fi
 .PP
 Scans the file, finds all network objects (CIDR blocks, ranges, bare
-IPs), and outputs each unique network once.
-Useful for inventory: \[lq]what networks are referenced in this
-config?\[rq]
+IPs, etc.), and outputs each unique network as expressed in the input
+(deduplicates identical expressions only).
+For example, \f[V]192.0.2.0/24\f[R] and \f[V]192.0.2.0-192.0.2.255\f[R]
+are kept separate because they\[cq]re different representations.
+Use \f[V]--format\f[R] to normalize different representations to the
+same output format.
 .PP
 \f[B]Extract and normalize to CIDR:\f[R]
 .IP
@@ -1940,17 +2167,17 @@ Pipeline: extract all networks from rules, consolidate them, then use
 that consolidated set to search application configs.
 .SS Exclusion
 .PP
-\f[B]Exclude deprecated networks:\f[R]
+\f[B]Exclude networks matching a pattern:\f[R]
 .IP
 .nf
 \f[C]
-grepnet --exclude-string \[aq]deprecated\[aq] \[aq]192.0.0.0/16\[aq] config.txt
+grepnet --exclude-string \[aq]\[rs].0$\[aq] \[aq]192.0.0.0/16\[aq] ips.txt
 \f[R]
 .fi
 .PP
-Finds all IPs in 192.0.0.0/16, but skips any line containing the word
-\[lq]deprecated\[rq].
-Useful for active inventory vs.\ archived/commented configs.
+Finds all networks in 192.0.0.0/16, but excludes any whose matched text
+ends with \[lq].0\[rq] (e.g., excludes bare IPs like 192.0.2.0 but keeps
+192.0.2.1 and CIDR blocks like 192.0.2.0/24).
 .PP
 \f[B]Exclude specific network from results:\f[R]
 .IP
@@ -2142,18 +2369,19 @@ Fastest approach when you know what you\[cq]re looking for.
 .IP
 .nf
 \f[C]
-grepnet --parse-pattern netmask \[aq]192.0.2.0/255.255.255.0\[aq] data.txt
+grepnet --parse-netmask pattern \[aq]192.0.2.0 255.255.255.0\[aq] data.txt
 \f[R]
 .fi
 .PP
-Allows patterns to use netmask format instead of only CIDR.
+Allows patterns to use netmask format (base IP with subnet mask,
+space-separated).
 Matches against any format in input file.
 .PP
 \f[B]Accept only CIDR format in input files:\f[R]
 .IP
 .nf
 \f[C]
-grepnet --parse-input cidr \[aq]192.0.2.0/24\[aq] networks.txt
+grepnet --parse-cidr both --parse-netmask none --parse-ranges none --parse-bare-ip none \[aq]192.0.2.0/24\[aq] networks.txt
 \f[R]
 .fi
 .PP
@@ -2775,12 +3003,45 @@ Common values: - \f[V]0\f[R] = reset/no color - \f[V]01\f[R] = bold -
 green, yellow, blue, magenta, cyan, white) - Combine with semicolons:
 \f[V]01;32\f[R] = bold green
 .PP
-\f[B]Example\f[R]:
+\f[B]Examples\f[R]:
+.PP
+\f[B]Customize all match types\f[R]:
 .IP
 .nf
 \f[C]
-export GREPNET_COLORS=\[dq]fn=35 me=01;31 mb=01;36\[dq]
+export GREPNET_COLORS=\[dq]me=01;32 mb=01;34 mS=01;33 mo=01;31\[dq]
+grepnet -e -s -S -O \[aq]192.0.2.0/24\[aq] *.txt
+# Green for equals, blue for subset, yellow for superset, red for overlap
+\f[R]
+.fi
+.PP
+\f[B]Highlight normalized CIDRs\f[R]:
+.IP
+.nf
+\f[C]
+export GREPNET_COLORS=\[dq]mn=01;31\[dq]
+grepnet \[aq]192.0.2.0/24\[aq] config.txt
+# Normalized CIDRs (those with host bits stripped) shown in bold red
+\f[R]
+.fi
+.PP
+\f[B]High-contrast theme for presentations\f[R]:
+.IP
+.nf
+\f[C]
+export GREPNET_COLORS=\[dq]fn=01;37 ln=01;32 mb=01;36 me=01;32 mS=01;33 mo=01;31\[dq]
+grepnet -e -s -S -O \[aq]192.0.0.0/16\[aq] configs/ | less -R
+# Bold white filenames, green line numbers, bold match types, ANSI codes preserved with -R
+\f[R]
+.fi
+.PP
+\f[B]Simplified output (no color)\f[R]:
+.IP
+.nf
+\f[C]
+export GREPNET_COLORS=\[dq]fn=0 ln=0 me=0 mb=0 mS=0 mo=0\[dq]
 grepnet \[aq]192.0.2.0/24\[aq] *.txt
+# All colors disabled, plain output
 \f[R]
 .fi
 .SH AUTHOR
