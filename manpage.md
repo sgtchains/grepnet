@@ -431,6 +431,37 @@ Each format flag accepts one of four modes:
 - **long**: `192.0.2.0-192.0.2.255`
 - **short**: `192.0.2.0-255`
 
+**`--parse-wildcard`** {**pattern**|**input**|**both**|**none**}
+: Accept Cisco wildcard mask notation (IPv4 only; default: **none**)
+- Wildcard masks use the format `BASE_IP WILDCARD_MASK` (e.g., `10.4.0.0 0.0.127.252`)
+- Each bit in the mask: 0 = "must match", 1 = "don't care" (inverse of CIDR netmask semantics)
+- Represents a range: addresses where all 0-bits match the base address exactly, and 1-bits can be any value
+- Example: `192.0.2.0 0.0.0.192` matches addresses from 192.0.2.0 to 192.0.2.195 (192 = binary 11000000)
+- Commonly used in Cisco ACL rules: `permit ip 10.4.0.0 0.0.127.252 any`
+- **Important**: Wildcard mask parsing is disabled by default (`none`) to avoid false positives. Must explicitly enable with `--parse-wildcard {pattern|input|both}` AND provide `--wildcard-search` scope
+
+**`--wildcard-search`** *CIDR_SCOPE*
+: Scope boundary for wildcard mask detection (default: not set; disables wildcard parsing)
+- Wildcard mask must fall within this CIDR block to be recognized as valid
+- Format: Standard CIDR notation (e.g., `0.0.0.0/17`, `10.0.0.0/8`)
+- Prevents false positives by restricting wildcard detection to expected address ranges
+- Example: `--wildcard-search 10.0.0.0/8` only recognizes wildcard masks where both the base IP and resulting range fall within 10.0.0.0/8
+- **Combined with `--parse-wildcard`**: Both flags are required to enable wildcard mask parsing
+- Typical usage: `grepnet --parse-wildcard both --wildcard-search 0.0.0.0/0 pattern.txt` (enables wildcard parsing for any IPv4 address)
+
+**`--scan-mask`** {**pattern**|**input**|**both**|**none**}
+: Detect netmask vs hostmask format hints from file content (default: **both**)
+- Analyzes the first 8 KB of files/patterns to determine whether netmask (255.255.255.0 style) or hostmask (0.0.0.255 style) format predominates
+- Provides hints to the parser for more intelligent extraction when formats are ambiguous
+- Scans only the enabled formats (respects `--parse-netmask` and `--parse-hostmask` settings)
+- **Options**:
+  - **pattern**: Scan patterns only for format hints
+  - **input**: Scan input files only for format hints  
+  - **both**: Scan patterns and input files (default)
+  - **none**: Disable hint detection; always use default MSB-based heuristics
+- **Performance note**: Reuses the 8 KB peek buffer from binary detection; zero additional file reads
+- Helpful when extracting from files with mixed or unknown format preferences
+
 ## Common Use Cases
 
 **Enforce CIDR-only patterns**:
@@ -468,6 +499,36 @@ grepnet --parse-bare-ip both --parse-cidr none \
 ```bash
 # Turn off bare IPs (often ambiguous in mixed data) and hostmask (rarely used)
 grepnet --parse-bare-ip none --parse-hostmask none '192.0.2.0/24' data.txt
+```
+
+**Match Cisco ACL wildcard masks**:
+```bash
+# Search for networks using Cisco ACL wildcard notation
+grepnet --parse-wildcard both --wildcard-search 0.0.0.0/0 \
+  '10.4.0.0 0.0.127.252' acl-config.txt
+
+# Result: Matches any line containing 10.4.0.0 0.0.127.252 or equivalent range
+# Also matches CIDR 10.4.0.0/17 (same network) if --parse-cidr enabled
+```
+
+**Extract networks from legacy Cisco configs (mixed formats)**:
+```bash
+# Accept netmask, hostmask, AND wildcard formats in input
+# Patterns must use CIDR only (modern standard)
+grepnet --parse-cidr both \
+        --parse-netmask input \
+        --parse-hostmask input \
+        --parse-wildcard input \
+        --wildcard-search 0.0.0.0/0 \
+        --extract --format cidr legacy-config.txt
+
+# Result: All networks normalized to CIDR, regardless of original format
+```
+
+**Disable wildcard mask parsing (tighten security)**:
+```bash
+# Prevent accidental wildcard mask parsing in untrusted input
+grepnet --parse-wildcard none '192.0.2.0/24' untrusted.txt
 ```
 
 ## Asymmetric Parsing Example
@@ -733,6 +794,9 @@ grepnet --extract --format cidr config.txt
 **-a**, `--text`
 : Treat all files as text
 
+**-U**, `--binary`
+: Do not strip CR characters at EOL (MSDOS/Windows line endings)
+
 **-I**
 : Skip binary files
 
@@ -917,6 +981,7 @@ Use the `GREPNET_COLORS` environment variable to customize any color element. Fo
 | `mS` | SUPERSET match type | 01;33 (bright yellow) |
 | `mo` | OVERLAP match type | 01;31 (bright red) |
 | `mu` | UNMATCHED networks | 0 (none) |
+| `wm` | Wildcard mask format (Cisco ACL) | 4:3 (curly underline) |
 | `mn` | Normalized CIDR (host bits fixed) | 04 (underline) |
 
 **ANSI color codes** (SGR - Select Graphic Rendition):
@@ -1001,6 +1066,20 @@ export GREPNET_COLORS="mn=04;33"
 grepnet --no-filter-comments '192.0.2.0/24' *.conf
 ```
 
+**Customize wildcard mask highlighting** (when `--parse-wildcard` is enabled):
+```bash
+export GREPNET_COLORS="wm=01;36"
+# Wildcard masks shown in bold cyan instead of default curly underline
+grepnet --parse-wildcard both --wildcard-search 0.0.0.0/0 '10.0.0.0 0.255.255.255' acl.txt
+```
+
+**Wildcard Mask Color Code** (`wm=`):
+- Used only when `--parse-wildcard` is enabled
+- Highlights Cisco ACL wildcard mask format (e.g., `192.0.2.0 0.0.0.192`)
+- Default: `4:3` (curly underline) - special SGR codes for underline style
+- Can be customized like other format codes (e.g., `wm=01;35` for bold magenta)
+- Applies only to the matched wildcard mask text itself, not the entire line
+
 **High contrast for accessibility**:
 ```bash
 export GREPNET_COLORS="fn=01;37 ln=01;32 me=01;36 mb=01;36 mS=01;33 mo=01;31"
@@ -1072,6 +1151,13 @@ Displays grepnet version number and exits.
 : Show help and exit
 
 Displays command-line help and exits.
+
+# FILES
+
+**-**
+: File argument `-` (dash) is read as stdin (standard input). This allows patterns to be piped through grepnet via commands like `cat file.txt | grepnet PATTERN -` or when using pattern files with `-f /dev/stdin`.
+
+When no files are specified, grepnet reads from stdin by default. Explicitly passing `-` is equivalent to the default behavior.
 
 # EXIT STATUS
 
