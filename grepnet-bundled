@@ -2402,6 +2402,185 @@ class InverseMaskExtractor(NetworkExtractor):
     def get_format_type(self) -> str:
         return 'inverse_mask'
 
+# src/grepnet/parsing/extractors/wildcard_mask_extractor.py
+"""
+Wildcard mask extractor for Cisco ACL notation.
+
+Cisco ACL wildcard masks use the inverse of netmask notation:
+- 1-bits in the mask = "don't care" (can be 0 or 1)
+- 0-bits in the mask = "must match exactly"
+
+Example: "10.4.0.0 0.0.127.252" represents a range where the wildcard
+positions can vary across the specified addresses.
+
+This extractor implements the combinatorial bit generation algorithm:
+1. Convert base IP and wildcard mask to 32-bit integers
+2. Clean base IP (force wildcard positions to 0)
+3. Identify wildcard bit positions
+4. Generate all 2^N combinations (where N = wildcard bit count)
+5. Collapse contiguous IPs into minimal CIDR blocks using ipaddress library
+
+Note: Memory/CPU DoS protection is handled at a higher level in the pipeline.
+"""
+
+import re
+from typing import Optional
+from ipaddress import IPv4Address, IPv4Network, collapse_addresses
+
+
+def _wildcard_to_cidrs(base_ip_str: str, wildcard_mask_str: str) -> list:
+    """
+    Convert a Cisco ACL wildcard mask to a list of minimal CIDR blocks.
+    
+    Algorithm:
+    1. Convert both IP strings to 32-bit unsigned integers
+    2. Clean base IP: force all wildcard bit positions to 0 using (base_ip & ~wildcard)
+    3. Find all bit positions where wildcard has a 1 (the "don't care" positions)
+    4. Generate all 2^N combinations (N = wildcard bit count)
+    5. For each combination, overlay the bits onto the cleaned base IP
+    6. Collapse the resulting IP addresses into minimal CIDR blocks
+    
+    Note: Caller is responsible for resource (memory/CPU) limits.
+    
+    Args:
+        base_ip_str: IP address string (e.g., "10.4.0.0")
+        wildcard_mask_str: Wildcard mask string (e.g., "0.0.127.252")
+    
+    Returns:
+        list[IPv4Network]: Aggregated CIDR blocks covering all addresses
+    
+    Raises:
+        ValueError: If IP/mask strings are invalid
+    """
+    # Step 1: Convert to 32-bit integers
+    base_ip = int(IPv4Address(base_ip_str))
+    wildcard = int(IPv4Address(wildcard_mask_str))
+    
+    # Step 2: Clean base IP (force wildcard positions to 0)
+    base_ip &= ~wildcard
+    
+    # Step 3: Find all bit positions where wildcard has a 1
+    wildcard_bit_positions = [i for i in range(32) if (wildcard >> i) & 1]
+    num_wildcard_bits = len(wildcard_bit_positions)
+    
+    # Step 4 & 5: Generate all combinations
+    raw_ips = []
+    for i in range(2 ** num_wildcard_bits):
+        current_ip = base_ip
+        for bit_index in range(num_wildcard_bits):
+            # If bit is set in our counter, set it in the current IP
+            if (i >> bit_index) & 1:
+                pos = wildcard_bit_positions[bit_index]
+                current_ip |= (1 << pos)
+        raw_ips.append(IPv4Address(current_ip))
+    
+    # Step 6: Collapse contiguous IPs into minimal CIDR blocks
+    cidr_blocks = list(collapse_addresses(raw_ips))
+    
+    return cidr_blocks
+
+
+class WildcardMaskExtractor(NetworkExtractor):
+    """
+    Extractor for Cisco ACL wildcard mask notation.
+    
+    Recognizes patterns like: "10.4.0.0 0.0.127.252"
+    
+    Only processes wildcard masks that fall within the search scope.
+    If a mask falls outside the scope, returns None and lets other extractors handle it.
+    
+    Attributes:
+        wildcard_mode_enabled: When True, this extractor is active. When False, skipped.
+        wildcard_search_scope: IPv4Network scope boundary. Only masks within this scope are processed.
+                              If None, all masks are processed (no scope filtering).
+    """
+    
+    # Pattern: two dotted-quad IP addresses separated by whitespace
+    # Matches: "10.4.0.0 0.0.127.252" or "192.168.1.0  0.0.0.255" (multiple spaces OK)
+    PATTERN = re.compile(
+        r'\b'
+        r'(?:(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.){3}'  # First IP
+        r'(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])'
+        r'\s+'
+        r'(?:(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.){3}'  # Second IP (mask)
+        r'(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])'
+        r'\b'
+    )
+    
+    def __init__(self, wildcard_mode_enabled: bool = False, wildcard_search_scope=None):
+        """
+        Initialize the wildcard mask extractor.
+        
+        Args:
+            wildcard_mode_enabled: When False, extraction is skipped (extractor is inactive).
+            wildcard_search_scope: IPv4Network scope boundary. If provided, only wildcard masks
+                                  within this scope are processed. If None, all masks are processed.
+        """
+        self.wildcard_mode_enabled = wildcard_mode_enabled
+        self.wildcard_search_scope = wildcard_search_scope
+    
+    def extract(self, text: str) -> Optional[_RawExtraction]:
+        """
+        Extract first wildcard mask range from text.
+        
+        If wildcard_mode_enabled is False, returns None (extractor is skipped).
+        If wildcard_search_scope is set, only processes masks within that scope.
+        
+        Args:
+            text: Text to search for wildcard masks
+        
+        Returns:
+            _RawExtraction if match found and passes scope validation, None otherwise
+        """
+        if not self.wildcard_mode_enabled:
+            return None
+        
+        match = self.PATTERN.search(text)
+        if not match:
+            return None
+        
+        matched_text = match.group(0)
+        parts = matched_text.split()
+        
+        if len(parts) != 2:
+            return None
+        
+        base_ip_str, wildcard_mask_str = parts
+        
+        try:
+            # Validate scope if provided
+            if self.wildcard_search_scope is not None:
+                # Check if the wildcard mask (as an IP address) falls within the search scope
+                wildcard_mask_ip = IPv4Address(wildcard_mask_str)
+                if wildcard_mask_ip not in self.wildcard_search_scope:
+                    # Mask is outside scope - return None, let other extractors handle it
+                    return None
+            
+            # Expand the wildcard mask to CIDR blocks
+            expanded_cidrs = _wildcard_to_cidrs(base_ip_str, wildcard_mask_str)
+            
+            # Create WildcardMaskRange with original text and expanded CIDRs
+            wildcard_range = WildcardMaskRange(
+                original_text=matched_text,
+                expanded_cidrs=expanded_cidrs
+            )
+            
+            # Return extraction
+            return _RawExtraction(
+                network=wildcard_range,
+                format_type='wildcard_mask',
+                matched_text=matched_text,
+                was_normalized=False
+            )
+            
+        except (ValueError, WildcardMaskTooLargeError):
+            # Invalid IP/mask format or too many bits - return None
+            return None
+    
+    def get_format_type(self) -> str:
+        """Return the format type this extractor produces."""
+        return 'wildcard_mask'
+
 # src/grepnet/parsing/extractors/ipv6_extractor.py
 """
 IPv6 address and CIDR extractor.
@@ -2947,7 +3126,7 @@ class NetworkParser:
         self.exclude_cidrs = exclude_cidrs or []
         self.exclude_cidr_behavior = exclude_cidr_behavior
         self.exclude_cidr_behavior_strict = exclude_cidr_behavior_strict
-        self.match_type_filter = match_type_filter or set()
+        self.match_type_filter = match_type_filter if match_type_filter is not None else set()
         self.invert_match = invert_match
         
         # Initialize comment handler
@@ -3072,7 +3251,7 @@ class NetworkParser:
         
         return True
     
-    def parse_line(self, line: str, line_number: int = 0, context: str = 'input', mask_format_hint: Optional[str] = None) -> List[ParsedExtraction]:
+    def parse_line(self, line: str, line_number: int = 0, context: str = 'input', mask_format_hint: Optional[str] = None, apply_filter: bool = True) -> List[ParsedExtraction]:
         """
         Extract ALL networks from a line (never rejects line wholesale).
         
@@ -3095,6 +3274,8 @@ class NetworkParser:
             line_number: Line number (1-based, for reference)
             context: Context for parsing ('pattern' for search patterns, 'input' for file input)
             mask_format_hint: Format hint from peek buffer analysis (used for Special Cases 1 & 2)
+            apply_filter: If True, apply pattern matching and exclusion filters (for extract/consolidate modes).
+                         If False, return all extracted networks (for normal search mode).
         
         Returns:
             List of ParsedExtraction objects, deduplicated by network value.
@@ -3368,29 +3549,43 @@ class NetworkParser:
             deduped.append(extraction_with_texts)
         
         # Apply filtering (pattern matching and exclusion filters)
-        filtered = []
-        for extraction in deduped:
-            # 1. Check pattern matching (if patterns provided)
-            if self.parsed_patterns:
-                match_found = False
-                for pattern in self.parsed_patterns:
-                    match_type = self._find_match_type(extraction, pattern)
-                    if match_type in self.match_type_filter:
-                        match_found = True
-                        break
-                if self.invert_match:
-                    match_found = not match_found
-                if not match_found:
+        # Note: Filtering is only applied when apply_filter=True (extract/consolidate modes)
+        # For normal search mode, filtering is done later in _search_source
+        if apply_filter:
+            filtered = []
+            for extraction in deduped:
+                # 1. Check pattern matching (if patterns provided)
+                if self.parsed_patterns:
+                    match_found = False
+                    for pattern in self.parsed_patterns:
+                        match_type = self._find_match_type(extraction, pattern)
+                        if match_type in self.match_type_filter:
+                            match_found = True
+                            break
+                    if self.invert_match:
+                        match_found = not match_found
+                    if not match_found:
+                        continue
+                
+                # 2. Check exclusion filters (if provided)
+                if self._is_excluded(extraction):
                     continue
+                
+                # Network passed all filters
+                filtered.append(extraction)
             
-            # 2. Check exclusion filters (if provided)
-            if self._is_excluded(extraction):
-                continue
+            return filtered
+        else:
+            # For normal search mode, only apply exclusion filters (not pattern matching)
+            # Pattern matching filtering will be done in _search_source
+            filtered = []
+            for extraction in deduped:
+                # Only check exclusion filters
+                if self._is_excluded(extraction):
+                    continue
+                filtered.append(extraction)
             
-            # Network passed all filters
-            filtered.append(extraction)
-        
-        return filtered
+            return filtered
     
     def parse_text(self, text: str) -> List[tuple]:
         """
@@ -3486,7 +3681,7 @@ class NetworkParser:
                 # Check for overlap
                 if not (file_end < pattern_start or file_start > pattern_end):
                     return MatchType.OVERLAP
-            return None
+            return MatchType.UNMATCHED
         
         # Both are CIDR networks
         if not file_is_range and not pattern_is_range:
@@ -3501,7 +3696,7 @@ class NetworkParser:
                     return MatchType.OVERLAP
             except (AttributeError, TypeError):
                 pass
-            return None
+            return MatchType.UNMATCHED
         
         # Cross-type: convert to ranges and compare
         try:
@@ -3528,7 +3723,7 @@ class NetworkParser:
         except (AttributeError, TypeError):
             pass
         
-        return None
+        return MatchType.UNMATCHED
     
     def _is_excluded(self, extraction: 'ParsedExtraction') -> bool:
         """
@@ -3845,7 +4040,7 @@ class GrepNet:
         self.strict_cidr_action = strict_cidr_action
         self.strict_cidr_mode = strict_cidr_mode
         self.enable_colors = enable_colors
-        self.match_type_filter = match_type_filter or [
+        self.match_type_filter = match_type_filter if match_type_filter is not None else [
             MatchType.EQUALS,
             MatchType.SUBSET,
             MatchType.SUPERSET,
@@ -4472,27 +4667,29 @@ class GrepNet:
         
         return True
     
-    def _check_match_type_against_pattern(self, matcher, pattern_start_or_net, pattern_end=None) -> MatchType:
+    def _check_match_type_against_pattern(self, matcher, pattern_start_or_net, pattern_end=None, apply_filter=True) -> MatchType:
         """
         Check matcher against pattern in priority order.
         
         Checks match types in priority order and returns the first match found.
-        Only returns types that are in self.match_type_filter.
+        By default, only returns types that are in self.match_type_filter.
         
         Args:
             matcher: CIDRMatcher or RangeMatcher instance
             pattern_start_or_net: Pattern network (CIDR) or start int (Range)
             pattern_end: End int (only for Range matcher)
+            apply_filter: If True, only return match types in self.match_type_filter.
+                         If False, return the actual match type (for normal search mode).
         
         Returns:
-            MatchType (from match_type_filter, or UNMATCHED)
+            MatchType (from match_type_filter if apply_filter=True, or actual type)
         """
         # Priority order for checking
         check_order = [MatchType.EQUALS, MatchType.SUBSET, MatchType.SUPERSET, MatchType.OVERLAP]
         
         for match_type in check_order:
-            # Skip if this match type is not in the filter
-            if match_type not in self.match_type_filter:
+            # Skip if applying filter and this match type is not in the filter
+            if apply_filter and match_type not in self.match_type_filter:
                 continue
             
             # Check if this match type applies
@@ -4605,7 +4802,8 @@ class GrepNet:
         # Iterate over lines
         for line_number, line_content, byte_offset in source.lines():
             # Parse networks from this line, passing mask format hint
-            file_extractions = self.parser.parse_line(line_content, context='input', mask_format_hint=mask_format_hint)
+            # apply_filter=False because filtering by match_type is done later in _search_source
+            file_extractions = self.parser.parse_line(line_content, context='input', mask_format_hint=mask_format_hint, apply_filter=False)
             
             # Validate strict CIDR in input if requested
             if self.strict_cidr_mode in ['input', 'both'] and file_extractions:
@@ -4678,8 +4876,7 @@ class GrepNet:
                     if self._is_match_in_filter(match_type):
                         any_match_on_line = True
                         # Mark this network for styling
-                        networks_to_mark.add(network_key)
-                
+                        networks_to_mark.add(network_key)                
                 # ALSO mark networks for styling if they were normalized
                 # (even if they don't match any pattern)
                 # Only if mark_normalized is enabled
@@ -4838,6 +5035,7 @@ class GrepNet:
         self,
         file_extraction: ParsedExtraction,
         pattern_extraction: ParsedExtraction,
+        apply_filter: bool = False,
     ) -> MatchType:
         """
         Determine match type between file network and pattern.
@@ -4860,6 +5058,8 @@ class GrepNet:
         Args:
             file_extraction: Network from file
             pattern_extraction: Network from pattern
+            apply_filter: If True, only return match types in self.match_type_filter (for extraction mode).
+                         If False, return the actual match type (for normal search mode).
         
         Returns:
             MatchType
@@ -4872,7 +5072,7 @@ class GrepNet:
         pattern_is_wildcard = isinstance(pattern_net, WildcardMaskRange)
         
         if file_is_wildcard or pattern_is_wildcard:
-            return self._find_match_type_with_wildcard(file_net, pattern_net, file_is_wildcard, pattern_is_wildcard)
+            return self._find_match_type_with_wildcard(file_net, pattern_net, file_is_wildcard, pattern_is_wildcard, apply_filter)
         
         # Check if both are CIDR or both are ranges
         file_is_cidr = isinstance(file_net, (IPv4Network, IPv6Network))
@@ -4883,12 +5083,12 @@ class GrepNet:
             if file_is_cidr:
                 # CIDR vs CIDR matching
                 matcher = CIDRMatcher([file_net])
-                return self._check_match_type_against_pattern(matcher, pattern_net)
+                return self._check_match_type_against_pattern(matcher, pattern_net, apply_filter=apply_filter)
             else:
                 # Range vs Range matching
                 matcher = RangeMatcher([file_net])
                 pattern_start, pattern_end = pattern_net
-                return self._check_match_type_against_pattern(matcher, pattern_start, pattern_end)
+                return self._check_match_type_against_pattern(matcher, pattern_start, pattern_end, apply_filter=apply_filter)
         else:
             # Cross-type matching: convert both to ranges and compare
             # CIDR networks have int() conversion that gives network address
@@ -4897,7 +5097,7 @@ class GrepNet:
             
             # Now both are (start_int, end_int) tuples, use range matcher
             matcher = RangeMatcher([(file_start, file_end)])
-            return self._check_match_type_against_pattern(matcher, pattern_start, pattern_end)
+            return self._check_match_type_against_pattern(matcher, pattern_start, pattern_end, apply_filter=apply_filter)
     
     def _find_match_type_with_wildcard(
         self,
@@ -4905,6 +5105,7 @@ class GrepNet:
         pattern_net: object,
         file_is_wildcard: bool,
         pattern_is_wildcard: bool,
+        apply_filter: bool = False,
     ) -> MatchType:
         """
         Handle matching when WildcardMaskRange is involved.
@@ -4931,11 +5132,9 @@ class GrepNet:
         
         # Priority: EQUALS > SUBSET > SUPERSET > OVERLAP
         
-        # 1. Check EQUALS: Does any file CIDR equal any pattern CIDR?
-        for file_cidr in file_cidrs:
-            for pattern_cidr in pattern_cidrs:
-                if file_cidr == pattern_cidr:
-                    return MatchType.EQUALS
+        # 1. Check EQUALS: Are the sets exactly equal?
+        if file_cidrs_set == pattern_cidrs_set:
+            return MatchType.EQUALS
         
         # 2. Check SUBSET: Are all pattern CIDRs subsets of (contained in) file CIDRs?
         # Pattern set ⊆ file set (all pattern addresses are in file)

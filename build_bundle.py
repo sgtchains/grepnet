@@ -34,6 +34,7 @@ def get_module_order():
         'src/grepnet/parsing/extractors/ip_range_extractor.py',
         'src/grepnet/parsing/extractors/subnet_mask_extractor.py',
         'src/grepnet/parsing/extractors/inverse_mask_extractor.py',
+        'src/grepnet/parsing/extractors/wildcard_mask_extractor.py',
         'src/grepnet/parsing/extractors/ipv6_extractor.py',
         'src/grepnet/parsing/mask_format_detector.py',
         'src/grepnet/parsing/comment_handler.py',
