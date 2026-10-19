@@ -817,14 +817,35 @@ class GrepNet:
             - 'consolidate' mode: dict {network_object -> (ParsedExtraction, line_content)}
         """
         if mode == 'extract':
-            # Extract mode: return deduplicated networks dict
-            return self.extract_networks(input_sources)
+            # Extract mode: return deduplicated networks dict (with exclusion filters applied)
+            networks_dict = self.extract_networks(input_sources)
+            return self._apply_extraction_filters(networks_dict)
         elif mode == 'consolidate':
-            # Consolidate mode: return consolidated networks dict
-            return self.consolidate_networks(input_sources)
+            # Consolidate mode: return consolidated networks dict (with exclusion filters applied)
+            consolidated_dict = self.consolidate_networks(input_sources)
+            return self._apply_extraction_filters(consolidated_dict)
         else:  # mode == 'normal'
             # Standard mode: stream MatchResult objects
             return self._search_generator(input_sources, yield_all_lines)
+    
+    def _apply_extraction_filters(self, networks_dict: dict) -> dict:
+        """
+        Apply exclusion filters to extraction/consolidation results.
+        
+        This mirrors the filtering applied in normal mode via _is_excluded(),
+        ensuring consistent behavior across all output modes.
+        
+        Args:
+            networks_dict: Dict from extract_networks or consolidate_networks
+        
+        Returns:
+            Filtered dict with excluded networks removed
+        """
+        filtered_dict = {}
+        for net_obj, (parsed_ext, line_content) in networks_dict.items():
+            if not self._check_extraction_excluded(parsed_ext):
+                filtered_dict[net_obj] = (parsed_ext, line_content)
+        return filtered_dict
     
     def _search_generator(self, input_sources: List[InputSource], yield_all_lines: bool = False) -> Iterator[MatchResult]:
         """
@@ -1334,19 +1355,13 @@ class GrepNet:
         
         return networks_dict
     
-    def consolidate_networks(self, input_sources: List[InputSource]) -> dict:
+    def consolidate_networks(self, networks_dict: dict) -> dict:
         """
         Consolidate (merge overlapping/adjacent) networks using trie-based algorithm.
         
         CRITICAL: Consolidate = Extract + Merge
-        This follows the standard consolidation pipeline:
-        1. Extract deduplicated networks
-        2. Convert ranges to CIDR blocks
-        3. Use trie-based consolidation for optimal merging (1.7x-2.3x faster than stdlib)
-        4. Return consolidated network dictionary
-        
-        Implementation note: This function uses extract_networks() as its foundation,
-        maintaining the "Consolidate = Extract + Merge" architectural relationship.
+        This function takes PRE-EXTRACTED, PRE-FILTERED networks and merges them.
+        Filtering must happen BEFORE this function receives networks.
         
         Algorithm: Trie-based consolidation with sibling merging:
         - Build binary trie of IP prefixes
@@ -1356,7 +1371,8 @@ class GrepNet:
         - Performance: O(n * log(32|128)) vs stdlib's O(n log n)
         
         Args:
-            input_sources: List of InputSource objects to process
+            networks_dict: Pre-extracted, pre-filtered dict from extract_networks()
+                          {network_object -> (ParsedExtraction, line_content)}
         
         Returns:
             dict: {consolidated_network_object -> (ParsedExtraction, line_content)}
@@ -1365,9 +1381,6 @@ class GrepNet:
             Values are ParsedExtraction + line_content from the first network in each supernet
         """
         from ipaddress import ip_network
-        
-        # Step 1: Extract unique networks
-        networks_dict = self.extract_networks(input_sources)
         
         if not networks_dict:
             return {}

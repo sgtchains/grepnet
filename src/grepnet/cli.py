@@ -970,12 +970,10 @@ def run():
                         networks_dict = grepnet._apply_cut_exclusion(networks_dict)
                     
                     # Output extracted networks
+                    # Note: Exclusion filters (--exclude-string, --exclude-cidr) are already applied
+                    # during extraction in extract_networks(), so we only apply cut and prefix filters here
                     for parsed_extraction, line_content in networks_dict.values():
-                        # Apply exclusion filters (skip cut, as it was already applied)
-                        if args.exclude_cidr_behavior != 'cut' and grepnet._check_extraction_excluded(parsed_extraction):
-                            continue
-                        
-                        # Apply prefix length filters (after exclusion and cut)
+                        # Apply prefix length filters (after cut if applicable)
                         if not grepnet._passes_prefix_length_filter(parsed_extraction.network):
                             continue
                         

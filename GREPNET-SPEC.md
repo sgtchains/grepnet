@@ -622,6 +622,34 @@ Networks are extracted in a deliberate fixed order to avoid duplication:
 
 **Why this order matters**: If you extract plain IPs first, then a CIDR block `192.0.2.0/24` would produce five matches: the network address, three intermediate addresses, and the broadcast address—all from the same logical network. The extraction order prevents this.
 
+### Disabled Format Handling
+
+When a format is disabled via parsing control flags (e.g., `--parse-cidr=none`), that step in the extraction order is **skipped**. The parser attempts to match with the next enabled format in the priority list.
+
+**Examples**:
+
+1. **Input**: `192.0.2.0/24` with `--parse-cidr=none` (CIDR disabled in input scope)
+   - Step 1 (CIDR): Skipped (disabled)
+   - Step 2-4 (Masks): Text doesn't match mask format (no space separator) → Fail
+   - Step 5-6 (Ranges): Text doesn't contain `-` → Fail
+   - Step 7 (Plain IPs): Extracts `192.0.2.0` as bare /32 IP
+   - **Result**: Single match for `192.0.2.0/32`
+
+2. **Input**: `192.0.2.0 255.255.255.0` with `--parse-netmask=none` (subnet mask disabled)
+   - Step 1 (CIDR): Text has space → Not CIDR format → Fail
+   - Step 2 (Subnet Mask): Skipped (disabled)
+   - Step 3 (Inverse Mask): Text has MSB=1 in second value → Invalid for inverse mask → Fail
+   - Step 4-6 (Wildcard, Ranges): Don't match → Fail
+   - Step 7 (Plain IPs): Extracts both IPs as separate bare addresses
+   - **Result**: Two matches: `192.0.2.0/32` and `255.255.255.0/32`
+
+3. **Input**: `192.0.2.0 0.0.0.255` with both `--parse-netmask=none` and `--parse-hostmask=none` (both mask formats disabled)
+   - Steps 2-3 (Masks): Both skipped
+   - Step 7 (Plain IPs): Extracts both IPs as separate bare addresses
+   - **Result**: Two matches: `192.0.2.0/32` and `0.0.0.255/32`
+
+**Note on bare IP extraction**: Bare IP extraction itself can be disabled via `--parse-bare-ip=none`. When ALL formats are disabled, no networks are extracted from that input.
+
 ### Deduplication During Extraction
 
 A set tracks already-extracted tokens. When a broader network is found (e.g., CIDR block), all components (individual IPs, smaller ranges) are marked as "found" to prevent re-extraction.
@@ -1947,8 +1975,7 @@ If `--exclude-string` or `--exclude-strings-file` specified, filter results by t
 ```bash
 grepnet 192.0.0.0/8 file.txt \
 --exclude-string '192.0.[34]..' \
---exclude-string '\b0::0/[01]\b' \
---exclude-string '(test|deprecated)'
+--exclude-string '\b0::0/[01]\b'
 ```
 
 Results are excluded if their original text matches:

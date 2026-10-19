@@ -100,6 +100,13 @@ class NetworkParser:
         parse_bare_ip: str = 'both',
         scan_mask: str = 'both',
         range_format: str = 'both',
+        parsed_patterns: Optional[List] = None,
+        exclude_strings: Optional[List[str]] = None,
+        exclude_cidrs: Optional[List] = None,
+        exclude_cidr_behavior: str = 'subset',
+        exclude_cidr_behavior_strict: bool = False,
+        match_type_filter: Optional[Set] = None,
+        invert_match: bool = False,
     ):
         """
         Initialize parser.
@@ -116,6 +123,13 @@ class NetworkParser:
             parse_bare_ip: Where to accept bare IPs ('pattern', 'input', 'both', 'none')
             scan_mask: Where to scan for format hints ('pattern', 'input', 'both', 'none')
             range_format: Range format preference ('long', 'short', 'both', 'none')
+            parsed_patterns: List of ParsedExtraction pattern objects (for pattern matching in extract/consolidate)
+            exclude_strings: List of regex patterns to exclude (--exclude-string)
+            exclude_cidrs: List of network objects to exclude (--exclude-cidr)
+            exclude_cidr_behavior: Exclusion behavior ('subset', 'subset-strict', 'superset', etc.)
+            exclude_cidr_behavior_strict: Whether to use strict matching
+            match_type_filter: Set of match types to filter on (for extract/consolidate pattern matching)
+            invert_match: Whether to invert match results
         """
         self.filter_comments = filter_comments
         self.strict_mode = strict_mode
@@ -128,6 +142,13 @@ class NetworkParser:
         self.parse_bare_ip = parse_bare_ip
         self.scan_mask = scan_mask
         self.range_format = range_format
+        self.parsed_patterns = parsed_patterns or []
+        self.exclude_strings = exclude_strings or []
+        self.exclude_cidrs = exclude_cidrs or []
+        self.exclude_cidr_behavior = exclude_cidr_behavior
+        self.exclude_cidr_behavior_strict = exclude_cidr_behavior_strict
+        self.match_type_filter = match_type_filter or set()
+        self.invert_match = invert_match
         
         # Initialize comment handler
         self.comment_handler = CommentHandler()
