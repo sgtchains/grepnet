@@ -478,12 +478,13 @@ Each format flag accepts one of four modes:
 
 **`--wildcard-search`** *CIDR_SCOPE*
 : Scope boundary for wildcard mask detection (default: not set; disables wildcard parsing)
-- Wildcard mask must fall within this CIDR block to be recognized as valid
-- Format: Standard CIDR notation (e.g., `0.0.0.0/17`, `10.0.0.0/8`)
-- Prevents false positives by restricting wildcard detection to expected address ranges
-- Example: `--wildcard-search 10.0.0.0/8` only recognizes wildcard masks where both the base IP and resulting range fall within 10.0.0.0/8
+- Only wildcard masks whose mask value (second IP) falls within this CIDR block are recognized as valid
+- Format: Standard CIDR notation (e.g., `10.0.0.0/8`, `172.16.0.0/12`)
+- Prevents false positives by restricting which mask patterns are treated as wildcard masks
+- Must be narrower than `/0` (rejects `0.0.0.0/0` as too broad to be useful)
+- Example: `--wildcard-search 10.0.0.0/8` recognizes wildcard masks where the mask value falls in the 10.0.0.0/8 range
 - **Combined with `--parse-wildcard`**: Both flags are required to enable wildcard mask parsing
-- Typical usage: `grepnet --parse-wildcard both --wildcard-search 0.0.0.0/0 pattern.txt` (enables wildcard parsing for any IPv4 address)
+- Typical usage: `grepnet --parse-wildcard both --wildcard-search 10.0.0.0/8 pattern.txt`
 
 **`--scan-mask`** {**pattern**|**input**|**both**|**none**}
 : Detect netmask vs hostmask format hints from file content (default: **both**)

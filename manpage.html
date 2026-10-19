@@ -883,17 +883,17 @@ with <code>--parse-wildcard {pattern|input|both}</code> AND provide
 <em>CIDR_SCOPE</em></dt>
 <dd>
 Scope boundary for wildcard mask detection (default: not set; disables
-wildcard parsing) - Wildcard mask must fall within this CIDR block to be
-recognized as valid - Format: Standard CIDR notation (e.g.,
-<code>0.0.0.0/17</code>, <code>10.0.0.0/8</code>) - Prevents false
-positives by restricting wildcard detection to expected address ranges -
-Example: <code>--wildcard-search 10.0.0.0/8</code> only recognizes
-wildcard masks where both the base IP and resulting range fall within
-10.0.0.0/8 - <strong>Combined with
-<code>--parse-wildcard</code></strong>: Both flags are required to
-enable wildcard mask parsing - Typical usage:
-<code>grepnet --parse-wildcard both --wildcard-search 0.0.0.0/0 pattern.txt</code>
-(enables wildcard parsing for any IPv4 address)
+wildcard parsing) - Only wildcard masks whose mask value (second IP)
+falls within this CIDR block are recognized as valid - Format: Standard
+CIDR notation (e.g., <code>10.0.0.0/8</code>,
+<code>172.16.0.0/12</code>) - Prevents false positives by restricting
+which mask patterns are treated as wildcard masks - Must be narrower
+than <code>/0</code> (rejects <code>0.0.0.0/0</code> as too broad to be
+useful) - Example: <code>--wildcard-search 10.0.0.0/8</code> recognizes
+wildcard masks where the mask value falls in the 10.0.0.0/8 range -
+<strong>Combined with <code>--parse-wildcard</code></strong>: Both flags
+are required to enable wildcard mask parsing - Typical usage:
+<code>grepnet --parse-wildcard both --wildcard-search 10.0.0.0/8 pattern.txt</code>
 </dd>
 <dt><strong><code>--scan-mask</code></strong>
 {<strong>pattern</strong>|<strong>input</strong>|<strong>both</strong>|<strong>none</strong>}</dt>
