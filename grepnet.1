@@ -878,12 +878,12 @@ However, CIDR notation, subnet masks, inverse masks, and IP ranges are
 still extracted normally, regardless of whether OIDs are present.
 .PP
 \f[B]Why this distinction matters:\f[R] - Bare IPs (e.g.,
-\f[V]1.3.6\f[R]) are ambiguous\[em]could be version numbers, OID
-components, or actual IP addresses - CIDR notation (e.g.,
-\f[V]10.0.0.0/8\f[R]) is unambiguous\[em]always a network object -
-Subnet masks, ranges, and inverse masks are also unambiguous\[em]always
-network objects - Therefore, only bare IP extraction needs to be guarded
-against false positives
+\f[V]192.0.2.1\f[R]) can be ambiguous in OID context\[em]could look like
+OID components - CIDR notation (e.g., \f[V]10.0.0.0/8\f[R]) is
+unambiguous\[em]always a network object - Subnet masks, ranges, and
+inverse masks are also unambiguous\[em]always network objects -
+Therefore, only bare IP extraction needs to be guarded against false
+positives
 .PP
 \f[B]Example:\f[R]
 .IP

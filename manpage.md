@@ -597,7 +597,7 @@ SNMP (Simple Network Management Protocol) uses OID (Object Identifier) notation 
 When a line contains an SNMP OID pattern (4+ dot-separated numeric parts with each part 0-4 digits), plain bare IP extraction is skipped for that line. However, CIDR notation, subnet masks, inverse masks, and IP ranges are still extracted normally, regardless of whether OIDs are present.
 
 **Why this distinction matters:**
-- Bare IPs (e.g., `1.3.6`) are ambiguous—could be version numbers, OID components, or actual IP addresses
+- Bare IPs (e.g., `192.0.2.1`) can be ambiguous in OID context—could look like OID components
 - CIDR notation (e.g., `10.0.0.0/8`) is unambiguous—always a network object
 - Subnet masks, ranges, and inverse masks are also unambiguous—always network objects
 - Therefore, only bare IP extraction needs to be guarded against false positives
