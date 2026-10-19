@@ -1073,9 +1073,10 @@ phase</strong>: The original file line WITH comments is printed
 <p><strong>Recognized comment markers</strong>: <code>#</code>,
 <code>!</code>, <code>--</code>, <code>//</code>, <code>/* */</code>,
 <code>&lt;!-- --&gt;</code>, <code>;</code></p>
-<p><strong>Recognized Cisco keywords</strong> (must be preceded/followed
-by whitespace): <code>remark</code>, <code>rem</code>,
-<code>description</code>, <code>desc</code> (case-insensitive)</p>
+<p><strong>Recognized Cisco keywords</strong> (must be followed by
+whitespace or end of line): <code>remark</code>, <code>rem</code>,
+<code>description</code>, <code>desc</code> (case-insensitive). Can
+appear at start of line or after whitespace.</p>
 <p><strong>Critical distinction</strong>: The entire line is output when
 matched, but networks in the comment portion are NOT parsed, extracted,
 or counted in results.</p>

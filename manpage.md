@@ -890,7 +890,7 @@ Comment filtering controls whether networks inside comments are parsed and match
 
 **Recognized comment markers**: `#`, `!`, `--`, `//`, `/* */`, `<!-- -->`, `;`
 
-**Recognized Cisco keywords** (must be preceded/followed by whitespace): `remark`, `rem`, `description`, `desc` (case-insensitive)
+**Recognized Cisco keywords** (must be followed by whitespace or end of line): `remark`, `rem`, `description`, `desc` (case-insensitive). Can appear at start of line or after whitespace.
 
 **Critical distinction**: The entire line is output when matched, but networks in the comment portion are NOT parsed, extracted, or counted in results.
 
