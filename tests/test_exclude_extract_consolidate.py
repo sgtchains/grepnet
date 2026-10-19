@@ -46,10 +46,14 @@ class TestExcludeStringWithExtractConsolidate(unittest.TestCase):
             
             input_source = InputSource('file', file_path=temp_file)
             
+            # First extract networks (filtering already applied via parse_line)
+            extracted_dict = grepnet.extract_networks([input_source])
+            
             if consolidate:
-                result_dict = grepnet.consolidate_networks([input_source])
+                # Then consolidate if requested
+                result_dict = grepnet.consolidate_networks(extracted_dict)
             else:
-                result_dict = grepnet.extract_networks([input_source])
+                result_dict = extracted_dict
             
             # Convert dict to sorted list of network strings
             networks = [str(net_obj) for net_obj in result_dict.keys()]
@@ -189,10 +193,14 @@ class TestExcludeCidrWithExtractConsolidate(unittest.TestCase):
             
             input_source = InputSource('file', file_path=temp_file)
             
+            # First extract networks (filtering already applied via parse_line)
+            extracted_dict = grepnet.extract_networks([input_source])
+            
             if consolidate:
-                result_dict = grepnet.consolidate_networks([input_source])
+                # Then consolidate if requested
+                result_dict = grepnet.consolidate_networks(extracted_dict)
             else:
-                result_dict = grepnet.extract_networks([input_source])
+                result_dict = extracted_dict
             
             # Convert dict to sorted list of network strings
             networks = [str(net_obj) for net_obj in result_dict.keys()]
@@ -279,7 +287,9 @@ class TestExclusionRegression(unittest.TestCase):
             )
             
             input_source = InputSource('file', file_path=temp_file)
-            result_dict = grepnet.consolidate_networks([input_source])
+            # Extract first, then consolidate
+            extracted_dict = grepnet.extract_networks([input_source])
+            result_dict = grepnet.consolidate_networks(extracted_dict)
             
             networks = sorted([str(net_obj) for net_obj in result_dict.keys()])
             
@@ -312,8 +322,9 @@ class TestExclusionRegression(unittest.TestCase):
             extract_dict = grepnet.extract_networks([input_source])
             extract_nets = sorted([str(net_obj) for net_obj in extract_dict.keys()])
             
-            # Consolidate result
-            consolidate_dict = grepnet.consolidate_networks([input_source])
+            # Consolidate result (extract first, then consolidate)
+            extracted_dict = grepnet.extract_networks([input_source])
+            consolidate_dict = grepnet.consolidate_networks(extracted_dict)
             consolidate_nets = sorted([str(net_obj) for net_obj in consolidate_dict.keys()])
             
             # Both should exclude 0.0.0.0/0

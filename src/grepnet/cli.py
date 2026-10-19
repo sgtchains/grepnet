@@ -877,6 +877,7 @@ def run():
                 exclude_extractions = grepnet.parser.parse_line(cidr_str)
                 exclude_cidrs.extend([e.network for e in exclude_extractions])
             grepnet.exclude_cidrs = exclude_cidrs
+            grepnet.parser.exclude_cidrs = exclude_cidrs  # Also update the parser
     except Exception as e:
         if not args.no_messages:
             import traceback

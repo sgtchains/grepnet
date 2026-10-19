@@ -178,7 +178,10 @@ class TestParseNetmaskNoneConsolidateMode(unittest.TestCase):
                 parse_bare_ip='both',
             )
             input_sources = [InputSource('file', file_path=temp_file)]
-            consolidated_dict = grepnet.consolidate_networks(input_sources)
+
+            networks_dict = grepnet.extract_networks(input_sources)
+
+            consolidated_dict = grepnet.consolidate_networks(networks_dict)
             
             # Should consolidate to one network: 0.0.0.0/24
             self.assertEqual(len(consolidated_dict), 1)
@@ -201,7 +204,10 @@ class TestParseNetmaskNoneConsolidateMode(unittest.TestCase):
                 parse_bare_ip='both',
             )
             input_sources = [InputSource('file', file_path=temp_file)]
-            consolidated_dict = grepnet.consolidate_networks(input_sources)
+
+            networks_dict = grepnet.extract_networks(input_sources)
+
+            consolidated_dict = grepnet.consolidate_networks(networks_dict)
             
             # Should have two bare IPs as separate /32 networks
             self.assertEqual(len(consolidated_dict), 2)
@@ -240,7 +246,10 @@ class TestMaskFormatHints(unittest.TestCase):
                 parse_bare_ip='both',
             )
             input_sources = [InputSource('file', file_path=temp_file)]
-            consolidated_dict = grepnet.consolidate_networks(input_sources)
+
+            networks_dict = grepnet.extract_networks(input_sources)
+
+            consolidated_dict = grepnet.consolidate_networks(networks_dict)
             
             # Should have three networks:
             # 1. 192.0.2.0/24 from first line (netmask format)
@@ -273,7 +282,10 @@ class TestMaskFormatHints(unittest.TestCase):
                 parse_bare_ip='both',
             )
             input_sources = [InputSource('file', file_path=temp_file)]
-            consolidated_dict = grepnet.consolidate_networks(input_sources)
+
+            networks_dict = grepnet.extract_networks(input_sources)
+
+            consolidated_dict = grepnet.consolidate_networks(networks_dict)
             
             # Should extract the hostmask pair that matches the pattern
             self.assertEqual(len(consolidated_dict), 1)
@@ -312,7 +324,10 @@ class TestMaskFormatHints(unittest.TestCase):
                 parse_bare_ip='both',
             )
             input_sources = [InputSource('file', file_path=temp_file)]
-            consolidated_dict = grepnet.consolidate_networks(input_sources)
+
+            networks_dict = grepnet.extract_networks(input_sources)
+
+            consolidated_dict = grepnet.consolidate_networks(networks_dict)
             
             # Should parse as: 192.0.2.0/16, 192.0.2.0/24, 255.255.255.255/32
             # Only 255.255.255.255/32 matches the pattern
@@ -345,7 +360,10 @@ class TestMaskFormatHints(unittest.TestCase):
                 parse_bare_ip='both',
             )
             input_sources = [InputSource('file', file_path=temp_file)]
-            consolidated_dict = grepnet.consolidate_networks(input_sources)
+
+            networks_dict = grepnet.extract_networks(input_sources)
+
+            consolidated_dict = grepnet.consolidate_networks(networks_dict)
             
             # All three are hostmask format, all /32 or /24:
             # 1. 192.0.2.0/24 from first line (hostmask 0.0.0.255)
@@ -377,7 +395,10 @@ class TestMaskFormatHints(unittest.TestCase):
                 parse_bare_ip='both',
             )
             input_sources = [InputSource('file', file_path=temp_file)]
-            consolidated_dict = grepnet.consolidate_networks(input_sources)
+
+            networks_dict = grepnet.extract_networks(input_sources)
+
+            consolidated_dict = grepnet.consolidate_networks(networks_dict)
             
             # 0.0.0.0 is now treated as a normal hostmask (MSB=0, inverts to /32)
             # Result: 192.0.2.0/32 (0.0.0.0 inverted to /32)

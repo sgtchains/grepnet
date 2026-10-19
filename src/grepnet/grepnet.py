@@ -167,7 +167,7 @@ class GrepNet:
         # Initialize colorizer at startup (before any matching)
         self.colorizer = Colorizer(enable_colors=enable_colors)
         
-        # Parse patterns
+        # Create parser (initially without filter configuration for pattern parsing)
         self.parser = NetworkParser(
             filter_comments=filter_comments,
             strict_mode=strict_mode,
@@ -181,7 +181,17 @@ class GrepNet:
             scan_mask=scan_mask,
             range_format=range_format,
         )
+        
+        # Parse patterns
         self.parsed_patterns = self._parse_patterns()
+        
+        # Now update parser with filter configuration for extract/consolidate modes
+        self.parser.parsed_patterns = self.parsed_patterns
+        self.parser.exclude_strings = self.exclude_strings
+        self.parser.exclude_cidrs = self.exclude_cidrs
+        self.parser.exclude_cidr_behavior = self.exclude_cidr_behavior
+        self.parser.match_type_filter = self.match_type_filter
+        self.parser.invert_match = self.invert_match
     
     def validate_format_usage(self, use_extract: bool = False, use_consolidate: bool = False) -> None:
         """
@@ -817,35 +827,19 @@ class GrepNet:
             - 'consolidate' mode: dict {network_object -> (ParsedExtraction, line_content)}
         """
         if mode == 'extract':
-            # Extract mode: return deduplicated networks dict (with exclusion filters applied)
+            # Extract mode: return deduplicated networks
+            # parse_line() applies all filtering (pattern matching + exclusion)
             networks_dict = self.extract_networks(input_sources)
-            return self._apply_extraction_filters(networks_dict)
+            return networks_dict
         elif mode == 'consolidate':
-            # Consolidate mode: return consolidated networks dict (with exclusion filters applied)
-            consolidated_dict = self.consolidate_networks(input_sources)
-            return self._apply_extraction_filters(consolidated_dict)
+            # Consolidate mode: extract filtered networks, then consolidate
+            # parse_line() applies all filtering (pattern matching + exclusion)
+            networks_dict = self.extract_networks(input_sources)
+            consolidated_dict = self.consolidate_networks(networks_dict)
+            return consolidated_dict
         else:  # mode == 'normal'
             # Standard mode: stream MatchResult objects
             return self._search_generator(input_sources, yield_all_lines)
-    
-    def _apply_extraction_filters(self, networks_dict: dict) -> dict:
-        """
-        Apply exclusion filters to extraction/consolidation results.
-        
-        This mirrors the filtering applied in normal mode via _is_excluded(),
-        ensuring consistent behavior across all output modes.
-        
-        Args:
-            networks_dict: Dict from extract_networks or consolidate_networks
-        
-        Returns:
-            Filtered dict with excluded networks removed
-        """
-        filtered_dict = {}
-        for net_obj, (parsed_ext, line_content) in networks_dict.items():
-            if not self._check_extraction_excluded(parsed_ext):
-                filtered_dict[net_obj] = (parsed_ext, line_content)
-        return filtered_dict
     
     def _search_generator(self, input_sources: List[InputSource], yield_all_lines: bool = False) -> Iterator[MatchResult]:
         """
@@ -1302,7 +1296,8 @@ class GrepNet:
         Extract and deduplicate networks from input sources.
         
         This is the foundation for both --extract and --consolidate modes.
-        It applies pattern filtering at the network level (not line level).
+        Filtering (pattern matching and exclusion filters) is applied INSIDE
+        parse_line(), so this method only needs to deduplicate.
         
         Returns:
             dict: {network_object -> (ParsedExtraction, line_content)}
@@ -1313,8 +1308,6 @@ class GrepNet:
             Same network appearing in multiple formats/lines is deduplicated.
             ParsedExtraction preserves format_type and matched_texts for output.
         """
-        from ipaddress import ip_network
-        
         networks_dict = {}  # network_obj -> (parsed_extraction, line_content)
         
         for input_source in input_sources:
@@ -1324,26 +1317,12 @@ class GrepNet:
             for line_number, line_content, byte_offset in input_source.lines():
                 line = line_content.rstrip('\n\r')
                 
-                # Extract networks from this line, passing mask format hint
+                # Extract networks from this line
+                # parse_line() now returns ONLY filtered networks (pattern + exclusion filters applied)
                 parsed_extractions = self.parser.parse_line(line, context='input', mask_format_hint=mask_format_hint)
                 
                 for parsed_ext in parsed_extractions:
                     network_obj = parsed_ext.network
-                    
-                    # Apply pattern filtering at network level
-                    match_found = False
-                    for pattern in self.parsed_patterns:
-                        match_type = self._find_match_type(parsed_ext, pattern)
-                        if match_type in self.match_type_filter:
-                            match_found = True
-                            break
-                    
-                    # Handle invert_match
-                    if self.invert_match:
-                        match_found = not match_found
-                    
-                    if not match_found:
-                        continue
                     
                     # Deduplication: Keep ranges as ranges, CIDR as CIDR
                     # (don't convert - this preserves the original format)

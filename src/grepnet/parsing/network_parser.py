@@ -10,7 +10,7 @@ Handles:
 
 from typing import List, Optional, Set
 import re
-from ipaddress import IPv4Address
+from ipaddress import IPv4Address, IPv4Network, IPv6Network
 from .comment_handler import CommentHandler
 from .mask_format_detector import MaskFormatDetector
 from .extractors import (
@@ -22,7 +22,7 @@ from .extractors import (
     IPv6Extractor,
     IPOnlyExtractor,
 )
-from ..core import ParsedExtraction, _RawExtraction
+from ..core import ParsedExtraction, _RawExtraction, MatchType
 
 
 class ExtractorDecisions:
@@ -221,7 +221,7 @@ class NetworkParser:
         Determine if an extractor should be used based on parse control flags.
         
         Args:
-            extractor_type: Type of extractor ('cidr', 'netmask', 'hostmask', 'wildcard', 'range')
+            extractor_type: Type of extractor ('cidr', 'netmask', 'hostmask', 'wildcard', 'range', 'ip_only')
             context: Context ('pattern' or 'input')
         
         Returns:
@@ -261,6 +261,13 @@ class NetworkParser:
             if self.parse_ranges == 'pattern' and context != 'pattern':
                 return False
             if self.parse_ranges == 'input' and context != 'input':
+                return False
+        elif extractor_type == 'ip_only':
+            if self.parse_bare_ip == 'none':
+                return False
+            if self.parse_bare_ip == 'pattern' and context != 'pattern':
+                return False
+            if self.parse_bare_ip == 'input' and context != 'input':
                 return False
         
         return True
@@ -560,7 +567,30 @@ class NetworkParser:
             )
             deduped.append(extraction_with_texts)
         
-        return deduped
+        # Apply filtering (pattern matching and exclusion filters)
+        filtered = []
+        for extraction in deduped:
+            # 1. Check pattern matching (if patterns provided)
+            if self.parsed_patterns:
+                match_found = False
+                for pattern in self.parsed_patterns:
+                    match_type = self._find_match_type(extraction, pattern)
+                    if match_type in self.match_type_filter:
+                        match_found = True
+                        break
+                if self.invert_match:
+                    match_found = not match_found
+                if not match_found:
+                    continue
+            
+            # 2. Check exclusion filters (if provided)
+            if self._is_excluded(extraction):
+                continue
+            
+            # Network passed all filters
+            filtered.append(extraction)
+        
+        return filtered
     
     def parse_text(self, text: str) -> List[tuple]:
         """
@@ -578,3 +608,262 @@ class NetworkParser:
             if extractions:
                 results.append((line_num, line, extractions))
         return results
+    
+    def _find_match_type(self, file_extraction: 'ParsedExtraction', pattern_extraction: 'ParsedExtraction'):
+        """
+        Determine the type of match between a file network and a pattern network.
+        
+        This is used by parse_line() for pattern filtering in extract/consolidate modes.
+        
+        Returns MatchType: EQUALS, SUBSET, SUPERSET, OVERLAP, or None
+        """
+        file_net = file_extraction.network
+        pattern_net = pattern_extraction.network
+        
+        # Determine if each is a range or CIDR
+        file_is_range = isinstance(file_net, tuple)
+        pattern_is_range = isinstance(pattern_net, tuple)
+        
+        # Both are range tuples
+        if file_is_range and pattern_is_range:
+            file_start, file_end = file_net
+            pattern_start, pattern_end = pattern_net
+            if file_start == pattern_start and file_end == pattern_end:
+                return MatchType.EQUALS
+            elif file_start >= pattern_start and file_end <= pattern_end:
+                return MatchType.SUBSET
+            elif file_start <= pattern_start and file_end >= pattern_end:
+                return MatchType.SUPERSET
+            else:
+                # Check for overlap
+                if not (file_end < pattern_start or file_start > pattern_end):
+                    return MatchType.OVERLAP
+            return None
+        
+        # Both are CIDR networks
+        if not file_is_range and not pattern_is_range:
+            try:
+                if file_net == pattern_net:
+                    return MatchType.EQUALS
+                elif file_net.subnet_of(pattern_net):
+                    return MatchType.SUBSET
+                elif pattern_net.subnet_of(file_net):
+                    return MatchType.SUPERSET
+                elif file_net.overlaps(pattern_net):
+                    return MatchType.OVERLAP
+            except (AttributeError, TypeError):
+                pass
+            return None
+        
+        # Cross-type: convert to ranges and compare
+        try:
+            if file_is_range:
+                file_start, file_end = file_net
+                pattern_start = int(pattern_net.network_address)
+                pattern_end = int(pattern_net.broadcast_address)
+            else:
+                file_start = int(file_net.network_address)
+                file_end = int(file_net.broadcast_address)
+                pattern_start, pattern_end = pattern_net
+            
+            # Compare as ranges
+            if file_start == pattern_start and file_end == pattern_end:
+                return MatchType.EQUALS
+            elif file_start >= pattern_start and file_end <= pattern_end:
+                return MatchType.SUBSET
+            elif file_start <= pattern_start and file_end >= pattern_end:
+                return MatchType.SUPERSET
+            else:
+                # Check for overlap
+                if not (file_end < pattern_start or file_start > pattern_end):
+                    return MatchType.OVERLAP
+        except (AttributeError, TypeError):
+            pass
+        
+        return None
+    
+    def _is_excluded(self, extraction: 'ParsedExtraction') -> bool:
+        """
+        Check if a ParsedExtraction should be excluded based on exclusion filters.
+        
+        Args:
+            extraction: ParsedExtraction to check
+        
+        Returns:
+            True if the extraction should be excluded
+        """
+        if not extraction:
+            return False
+        
+        # Check exclude-string filter (PCRE regex matching against matched_texts)
+        if self.exclude_strings:
+            for exclude_pattern_str in self.exclude_strings:
+                try:
+                    exclude_regex = re.compile(exclude_pattern_str)
+                    # Check each original text variation in matched_texts
+                    for text_entry in extraction.matched_texts:
+                        matched_text = text_entry['text']
+                        if exclude_regex.search(matched_text):
+                            return True
+                except re.error:
+                    pass
+        
+        # Check exclude-cidr filter (network-based exclusions)
+        if self.exclude_cidrs:
+            file_network = extraction.network
+            for exclude_net in self.exclude_cidrs:
+                if self._check_cidr_exclusion(file_network, exclude_net):
+                    return True
+        
+        return False
+    
+    def _check_cidr_exclusion(self, file_network, exclude_net) -> bool:
+        """
+        Check if a file network should be excluded based on CIDR exclusion behavior.
+        Supports: 'subset', 'subset-strict', 'superset', 'superset-strict', 'equals', 'related', 'cut'
+        """
+        file_is_cidr = isinstance(file_network, (IPv4Network, IPv6Network))
+        exclude_is_cidr = isinstance(exclude_net, (IPv4Network, IPv6Network))
+        
+        try:
+            if self.exclude_cidr_behavior == 'subset':
+                # Exclude if file network is a subset of (or equal to) exclude network
+                if file_is_cidr and exclude_is_cidr:
+                    return file_network.subnet_of(exclude_net) or file_network == exclude_net
+                elif not file_is_cidr and not exclude_is_cidr:
+                    file_start, file_end = file_network
+                    exclude_start, exclude_end = exclude_net
+                    return file_start >= exclude_start and file_end <= exclude_end
+                else:
+                    if file_is_cidr:
+                        file_start = int(file_network.network_address)
+                        file_end = int(file_network.broadcast_address)
+                        exclude_start, exclude_end = exclude_net
+                    else:
+                        file_start, file_end = file_network
+                        exclude_start = int(exclude_net.network_address)
+                        exclude_end = int(exclude_net.broadcast_address)
+                    return file_start >= exclude_start and file_end <= exclude_end
+            
+            elif self.exclude_cidr_behavior == 'subset-strict':
+                # Exclude if file network is a STRICT subset of exclude network (no equality)
+                if file_is_cidr and exclude_is_cidr:
+                    return file_network.subnet_of(exclude_net) and file_network != exclude_net
+                elif not file_is_cidr and not exclude_is_cidr:
+                    file_start, file_end = file_network
+                    exclude_start, exclude_end = exclude_net
+                    return (file_start >= exclude_start and file_end <= exclude_end and
+                            not (file_start == exclude_start and file_end == exclude_end))
+                else:
+                    if file_is_cidr:
+                        file_start = int(file_network.network_address)
+                        file_end = int(file_network.broadcast_address)
+                        exclude_start, exclude_end = exclude_net
+                    else:
+                        file_start, file_end = file_network
+                        exclude_start = int(exclude_net.network_address)
+                        exclude_end = int(exclude_net.broadcast_address)
+                    return (file_start >= exclude_start and file_end <= exclude_end and
+                            not (file_start == exclude_start and file_end == exclude_end))
+            
+            elif self.exclude_cidr_behavior == 'superset':
+                # Exclude if file network is a superset of (or equal to) exclude network
+                if file_is_cidr and exclude_is_cidr:
+                    return exclude_net.subnet_of(file_network) or file_network == exclude_net
+                elif not file_is_cidr and not exclude_is_cidr:
+                    file_start, file_end = file_network
+                    exclude_start, exclude_end = exclude_net
+                    return exclude_start >= file_start and exclude_end <= file_end
+                else:
+                    if file_is_cidr:
+                        file_start = int(file_network.network_address)
+                        file_end = int(file_network.broadcast_address)
+                        exclude_start, exclude_end = exclude_net
+                    else:
+                        file_start, file_end = file_network
+                        exclude_start = int(exclude_net.network_address)
+                        exclude_end = int(exclude_net.broadcast_address)
+                    return exclude_start >= file_start and exclude_end <= file_end
+            
+            elif self.exclude_cidr_behavior == 'superset-strict':
+                # Exclude if file network is a STRICT superset of exclude network (no equality)
+                if file_is_cidr and exclude_is_cidr:
+                    return exclude_net.subnet_of(file_network) and file_network != exclude_net
+                elif not file_is_cidr and not exclude_is_cidr:
+                    file_start, file_end = file_network
+                    exclude_start, exclude_end = exclude_net
+                    return (exclude_start >= file_start and exclude_end <= file_end and
+                            not (file_start == exclude_start and file_end == exclude_end))
+                else:
+                    if file_is_cidr:
+                        file_start = int(file_network.network_address)
+                        file_end = int(file_network.broadcast_address)
+                        exclude_start, exclude_end = exclude_net
+                    else:
+                        file_start, file_end = file_network
+                        exclude_start = int(exclude_net.network_address)
+                        exclude_end = int(exclude_net.broadcast_address)
+                    return (exclude_start >= file_start and exclude_end <= file_end and
+                            not (file_start == exclude_start and file_end == exclude_end))
+            
+            elif self.exclude_cidr_behavior == 'equals':
+                # Exclude if networks are equal
+                if file_is_cidr and exclude_is_cidr:
+                    return file_network == exclude_net
+                else:
+                    if file_is_cidr:
+                        file_start = int(file_network.network_address)
+                        file_end = int(file_network.broadcast_address)
+                        exclude_start, exclude_end = exclude_net
+                    else:
+                        file_start, file_end = file_network
+                        exclude_start = int(exclude_net.network_address)
+                        exclude_end = int(exclude_net.broadcast_address)
+                    return file_start == exclude_start and file_end == exclude_end
+            
+            elif self.exclude_cidr_behavior == 'related':
+                # Exclude if networks overlap or have subset/superset relationship
+                if file_is_cidr and exclude_is_cidr:
+                    return (file_network.overlaps(exclude_net) or 
+                            exclude_net.overlaps(file_network) or
+                            file_network.subnet_of(exclude_net) or
+                            exclude_net.subnet_of(file_network) or
+                            file_network == exclude_net)
+                elif not file_is_cidr and not exclude_is_cidr:
+                    file_start, file_end = file_network
+                    exclude_start, exclude_end = exclude_net
+                    # Ranges overlap if: file_start <= exclude_end AND file_end >= exclude_start
+                    return file_start <= exclude_end and file_end >= exclude_start
+                else:
+                    if file_is_cidr:
+                        file_start = int(file_network.network_address)
+                        file_end = int(file_network.broadcast_address)
+                        exclude_start, exclude_end = exclude_net
+                    else:
+                        file_start, file_end = file_network
+                        exclude_start = int(exclude_net.network_address)
+                        exclude_end = int(exclude_net.broadcast_address)
+                    return file_start <= exclude_end and file_end >= exclude_start
+            
+            elif self.exclude_cidr_behavior == 'cut':
+                # 'cut' behavior: same as 'subset' (for now, actual cutting happens elsewhere)
+                if file_is_cidr and exclude_is_cidr:
+                    return file_network.subnet_of(exclude_net) or file_network == exclude_net
+                elif not file_is_cidr and not exclude_is_cidr:
+                    file_start, file_end = file_network
+                    exclude_start, exclude_end = exclude_net
+                    return file_start >= exclude_start and file_end <= exclude_end
+                else:
+                    if file_is_cidr:
+                        file_start = int(file_network.network_address)
+                        file_end = int(file_network.broadcast_address)
+                        exclude_start, exclude_end = exclude_net
+                    else:
+                        file_start, file_end = file_network
+                        exclude_start = int(exclude_net.network_address)
+                        exclude_end = int(exclude_net.broadcast_address)
+                    return file_start >= exclude_start and file_end <= exclude_end
+        except (AttributeError, TypeError, ValueError):
+            pass
+        
+        return False

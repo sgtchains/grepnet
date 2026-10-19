@@ -55,8 +55,9 @@ class TestConsolidation(unittest.TestCase):
             # Create input source from file
             input_source = InputSource('file', file_path=temp_file)
             
-            # Consolidate
-            consolidated_dict = grepnet.consolidate_networks([input_source])
+            # Extract networks first, then consolidate
+            networks_dict = grepnet.extract_networks([input_source])
+            consolidated_dict = grepnet.consolidate_networks(networks_dict)
             
             # Extract and sort network strings
             result = sorted([str(net) for net in consolidated_dict.keys()])
@@ -194,7 +195,8 @@ class TestFormatIps(unittest.TestCase):
             )
             
             input_source = InputSource('file', file_path=temp_file)
-            consolidated_dict = grepnet.consolidate_networks([input_source])
+            networks_dict = grepnet.extract_networks([input_source])
+            consolidated_dict = grepnet.consolidate_networks(networks_dict)
             
             # Collect all IPs
             ips = []
