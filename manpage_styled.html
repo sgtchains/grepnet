@@ -60,15 +60,19 @@
             font-family: inherit;
         }
         
-        /* grepnet color codes */
-        .color-equals { color: #58a6ff; font-weight: bold; }      /* bright blue */
-        .color-subset { color: #58a6ff; font-weight: bold; }      /* bright blue */
-        .color-superset { color: #ffd700; font-weight: bold; }    /* bright yellow */
-        .color-overlap { color: #ff5555; font-weight: bold; }     /* bright red */
-        .color-unmatched { color: #c9d1d9; }                      /* no color */
-        .color-normalized { text-decoration: underline; }          /* underline */
-        .color-line-num { color: #7ee787; }                       /* green */
-        .color-context { color: #8b949e; }                        /* gray */
+        /* grepnet color codes based on GREPNET_COLORS */
+        .color-equals { color: #58a6ff; font-weight: bold; }           /* bright blue - 01;34 */
+        .color-subset { color: #58a6ff; font-weight: bold; }           /* bright blue - 01;34 */
+        .color-superset { color: #ffd700; font-weight: bold; }         /* bright yellow - 01;33 */
+        .color-overlap { color: #ff5555; font-weight: bold; }          /* bright red - 01;31 */
+        .color-unmatched { color: #c9d1d9; }                           /* no color */
+        .color-normalized { text-decoration: underline; }              /* underline - 04 */
+        .color-wildcard-mask { 
+            text-decoration: underline wavy #c9d1d9;                   /* curly underline - 4:3 */
+            text-decoration-style: wavy;
+        }
+        .color-line-num { color: #7ee787; }                            /* green - 32 */
+        .color-context { color: #8b949e; }                             /* gray */
         
         .markdown-body strong {
             color: #0366d6;
