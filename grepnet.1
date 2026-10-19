@@ -718,15 +718,15 @@ Must explicitly enable with
 Scope boundary for wildcard mask detection (default: not set; disables
 wildcard parsing) - Only wildcard masks whose mask value (second IP)
 falls within this CIDR block are recognized as valid - Format: Standard
-CIDR notation (e.g., \f[V]10.0.0.0/8\f[R], \f[V]172.16.0.0/12\f[R]) -
+CIDR notation (e.g., \f[V]0.0.0.0/8\f[R], \f[V]0.0.0.0/16\f[R]) -
 Prevents false positives by restricting which mask patterns are treated
 as wildcard masks - Must be narrower than \f[V]/0\f[R] (rejects
 \f[V]0.0.0.0/0\f[R] as too broad to be useful) - Example:
-\f[V]--wildcard-search 10.0.0.0/8\f[R] recognizes wildcard masks where
-the mask value falls in the 10.0.0.0/8 range - \f[B]Combined with
+\f[V]--wildcard-search 0.0.0.0/8\f[R] recognizes wildcard masks where
+the mask value falls in the 0.0.0.0/8 range - \f[B]Combined with
 \f[VB]--parse-wildcard\f[B]\f[R]: Both flags are required to enable
 wildcard mask parsing - Typical usage:
-\f[V]grepnet --parse-wildcard both --wildcard-search 10.0.0.0/8 pattern.txt\f[R]
+\f[V]grepnet --parse-wildcard both --wildcard-search 0.0.0.0/8 pattern.txt\f[R]
 .TP
 \f[B]\f[VB]--scan-mask\f[B]\f[R] {\f[B]pattern\f[R]|\f[B]input\f[R]|\f[B]both\f[R]|\f[B]none\f[R]}
 Detect netmask vs hostmask format hints from file content (default:

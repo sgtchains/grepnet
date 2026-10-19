@@ -772,7 +772,7 @@ def run():
             # Reject overly broad scopes (0.0.0.0/0)
             if wildcard_search_scope == IPv4Network('0.0.0.0/0'):
                 if not args.no_messages:
-                    print('grepnet: error: --wildcard-search scope 0.0.0.0/0 is too broad (would match any IP pair as wildcard mask). Use a more specific CIDR like 10.0.0.0/8', file=sys.stderr)
+                    print('grepnet: error: --wildcard-search scope 0.0.0.0/0 is too broad (would match any IP pair as wildcard mask). Use a more specific CIDR like 0.0.0.0/8', file=sys.stderr)
                 sys.exit(2)
         except ValueError as e:
             if not args.no_messages:
